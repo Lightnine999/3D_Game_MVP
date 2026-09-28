@@ -535,8 +535,10 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 리스크 | 영향 | 대응 |
 |---|---|---|
 | 볼류메트릭 안개 미지원 (Mobile 렌더러) | 분위기 약화 | 거리·높이 안개 + 안개 판 + 어두운 조명으로 1일차에 분위기 검증 |
-| Blender 5.x `bpy` API 변경 | 스크립트 오류 | 문서 조회 후 작은 스크립트부터 검증 |
+| Blender 5.x `bpy` API 변경 | 스크립트 오류 | 문서 조회 후 작은 스크립트부터 검증. **WU-04 확인**: 렌더 엔진은 `BLENDER_EEVEE`(4.x의 `_NEXT` 아님), glTF는 `export_scene.gltf(export_format="GLB")` 동작, 연산자 enum은 동적이라 `bl_rna`로 목록이 안 보이므로 실행해서 확인 (`docs/evidence/WU-04/`) |
 | 저가형 폰 성능 부족 | 버벅임, 이탈 | 폴리곤 예산 자동 검사, 오브젝트 풀, 좀비 수 상한, 품질 옵션 |
+| adb 연결 끊김·권한 | 설치·로그 확인 불가 | 폰에서 "이 컴퓨터에서 항상 허용" 체크. 삼성 보안 폴더 때문에 `pm` 명령은 `--user 0` 사용. 실행은 `am start -n <패키지>/com.godot.game.GodotAppLauncher` (WU-04) |
+| 조명·안개가 소품 색을 바꿈 | 의도한 색이 안 보임 (WU-04에서 갈색 상자가 회색으로 보임) | STYLE.md에서 달빛·안개 색과 팔레트를 함께 정하고 폰 화면으로 확인 (WU-10, WU-13) |
 | Mixamo 모델이 다른 게임과 비슷함 | 차별성 부족 | MVP 이후 콘셉트 → AI 3D 생성 → Mixamo 리깅으로 교체 |
 | 테스터 12명 × 14일 미달 | 정식 출시 지연 | 15-20명 사전 모집, 참여 유지 안내 |
 | 배경음 AI 도구 라이선스 | 출시 후 분쟁 | 출시 전 약관 확인, 필요 시 CC0 음원으로 교체 |
@@ -565,6 +567,7 @@ game_state ── 이벤트 발행 ──→ mission_system
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.2.3 | 2026-09-28 | WU-04 파이프라인 시험 결과를 14장 리스크에 반영 (Blender 5.2 API, adb 권한, 조명에 의한 색 변화) |
 | v0.2.2 | 2026-09-28 | 테스트 기기 Galaxy S24 Ultra 확정, 성능 목표 60fps + 중급 기기 30fps 기준, 발열 기준 추가 (Q1) |
 | v0.2.1 | 2026-09-28 | 도구 설치 결과(3.1) 반영, Q6 저장소 독립 분리 결정 (11.3) |
 | v0.2 | 2026-09-28 | PRD v0.2 반영 — D8 수정(앱 구글 결제 + 웹 토스 테스트 결제), D11 카메라 Keep Height, D12 미션 데이터 분리, 6.1.1 깊이감 층, 모듈(camera_rig·obstacle·mission_system·stage_data), 6.3.1 미션 판정, 테이블(toss_orders·mission_progress), Edge Function(create-toss-order·confirm-toss-payment), 8.5 토스 흐름·보안 규칙, 비밀 키 2종, 13.1 3인 팀 역할 |
