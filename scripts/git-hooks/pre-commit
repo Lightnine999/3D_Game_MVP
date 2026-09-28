@@ -49,7 +49,7 @@ EOF
 # ── 2. 새로 추가되는 줄 안의 비밀 키 패턴 ───────────────────────
 # 문서에 적힌 "test_sk_..." 같은 설명은 통과하도록 실제 키 길이까지 요구한다.
 secret_patterns=(
-  'AIza[0-9A-Za-z_-]{35}'                                  # Google / Gemini API 키
+  'AIza[0-9A-Za-z_-]{35}'                                  # Google API 키
   '(test|live)_(sk|gsk)_[0-9A-Za-z]{16,}'                  # 토스페이먼츠 시크릿 키
   'sb_secret_[0-9A-Za-z_-]{16,}'                           # Supabase 시크릿 키
   'service_role[^\n]{0,20}eyJ[0-9A-Za-z_-]{20,}'           # Supabase service role JWT

@@ -55,6 +55,7 @@
 | D13 | 문의·제보 채팅 **OpenAI API를 Edge Function에서 호출** | API 키를 서버에만 두고, 사용량 제한·대화 저장·제보 정리를 한 곳에서 처리 (PRD 4.13) | 게임에서 OpenAI 직접 호출 — 키 노출 |
 | D15 | 관리자 **Supabase 관리 화면(Studio) + 관리자 역할 + 전용 보기(뷰)** | 마감 72시간 안에 관리자 웹 페이지를 새로 만들면 C가 과부하. Studio는 표 조회·수정·검색을 이미 제공하므로 권한(RLS)과 보기만 만든다 (PRD 4.14) | 전용 관리자 웹 페이지 — 약 3시간 추가 (P2) |
 | D16 | 협업 **기능 단위 소유 + 약속서 + 가짜 부품 + 하루 두 번 조립** | 한 기능의 장면·스크립트·DB 표·서버 함수를 한 사람이 맡아 파일 충돌을 막고, 담당 간 경계는 CONTRACTS.md의 약속(이름·신호·크기)으로만 연결한다. 기다리지 않도록 가짜 부품으로 먼저 만들고 같은 이름으로 교체한다 | 업무 종류별 분담(장면은 C, 스크립트는 B 등) — 같은 파일 동시 수정으로 충돌 |
+| D17 | 콘셉트 아트 **OpenAI 이미지 생성** (나노바나나/Gemini 대신) | 채팅과 같은 OpenAI 계정 하나로 통일해 가입·결제·한도 관리가 한 곳에서 끝난다. 단 **키는 용도별로 분리**(콘셉트용 = 로컬 `.env`, 채팅용 = Supabase Secrets)해 한쪽이 새어도 다른 쪽은 안전하고 사용량도 따로 보인다 | 나노바나나(Gemini) — 계정·키를 하나 더 관리해야 함 |
 | D14 | 앱 결제 결과 **폰 브라우저 결제 + 앱 복귀 시 서버 조회** | Godot에는 기본 인앱 웹뷰가 없다. 결제는 시스템 브라우저에서 하고, 앱으로 돌아오면(`NOTIFICATION_APPLICATION_RESUMED`) 서버의 주문 상태를 조회해 반영한다. 결제창 표시를 믿지 않으므로 보안상으로도 유리 | 인앱 웹뷰 플러그인 — 추가 의존성·호환성 위험 / 딥링크 — Gradle 빌드·매니페스트 수정 필요 |
 
 ---
@@ -67,7 +68,7 @@
 | 게임 엔진 | Godot | **4.7.2 stable** | ✅ 설치됨 (`/opt/homebrew/bin/godot`), 내보내기 템플릿 4.7.2 설치됨 | Claude |
 | 스크립트 언어 | GDScript | Godot 번들 | - | Claude |
 | 3D 모델링 | Blender (headless, Python `bpy`) | 5.2.2 LTS | ✅ 설치됨 (`/opt/homebrew/bin/blender`) | Claude |
-| 콘셉트 아트 | 나노바나나 (Gemini 이미지 생성 API) | - | API 키 필요 | Claude (키 설정은 사용자) |
+| 콘셉트 아트 | OpenAI 이미지 생성 API | 모델은 구현 시 공식 문서로 확인 | API 키 필요 (`.env`의 `OPENAI_API_KEY`) | Claude (키 설정은 사용자) |
 | 캐릭터·모션 | Mixamo (Adobe) | - | Adobe 계정 필요 | 다운로드는 사용자, 정리는 Claude |
 | 테스트 프레임워크 | GUT (Godot Unit Test) | Godot 4 호환판 | 미설치 | Claude |
 | Android 빌드 | OpenJDK 17, Android SDK (platform-tools, build-tools 35.0.1, platforms android-35, cmdline-tools, cmake 3.10.2.4988404, ndk 28.1.13356709) | Godot 4.7 공식 문서 요구 버전 | ✅ 설치됨 (`JAVA_HOME`, `ANDROID_HOME`은 `~/.zshrc`에 등록) | Claude |
@@ -84,10 +85,10 @@
 ### 3.2 에셋 출처
 | 에셋 | 1순위 | 2순위 | 라이선스 조건 |
 |---|---|---|---|
-| 콘셉트 이미지 | 나노바나나 | - | 생성 이미지 이용 약관 확인 |
+| 콘셉트 이미지 | OpenAI 이미지 생성 | - | OpenAI 이용 약관(생성물 상업 이용) 확인 |
 | 배경·소품 | Blender 스크립트 | CC0 에셋 (Kenney, Quaternius, Poly Pizza) | CC0 |
 | 무기 (총·칼) | CC0 에셋 | Blender 스크립트 | CC0 (받기 전 출처·라이선스 확인) |
-| 좀비 캐릭터·모션 | Mixamo | 나노바나나 → AI 3D 생성(Tripo/Meshy) → Mixamo 자동 리깅 (MVP 이후) | Mixamo: 게임 내 사용 무료, **원본 파일 재배포 금지** |
+| 좀비 캐릭터·모션 | Mixamo | OpenAI 콘셉트 → AI 3D 생성(Tripo/Meshy) → Mixamo 자동 리깅 (MVP 이후) | Mixamo: 게임 내 사용 무료, **원본 파일 재배포 금지** |
 | 효과음 | Kenney 오디오 (CC0) | freesound.org | 파일별 라이선스 확인 (CC0 우선, CC-BY는 크레딧 표기) |
 | 배경음 | AI 음악 도구 (예: Suno) | CC0 음원 | **무료 요금제는 상업 이용 불가일 수 있음 → 출시 전 확인** |
 
@@ -100,7 +101,7 @@
 ```
 ┌──────────────────────── 에셋 파이프라인 (로컬, 명령줄) ────────────────────────┐
 │                                                                              │
-│  나노바나나 ──→ art/concept/*.png (분위기 정답지)                               │
+│  OpenAI 이미지 ──→ art/concept/*.png (분위기 정답지)                            │
 │                                                                              │
 │  Blender 스크립트 ─┐                                                          │
 │  CC0 무기 에셋 ────┼──→ Blender 정리 스크립트 ──→ 자동 검사 ──→ *.glb            │
@@ -141,7 +142,7 @@
 ### 5.1 단계
 | 단계 | 입력 | 처리 | 출력 | 실행 |
 |---|---|---|---|---|
-| 1. 콘셉트 | 프롬프트 | 나노바나나 이미지 생성 | `art/concept/*.png` | API 스크립트 |
+| 1. 콘셉트 | 프롬프트 | OpenAI 이미지 생성 | `art/concept/*.png` | API 스크립트 (`tools/assets/`) |
 | 2. 생성 | 파라미터 | Blender 모델 생성 스크립트 | `.blend` (중간 산출물) | `blender -b -P art/blender/make_*.py -- <옵션>` |
 | 3. 가져오기 | Mixamo FBX, CC0 에셋 | Blender 정리 스크립트 (크기·원점·이름 통일, 폴리곤 감소) | `.blend` | `blender -b -P art/blender/import_*.py -- <파일>` |
 | 4. 미리보기 | `.blend` | 4방향 렌더 + 애니메이션 프레임 모음 이미지 | `art/previews/*.png` | `blender -b -P art/blender/render_preview.py` |
@@ -496,7 +497,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 ### 9.5 스토어 등록 자료
 | 항목 | 준비 방법 |
 |---|---|
-| 아이콘 512×512, 대표 이미지 1024×500 | 나노바나나 시안 → 정리 |
+| 아이콘 512×512, 대표 이미지 1024×500 | OpenAI 이미지 시안 → 정리 |
 | 스크린샷 | Godot 게임 화면 자동 캡처 |
 | 개인정보처리방침 URL | 정적 페이지 (blog_ggg 또는 Vercel) |
 | 데이터 보안 양식 | Supabase 저장 항목(익명 ID, 이메일, 구매 기록, 채팅·제보 내용, 기기 모델) 기준으로 작성 |
@@ -553,7 +554,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 │   └── check_setup.sh       (C) 팀원 컴퓨터 도구 설치 점검
 ├── art/                     (A)
 │   ├── STYLE.md             # 아트 규칙서 (팔레트, 비율, 분위기)
-│   ├── concept/             # 나노바나나 콘셉트 이미지
+│   ├── concept/             # OpenAI 콘셉트 이미지
 │   ├── blender/
 │   │   ├── lib/             # 공통 함수 (재질, 검사, 내보내기)
 │   │   ├── make_*.py        # 모델 생성 (make_placeholders.py = 가짜 부품)
@@ -595,14 +596,14 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 
 | 비밀 | 저장 위치 | 사용처 |
 |---|---|---|
-| Gemini API 키 | 로컬 `.env` | 콘셉트 이미지 생성 스크립트 |
+| OpenAI API 키 (콘셉트용) | 로컬 `.env` (`OPENAI_API_KEY`) | 콘셉트 이미지 생성 스크립트 (A) |
 | Supabase URL, anon key | 게임 빌드 설정 | 클라이언트 (공개돼도 되는 키. RLS로 보호) |
 | Supabase service role key | Supabase Secrets | Edge Functions만 |
 | Google Play 서비스 계정 JSON | Supabase Secrets (+ 업로드 자동화 시 로컬 `.env` 경로) | 구매 검증, 업로드 자동화 |
 | 업로드 키스토어·비밀번호 | 저장소 밖 + 백업, 비밀번호는 환경변수 | Android 서명 |
 | 토스 테스트 클라이언트 키 (`test_ck_`) | 웹 빌드 설정 | 브라우저 결제위젯 초기화 (공개돼도 되는 키) |
 | 토스 테스트 시크릿 키 (`test_sk_`) | Supabase Secrets | `confirm-toss-payment`만 |
-| OpenAI API 키 | Supabase Secrets | `support-chat`만 |
+| OpenAI API 키 (채팅용, **콘셉트용과 별도 키**) | Supabase Secrets | `support-chat`만 |
 
 - 비밀 값은 채팅·문서·커밋에 적지 않는다. 사용자가 `.env`에 직접 입력한다.
 - 코드는 환경변수가 없으면 즉시 오류를 내고 멈춘다.
@@ -666,7 +667,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | 스크립트·코드·씬·SQL 작성 | ✅ | - |
 | 명령줄 실행 (Blender, Godot, 빌드, 테스트) | ✅ | 도구 설치 허락 |
 | 결과 확인 (렌더·스크린샷) | ✅ | 스타일·재미 피드백 |
-| 계정 생성·로그인·결제·키 발급 | ❌ | ✅ Play Console, 결제 프로필, Adobe, Gemini, Supabase |
+| 계정 생성·로그인·결제·키 발급 | ❌ | ✅ Play Console, 결제 프로필, Adobe, OpenAI, Supabase, 토스 |
 | Mixamo 다운로드 | 목록 정리 | ✅ 다운로드 |
 | Play Console 업로드·상품 등록·테스터 관리 | 입력 내용 정리 | ✅ |
 | 외부 에셋 다운로드 | 출처·파일명·용량 안내 | ✅ 허락 |
@@ -721,6 +722,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.4.1 | 2026-09-29 | 콘셉트 아트를 나노바나나(Gemini) → OpenAI 이미지 생성으로 변경 (D17), 키 이름 `OPENAI_API_KEY`, 콘셉트용·채팅용 키 분리 |
 | v0.4 | 2026-09-29 | PRD v0.4 반영 — D15 관리자 = Supabase Studio + 역할 + 보기, D16 기능 단위 소유·약속서·가짜 부품·하루 두 번 조립. 6.2·11.1 폴더에 소유자 표기(tools/assets·tools/build 분리, scenes/fx·debug 추가), 모듈 session·test_panel·far_layers, profiles.role·admin 보기·기능별 마이그레이션 파일, delete-account 함수, 7.6 관리자, 12.1 보안 점검표(S1 - S8), 13.1 파일 소유권·공동 파일 주인·협업 규칙, 리스크 갱신, Q10 |
 | v0.3 | 2026-09-28 | PRD v0.3 반영 — 일정(내부 10/1 24:00, 최종 10/2 10:00), D8 수정(마감 전 웹·앱 토스 테스트 결제), D9 이메일+게스트 인증, D13 OpenAI 채팅, D14 앱 결제 복귀 조회, 모듈(auth_client·payment_client·support_chat), 테이블(support_threads·support_messages·bug_context·chat_usage), support-chat 함수, 7.4 인증 흐름, 7.5 채팅 흐름, 8.5 웹·앱 공통 결제 흐름, 역할 재배정, 리스크 5건, Q8·Q9 |
 | v0.2.3 | 2026-09-28 | WU-04 파이프라인 시험 결과를 14장 리스크에 반영 (Blender 5.2 API, adb 권한, 조명에 의한 색 변화) |
