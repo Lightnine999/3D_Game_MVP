@@ -7,7 +7,7 @@
 | 상태 | DRAFT (검토 중) |
 | 가칭 | 3D_Game_MVP (정식 게임명 미정) |
 | 레퍼런스 게임 | Into the Dead (PikPok) — 1인칭 자동 달리기 좀비 생존 |
-| 관련 문서 | `README.md`, `DevelopDoc/PRD.md`, `DevelopDoc/CONTRACTS.md`, `DevelopDoc/WORK_UNITS.md`, `DevelopDoc/FINAL_CHECKLIST.md` |
+| 관련 문서 | `README.md`, `DevelopDoc/PRD.md`, `DevelopDoc/WORK_UNITS.md`, `DevelopDoc/FINAL_CHECKLIST.md` |
 
 > 이 문서는 **무엇으로(도구) 어떻게(구조·규칙) 만드는가**를 정한다.
 > **무엇을 만드는가(게임 기획·기능 범위)**는 `PRD.md`에서 정한다.
@@ -54,7 +54,7 @@
 | D12 | 미션 **데이터 분리 (Resource)** | 스테이지 추가 시 코드 수정 없이 미션만 추가 (PRD F-95) | 미션을 코드에 직접 작성 |
 | D13 | 문의·제보 채팅 **OpenAI API를 Edge Function에서 호출** | API 키를 서버에만 두고, 사용량 제한·대화 저장·제보 정리를 한 곳에서 처리 (PRD 4.13) | 게임에서 OpenAI 직접 호출 — 키 노출 |
 | D15 | 관리자 **Supabase 관리 화면(Studio) + 관리자 역할 + 전용 보기(뷰)** | 마감 72시간 안에 관리자 웹 페이지를 새로 만들면 C가 과부하. Studio는 표 조회·수정·검색을 이미 제공하므로 권한(RLS)과 보기만 만든다 (PRD 4.14) | 전용 관리자 웹 페이지 — 약 3시간 추가 (P2) |
-| D16 | 협업 **기능 단위 소유 + 약속서 + 가짜 부품 + 하루 두 번 조립** | 한 기능의 장면·스크립트·DB 표·서버 함수를 한 사람이 맡아 파일 충돌을 막고, 담당 간 경계는 CONTRACTS.md의 약속(이름·신호·크기)으로만 연결한다. 기다리지 않도록 가짜 부품으로 먼저 만들고 같은 이름으로 교체한다 | 업무 종류별 분담(장면은 C, 스크립트는 B 등) — 같은 파일 동시 수정으로 충돌 |
+| D16 | 협업 **기능 단위 소유 + 연결 규칙 + 가짜 부품 + 하루 두 번 조립** | 한 기능의 장면·스크립트·DB 표·서버 함수를 한 사람이 맡아 파일 충돌을 막고, 담당 간 경계는 13.3 연결 규칙(이름·신호·크기)으로만 연결한다. 기다리지 않도록 가짜 부품으로 먼저 만들고 같은 이름으로 교체한다 | 업무 종류별 분담(장면은 C, 스크립트는 B 등) — 같은 파일 동시 수정으로 충돌 |
 | D17 | 콘셉트 아트 **OpenAI 이미지 생성** (나노바나나/Gemini 대신) | 채팅과 같은 OpenAI 계정 하나로 통일해 가입·결제·한도 관리가 한 곳에서 끝난다. 단 **키는 용도별로 분리**(콘셉트용 = 로컬 `.env`, 채팅용 = Supabase Secrets)해 한쪽이 새어도 다른 쪽은 안전하고 사용량도 따로 보인다 | 나노바나나(Gemini) — 계정·키를 하나 더 관리해야 함 |
 | D14 | 앱 결제 결과 **폰 브라우저 결제 + 앱 복귀 시 서버 조회** | Godot에는 기본 인앱 웹뷰가 없다. 결제는 시스템 브라우저에서 하고, 앱으로 돌아오면(`NOTIFICATION_APPLICATION_RESUMED`) 서버의 주문 상태를 조회해 반영한다. 결제창 표시를 믿지 않으므로 보안상으로도 유리 | 인앱 웹뷰 플러그인 — 추가 의존성·호환성 위험 / 딥링크 — Gradle 빌드·매니페스트 수정 필요 |
 
@@ -166,7 +166,7 @@
 | 텍스처 | 최대 1024×1024, Godot에서 VRAM 압축(ETC2/ASTC) |
 | 재질 | 로우폴리 단색/팔레트 텍스처 우선, 재질 수 최소화 |
 | 파일 이름 | `소문자_스네이크케이스` — 예: `zombie_walker.glb`, `prop_barn.glb`, `weapon_pistol.glb` |
-| 접두사 | `zombie_` 좀비 / `prop_` 소품 / `obs_` 장애물 / `env_` 지형 타일 / `weapon_` 무기 / `fx_` 이펙트 (전체 목록: CONTRACTS ①-2) |
+| 접두사 | `zombie_` 좀비 / `prop_` 소품 / `obs_` 장애물 / `env_` 지형 타일 / `weapon_` 무기 / `fx_` 이펙트 (전체 목록: 13.3.1) |
 
 ### 5.3 폴리곤·성능 예산 (자동 검사 기준)
 | 대상 | 삼각형 수 상한 |
@@ -229,14 +229,14 @@
 장면(.tscn)과 그 스크립트(.gd)는 **같은 소유자**가 맡는다.
 ```
 godot/
-├── project.godot              (C) 입력 키·충돌 레이어는 CONTRACTS ④
+├── project.godot              (C) 입력 키·충돌 레이어는 13.3.4
 ├── export_presets.cfg         (C)
 ├── assets/
 │   ├── models/                (A) .glb (파이프라인 출력, 1단계는 가짜 부품)
 │   ├── audio/                 (A)
 │   └── ui/                    (C) 아이콘·폰트·UI 테마
 ├── scenes/
-│   ├── main.tscn              (C) 진입점·화면 전환 (GameLayer + UILayer, CONTRACTS ④)
+│   ├── main.tscn              (C) 진입점·화면 전환 (GameLayer + UILayer, 13.3.4)
 │   ├── game/                  (B) game.tscn — 한 판 조립 (A의 환경·타일 + 플레이어 + 스포너)
 │   ├── stage/                 (A) 지형 타일, 환경(안개·조명), 원경, 헛간·탈출 트럭 배치물
 │   ├── fx/                    (A) 총구 섬광, 피격, 연막, 먼지
@@ -246,9 +246,9 @@ godot/
 │   └── ui/                    (C) hud, stage_card, result, shop, account, support_chat, settings
 ├── scripts/                   ← scenes/와 같은 구조, 같은 소유자
 │   ├── stage/                 (A) far_layers(원경 시차) 등 연출 스크립트
-│   ├── core/                  (B) game_state(신호 약속 ②), run_controller, stage_stream, spawner, mission_system, difficulty_config
+│   ├── core/                  (B) game_state(연결 규칙 13.3.2), run_controller, stage_stream, spawner, mission_system, difficulty_config
 │   ├── actors/  weapons/  debug/   (B)
-│   ├── services/              (C) backend_client, auth_client, payment_client, support_chat, session(약속 ③)
+│   ├── services/              (C) backend_client, auth_client, payment_client, support_chat, session(연결 규칙 13.3.3)
 │   └── ui/                    (C)
 ├── data/                      (B) stage_data.tres (미션·스테이지 정보)
 └── tests/                     각자 자기 기능의 테스트 (tests/b_*, tests/c_*)
@@ -272,7 +272,7 @@ godot/
 | `payment_client` | 토스 테스트 결제: 주문 생성 요청 → 웹은 결제 페이지로 이동 / 앱은 브라우저로 열기 → 복귀 시 주문 상태 조회 (8.5) | backend_client, auth_client |
 | `support_chat` | 문의·제보 채팅 UI, 메시지 전송, 버그 제보 시 기기·게임 정보 자동 첨부 (7.5) | backend_client, auth_client |
 | `billing_client` | (마감 이후) Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
-| `session` | 로그인 상태·구매 효과 등 서비스 → 게임 전달값 (`is_logged_in`, `is_admin`, `start_ammo_bonus`) — CONTRACTS ③ | auth_client, payment_client |
+| `session` | 로그인 상태·구매 효과 등 서비스 → 게임 전달값 (`is_logged_in`, `is_admin`, `start_ammo_bonus`) — 13.3.3 | auth_client, payment_client |
 | `test_panel` | 테스트 모드 패널 (무적, 거리 건너뛰기, 탄약·칼 지급, 좀비 소환, FPS 표시). 디버그 빌드 또는 `session.is_admin`일 때만 활성 (PRD 4.15) | game_state, session |
 | `far_layers` (A) | 원경 실루엣의 시차 이동 (6.1.1) | camera_rig 위치 읽기만 |
 
@@ -543,7 +543,6 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 ├── DevelopDoc/              (문서 — 수정 시 팀 공유)
 │   ├── PRD.md
 │   ├── TECH_SPEC.md         # 이 문서
-│   ├── CONTRACTS.md         # 담당 간 약속 (각 약속의 주인이 수정)
 │   ├── WORK_UNITS.md
 │   └── FINAL_CHECKLIST.md
 ├── ASSETS_LICENSE.md        (A)
@@ -644,11 +643,11 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | `godot/project.godot`, `export_presets.cfg` | C | 빌드·입력·렌더러 설정 |
 | `godot/scenes/main.tscn` | C | 화면 전환과 조립 |
 | `pipeline.sh` | C | tools/assets(A)·tools/build(C)를 부르기만 함 |
-| `godot/scripts/core/game_state.gd`의 **신호 목록** | B | 약속 ② (CONTRACTS) |
+| `godot/scripts/core/game_state.gd`의 **신호 목록** | B | 연결 규칙 13.3.2 |
 | `godot/scripts/core/difficulty_config.gd`, `data/stage_data.tres` | B | 밸런스·미션 수치 |
-| `scripts/services/session.gd` | C | 약속 ③ |
+| `scripts/services/session.gd` | C | 연결 규칙 13.3.3 |
 | `.gitignore`, `scripts/git-hooks/` | C | 저장소 규칙 |
-| `DevelopDoc/CONTRACTS.md` | 약속별 주인 (①A ②B ③④C) | 약속 변경은 주인이 문서부터 고치고 팀에 알림 |
+| 이 문서 13.3 연결 규칙 | 규칙별 주인 (13.3.1 A, 13.3.2 B, 13.3.3·13.3.4 C) | 규칙 변경은 주인이 13.3부터 고치고 팀에 알림 |
 
 ### 13.1.2 협업 규칙
 | 규칙 | 내용 |
@@ -658,7 +657,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | 자동 확인 | GUT 전체 통과 + 메인 장면 10초 무화면 실행 오류 0개 + 서명 APK 빌드 성공 |
 | 깨졌을 때 | 방금 머지한 조각을 되돌리고, 그 조각의 주인이 고쳐 다시 올림 |
 | 조립 후 | 세 명 모두 최신 `main`을 받아서 이어서 작업 |
-| 가짜 부품 교체 | 진짜 부품은 **같은 경로·같은 이름**으로 덮어쓴다 (CONTRACTS) |
+| 가짜 부품 교체 | 진짜 부품은 **같은 경로·같은 이름**으로 덮어쓴다 (13.3) |
 | 도와주기 | 2일차 저녁(M4) 점검에서 늦은 라인의 **기능 조각을 통째로** 넘긴다 (장면·스크립트·DB·함수 전부). 반쪽 분할 금지 |
 
 ### 13.2 Claude와 사람의 역할
@@ -672,6 +671,191 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | Play Console 업로드·상품 등록·테스터 관리 | 입력 내용 정리 | ✅ |
 | 외부 에셋 다운로드 | 출처·파일명·용량 안내 | ✅ 허락 |
 | 폰 개발자 옵션·USB 디버깅 | 방법 안내 | ✅ 설정 |
+
+### 13.3 담당 간 연결 규칙 (가짜 부품 포함, D16)
+
+> 비유: 영화 촬영에서 배우는 CG 괴물이 완성되기 전에 **초록색 공**을 보며 연기한다. 공의 **크기와 위치를 미리 정했기** 때문에, 나중에 진짜 괴물을 넣어도 딱 맞는다.
+>
+> 이 절은 A·B·C가 서로의 작업을 **기다리지 않고** 동시에 만들 수 있게 해 주는 규칙이다. 각자는 자기 폴더(13.1)만 고치고, 다른 사람과는 **여기 적힌 이름·신호·크기로만** 연결한다.
+
+#### 13.3.0 규칙
+
+1. 규칙마다 **주인**이 있다. 13.3.1 A / 13.3.2 B / 13.3.3·13.3.4 C.
+2. 규칙을 바꿀 때는 주인이 **이 절을 먼저 고치고** 팀에 알린 뒤 코드를 바꾼다. 조용히 바꾸지 않는다.
+3. **가짜 부품**은 진짜와 **경로·이름·크기·신호가 똑같다.** 진짜가 준비되면 같은 경로에 덮어쓴다. 쓰는 쪽 코드는 한 줄도 바꾸지 않는다.
+4. 이 절에 없는 방법(다른 사람 파일을 직접 고치기, 다른 사람 노드 경로를 코드에 박기)으로 연결하지 않는다.
+
+```
+     13.3.1 에셋 (A → B)          13.3.2 게임 신호 (B → C)
+  A 월드·비주얼 ─────────→ B 게임플레이 ─────────→ C 서비스·UI
+       ↑                       ↑   ←─────────────     │
+       └──── 13.3.4 공통 설정 (C) ─┴── 13.3.3 서비스 값 (C → B)
+```
+
+
+#### 13.3.1 에셋 연결 — 주인: A (A가 만들고 B가 쓴다)
+
+##### ①-1 공통 규격 (TECH_SPEC 5.2 · `validate.py`가 자동 검사)
+| 항목 | 규격 |
+|---|---|
+| 단위 | 1 unit = 1 m |
+| 원점 | 발밑 중앙 (지면 y = 0) |
+| 정면 | Godot에서 -Z |
+| 충돌 | **.glb에는 충돌을 넣지 않는다.** 충돌 모양은 B의 장면(actors·weapons)이 붙인다 |
+| 교체 | 가짜 → 진짜 교체 시 **파일 경로와 이름을 바꾸지 않는다** |
+
+##### ①-2 모델 목록
+| 경로 (`godot/assets/models/`) | 용도 | 크기 | 애니메이션 이름 | 쓰는 곳 |
+|---|---|---|---|---|
+| `zombie_walker.glb` | 워커 | 키 1.8m | `idle` `walk` `attack` `hit` `death` | B `scenes/actors/zombie.tscn` |
+| `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` | B |
+| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `attack` `hit` `death` | B |
+| `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) | B |
+| `weapon_pistol.glb` | 1인칭 권총 | 길이 0.2m, 원점 = 손잡이 | 없음 (반동은 B가 코드로) | B `scenes/weapons/pistol.tscn` |
+| `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산 | 없음 | B `scenes/weapons/supply_drop.tscn` |
+| `obs_wreck_car.glb` | 장애물: 폐차 | 4.2 × 1.8 × 1.5m | 없음 | B 스포너 |
+| `obs_drum.glb` | 장애물: 폐드럼통 | 지름 0.6m, 높이 0.9m | 없음 | B 스포너 |
+| `obs_trash.glb` | 장애물: 쓰레기 더미 | 1.5 × 1.5 × 0.8m | 없음 | B 스포너 |
+
+##### ①-3 스테이지 장면 (A 소유, B가 불러온다)
+| 경로 | 내용 | B와의 연결 |
+|---|---|---|
+| `scenes/stage/environment.tscn` | 안개·조명·하늘 (WorldEnvironment + 달빛) | B의 `game.tscn`이 한 번 불러온다 |
+| `scenes/stage/tiles/tile_*.tscn` | 지형 타일 (**폭 20m × 길이 40m**, 앞쪽 끝 = z -40), 풀·나무·울타리 장식, 이동 가능 폭 밖 원경 | B의 `stage_stream`이 이어 붙인다. 타일 안에는 좀비·장애물을 넣지 않는다 (B가 배치) |
+| `scenes/stage/barn.tscn` | 헛간 (내부 통로 있음) | 안에 `Area3D` 노드 이름 **`ZoneBarnInside`**, 그룹 `mission_zone`, 메타 `zone_id = "barn_inside"` → B의 미션이 감지 |
+| `scenes/stage/escape_truck.tscn` | 탈출 트럭 | B가 1,000m 지점에 둔다 |
+| `scenes/stage/far_layers.tscn` | 원경 실루엣 + 시차 스크립트 | 카메라 위치를 **읽기만** 한다 |
+
+##### ①-4 이펙트 (A 소유, B가 호출)
+| 경로 (`scenes/fx/`) | 쓰는 때 |
+|---|---|
+| `muzzle_flash.tscn` | 사격 |
+| `hit_blood.tscn` | 좀비 피격 (과한 유혈 금지, PRD N-08) |
+| `smoke_red.tscn` | 보급 상자 위치 표시 |
+| `dust_impact.tscn` | 장애물 충돌 |
+
+- 모든 이펙트 장면의 루트에는 **`play()` 함수**가 있고, 재생이 끝나면 스스로 사라진다.
+- B는 `var fx = preload("res://scenes/fx/muzzle_flash.tscn").instantiate(); add_child(fx); fx.play()`처럼만 쓴다.
+
+##### ①-5 사운드 (A 소유)
+| 규칙 | 내용 |
+|---|---|
+| 경로 | `godot/assets/audio/sfx_<이름>.ogg`, `bgm_<이름>.ogg` |
+| 버스 | `Master` / `BGM` / `SFX` / `UI` (`default_bus_layout.tres`, 주인 A) |
+| 게임 효과음 목록 | `sfx_step` `sfx_breath` `sfx_pistol` `sfx_empty_click` `sfx_zombie_groan` `sfx_zombie_scream` `sfx_supply_pickup` `sfx_knife` `sfx_bite` `sfx_hit_obstacle` → **B가 재생** (SFX 버스) |
+| UI 효과음 목록 | `sfx_ui_click` `sfx_ui_purchase` `sfx_mission_done` → **C가 재생** (UI 버스) |
+| 배경음 | `bgm_field` (게임), `bgm_title` (타이틀) → C의 `main`이 재생 |
+
+##### ①-6 가짜 부품 (M0에서 A 대신 먼저 생성)
+`art/blender/make_placeholders.py`가 위 ①-2 모델 목록 전부를 **회색 상자·캡슐**로 만든다. 이름·크기·원점·애니메이션 이름(빈 동작)은 진짜와 같다. ①-3·①-4의 장면은 회색 바닥·기본 안개·빈 `play()`로 만든다. 사운드는 무음 파일로 만든다.
+
+
+#### 13.3.2 게임 신호 — 주인: B (B가 쏘고 C가 받는다)
+
+게임 상태는 자동 로드 싱글톤 **`GameState`**(`scripts/core/game_state.gd`)에 있다. C의 화면은 **신호를 받기만** 하고 게임 노드를 직접 찾지 않는다.
+
+##### ②-1 신호
+| 신호 | 인자 | 언제 |
+|---|---|---|
+| `run_started` | `stage_id: String` | 한 판 시작 |
+| `distance_changed` | `meters: float, target: float` | 매 프레임이 아니라 **1m 단위**로 |
+| `ammo_changed` | `count: int, max_count: int` | 탄약 변화 |
+| `knife_changed` | `has_knife: bool` | 칼 소모·초기화 |
+| `grabbed` | `escaped: bool` | 좀비에게 잡힘 (칼로 탈출했는지) |
+| `zombie_killed` | `zombie_type: String` | `"walker"` `"runner"` `"tank"` `"ambusher"` |
+| `mission_completed` | `mission_id: String` | `"M1"` `"M2"` `"M3"` |
+| `run_finished` | `result: Dictionary` | 클리어·사망 (아래 ②-3) |
+| `test_mode_changed` | `enabled: bool` | 테스트 패널 켜짐 (C는 "TEST MODE" 표시) |
+
+##### ②-2 함수 (C가 부른다)
+| 함수 | 하는 일 |
+|---|---|
+| `start_run(stage_id: String)` | 한 판 시작 (C의 스테이지 카드 "출발" 버튼) |
+| `pause_run()` / `resume_run()` | 일시정지·재개 |
+| `end_run_to_title()` | 한 판 중단하고 타이틀로 |
+
+##### ②-3 결과·기록 값
+```gdscript
+# run_finished 인자이자 GameState.last_result 에 저장되는 값
+{
+  "stage_id": "field_01",
+  "cleared": true,          # 탈출 성공 여부
+  "distance_m": 1000.0,
+  "kills": 17,
+  "duration_s": 212.4,
+  "knife_used": true,
+  "missions": ["M1", "M2"], # 이번 판 달성
+  "death_cause": ""         # 사망 시 "walker" 등, 버그 제보에 첨부
+}
+```
+- C의 결과 화면과 버그 제보(`bug_context.last_run`)는 이 값을 그대로 쓴다.
+
+##### ②-4 가짜 게임 (M0에서 생성, 주인 B)
+`scripts/debug/mock_run.gd`: `GameState`의 신호를 **3초마다 가짜 값**으로 쏜다 (거리 증가, 탄약 변화, 미션 달성, 60초 후 `run_finished`). C는 이것으로 HUD·결과 화면을 먼저 완성한다. B의 진짜 게임이 같은 신호를 쏘기 시작하면 C는 아무것도 바꾸지 않는다.
+
+
+#### 13.3.3 서비스 값 — 주인: C (C가 채우고 B가 읽는다)
+
+서비스 상태는 자동 로드 싱글톤 **`Session`**(`scripts/services/session.gd`)에 있다. B는 서버·결제 코드를 몰라도 된다.
+
+| 이름 | 종류 | 뜻 | B가 쓰는 곳 |
+|---|---|---|---|
+| `is_logged_in` | `bool` | 게스트 포함 로그인 상태 | - |
+| `is_guest` | `bool` | 게스트 여부 | - |
+| `is_admin` | `bool` | 관리자 계정 여부 | 테스트 패널 열기 허용 (PRD F-141) |
+| `nickname` | `String` | 닉네임 | - |
+| `consume_start_ammo_bonus()` | 함수 → `int` | 구매한 시작 탄약을 **한 번 꺼내고 0으로** 만든다 | `start_run` 때 1회 호출 → 시작 탄약에 더함 |
+| `session_changed` | 신호 | 로그인·로그아웃·구매 반영 | - |
+
+- **가짜 서비스 (M0)**: 서버 연결 전에는 `is_logged_in = true`, `is_guest = true`, `is_admin = false`, `consume_start_ammo_bonus()`는 항상 `0`을 준다.
+
+
+#### 13.3.4 공통 설정 — 주인: C (`project.godot`, `main.tscn`)
+
+##### ④-1 입력 키 (Input Map)
+| 액션 | 키보드 (개발용) | 터치 (폰) |
+|---|---|---|
+| `move_left` / `move_right` | A·D, ←·→ | B가 플레이어 장면에서 드래그·기울이기를 직접 처리 |
+| `fire` | Space | C의 HUD 사격 버튼이 **이 액션을 발생**시킨다 (`Input.action_press`) |
+| `pause` | Esc, P | C의 HUD 일시정지 버튼 |
+| `test_panel` | F1 | B의 테스트 패널 (디버그 빌드·관리자만) |
+
+→ B는 **액션 이름만 듣고**, C의 버튼 노드를 직접 찾지 않는다.
+
+##### ④-2 충돌 레이어·그룹
+| 번호 | 레이어 이름 | 그룹 |
+|---|---|---|
+| 1 | `world` (지형) | - |
+| 2 | `player` | `player` |
+| 3 | `zombie` | `zombie` |
+| 4 | `obstacle` | `obstacle` |
+| 5 | `pickup` (보급 상자) | `pickup` |
+| 6 | `zone` (미션 구역) | `mission_zone` |
+
+##### ④-3 장면 구성과 화면 흐름
+```
+main.tscn (C)
+├── GameLayer      ← B의 scenes/game/game.tscn 을 여기에 넣고 뺀다
+└── UILayer        ← C의 화면들 (title, stage_card, hud, result, shop, account, support_chat, settings)
+
+타이틀 → 스테이지 카드 → (최초 1회) 조작 안내 → 게임 → 결과 → 다시하기 / 타이틀
+```
+- 자동 로드 목록: `GameState`(B), `Session`(C), `Backend`(C, `backend_client`)
+- 화면 기준: 1920×1080, `canvas_items`, `expand`, 가로 고정 (TECH_SPEC 6.1)
+- 앱 버전: `project.godot`의 `application/config/version` (버그 제보에 자동 첨부)
+
+
+#### 13.3.5 가짜 부품 현황
+
+| 부품 | 약속 | 가짜 준비 (M0) | 진짜 교체 | 교체 담당 |
+|---|---|---|---|---|
+| 좀비 모델 4종 | ①-2 | ⬜ | ⬜ (WU-20) | A |
+| 무기·보급·장애물 모델 | ①-2 | ⬜ | ⬜ | A |
+| 환경·타일·헛간·트럭·원경 | ①-3 | ⬜ | ⬜ (WU-12, WU-13) | A |
+| 이펙트 4종 | ①-4 | ⬜ | ⬜ | A |
+| 사운드 | ①-5 | ⬜ | ⬜ (WU-32) | A |
+| 게임 신호 (`mock_run`) | ② | ⬜ | ⬜ (WU-14 이후) | B |
+| 서비스 (`Session`) | ③ | ⬜ | ⬜ (WU-51, WU-57) | C |
 
 ---
 
@@ -692,7 +876,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | **마감 72시간 + 범위 확대** | 미완성 제출 | WORK_UNITS 1.3 범위 축소 순서 사전 합의, 매일 저녁 진행 점검, 10/1 24:00 코드 동결 |
 | **C 역할 과부하** (서비스·UI·배포, 약 26시간) | 결제·채팅·UI 동시 지연 | 범위 축소(관리자 = Studio, 채팅 요약 P2, 보안 점검 = 테스트 선작성 + 에이전트), Claude 세션 2개 병렬, 공통 UI 부품 먼저, 2일차 점검에서 기능 조각 단위로 넘김 |
 | 머지 충돌 | 조립 지연 | 기능 단위 파일 소유, 공동 파일 주인제, 하루 두 번 조립 (13.1.2) |
-| 가짜 부품과 진짜 부품 불일치 | 교체 시 깨짐 | CONTRACTS ① 규격을 `validate.py`가 자동 검사 (이름·크기·원점·애니메이션 이름) |
+| 가짜 부품과 진짜 부품 불일치 | 교체 시 깨짐 | 13.3.1 규격을 `validate.py`가 자동 검사 (이름·크기·원점·애니메이션 이름) |
 | OpenAI 비용 폭주·남용 | 예상 밖 청구 | 1인 하루 30회, OpenAI 월 한도 설정, 키는 Secrets에만 |
 | 채팅으로 LLM 조작 시도 (프롬프트 인젝션) | 잘못된 안내 | LLM에 도구 권한 없음(답변만), 규칙 문서 근거 답변, 결제 문제는 사람 확인 |
 | 앱 결제 후 복귀 흐름 혼란 | 결제했는데 반영 안 됨 | 복귀 시 자동 재조회 + "결제 확인 중" 안내, 상점에 "결제 내역 새로고침" 버튼 |
@@ -722,6 +906,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.4.2 | 2026-09-29 | 별도 문서였던 CONTRACTS.md를 폐지하고 내용을 **13.3 담당 간 연결 규칙**으로 통합 (에셋 13.3.1, 게임 신호 13.3.2, 서비스 값 13.3.3, 공통 설정 13.3.4, 가짜 부품 현황 13.3.5) |
 | v0.4.1 | 2026-09-29 | 콘셉트 아트를 나노바나나(Gemini) → OpenAI 이미지 생성으로 변경 (D17), 키 이름 `OPENAI_API_KEY`, 콘셉트용·채팅용 키 분리 |
 | v0.4 | 2026-09-29 | PRD v0.4 반영 — D15 관리자 = Supabase Studio + 역할 + 보기, D16 기능 단위 소유·약속서·가짜 부품·하루 두 번 조립. 6.2·11.1 폴더에 소유자 표기(tools/assets·tools/build 분리, scenes/fx·debug 추가), 모듈 session·test_panel·far_layers, profiles.role·admin 보기·기능별 마이그레이션 파일, delete-account 함수, 7.6 관리자, 12.1 보안 점검표(S1 - S8), 13.1 파일 소유권·공동 파일 주인·협업 규칙, 리스크 갱신, Q10 |
 | v0.3 | 2026-09-28 | PRD v0.3 반영 — 일정(내부 10/1 24:00, 최종 10/2 10:00), D8 수정(마감 전 웹·앱 토스 테스트 결제), D9 이메일+게스트 인증, D13 OpenAI 채팅, D14 앱 결제 복귀 조회, 모듈(auth_client·payment_client·support_chat), 테이블(support_threads·support_messages·bug_context·chat_usage), support-chat 함수, 7.4 인증 흐름, 7.5 채팅 흐름, 8.5 웹·앱 공통 결제 흐름, 역할 재배정, 리스크 5건, Q8·Q9 |
