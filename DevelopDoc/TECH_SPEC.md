@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v0.2 |
+| 문서 버전 | v0.3 |
 | 작성일 | 2026-09-28 |
 | 상태 | DRAFT (검토 중) |
 | 가칭 | 3D_Game_MVP (정식 게임명 미정) |
@@ -24,14 +24,15 @@
 |---|---|
 | 주 플랫폼 | **Android (Google Play)** |
 | 화면 방향 | 가로 (Landscape) |
-| 보조 플랫폼 | Web (Godot HTML5) — 아이폰 사용자 테스터용 체험판 + **토스페이먼츠 테스트 결제** (3단계) |
+| 보조 플랫폼 | Web (Godot HTML5) — 아이폰 사용자 테스터용 체험판. 앱과 같은 로그인·토스 테스트 결제·채팅 제공 (마감 범위) |
+| 일정 | 내부 마감 **2026-10-01 24:00** (머지·코드 동결), 최종 마감 **2026-10-02 10:00** (PRD 0장) |
 | 테스트 기기 | **Galaxy S24 Ultra (SM-S928N)** — Android 16(API 36), Snapdragon 8 Gen 3(SM8650), arm64-v8a, 화면 설정 FHD+ 1080×2340(19.5:9, 최대 QHD+ 3120×1440), 가변 최대 120Hz, 펀치홀 카메라. 최상급 기기이므로 중급 기기 기준도 따로 둔다 (10.3). USB 연결 확인: `docs/evidence/WU-03/` |
 
 ### 1.3 개발 원칙
 1. **바이브 코딩** — Claude가 스크립트·코드·씬 파일을 작성하고 명령줄로 실행·검증한다. Blender와 Godot 에디터를 사람이 열지 않아도 되는 구조를 유지한다.
 2. **모든 산출물은 텍스트 우선** — 모델은 Python 스크립트로, 씬은 `.tscn` 텍스트로 관리해 git에서 변경 내용을 추적할 수 있게 한다.
 3. **Claude가 눈으로 확인하는 단계** — Blender 미리보기 렌더와 Godot 스크린샷을 PNG로 뽑아 결과를 확인한 뒤 다음 단계로 넘어간다.
-4. **MVP 우선** — 3일 안에 스테이지 1개를 완성해 재미를 검증한다. 백엔드·결제는 MVP 이후 단계에서 붙인다.
+4. **마감 범위 우선** — 마감까지 게임 스테이지 1개 + 회원가입·로그인 + 토스 테스트 결제 + 문의·제보 채팅을 완성한다. 구글 결제·비공개 테스트·정식 출시는 마감 이후다.
 
 ---
 
@@ -46,11 +47,13 @@
 | D5 | 좀비 **Mixamo 캐릭터 + 모션** | 리깅과 좀비 전용 모션(걷기·달리기·공격·사망)이 이미 있음 → 리깅 문제 해소 | Blender 스크립트 리깅 — 인체형 리깅·스키닝 품질 확보가 어려움 |
 | D6 | 1인칭 **팔 모델 생략** (MVP) | 총만 화면에 띄우고 흔들림·반동을 코드로 구현 → 리깅 불필요 | Mixamo 팔 모델 |
 | D7 | 무기 **CC0 무료 에셋 우선** | 1인칭에서 총이 화면에 크게 보여 품질이 중요 | Blender 스크립트 (에셋이 없을 때 대안) |
-| D8 | 결제 **앱 = Google Play Billing / 웹 = 토스페이먼츠(테스트)** | Google Play 앱의 디지털 상품 판매는 Play 결제 사용이 원칙이므로 앱 안에는 토스를 넣지 않는다. 토스는 웹 체험판에서 테스트 키로만 검증한다. 두 결제는 서버의 구매 기록·지급 로직을 공유한다 | 앱 안에 토스 결제 — 정책 위반 소지 |
-| D9 | 백엔드 **Supabase** | 익명 로그인·DB·Edge Function을 한 곳에서 처리 | 자체 서버 |
+| D8 | 결제 **마감 전 = 웹·앱 모두 토스페이먼츠 테스트 결제 / Google Play 출시 버전 = 앱은 Google Play Billing** | 마감 전 테스트는 APK 직접 배포라 Play 정책과 무관하고, 토스 테스트 결제는 Play Console 인증 없이 바로 검증할 수 있다. Play에 올리는 버전부터 앱 결제는 구글 결제로 교체한다(디지털 상품은 Play 결제가 원칙). 두 결제는 서버의 구매 기록·지급 로직(`purchases`, `inventory`)을 공유해 교체 부담을 줄인다 | 마감 전 구글 결제 — Play Console 본인 인증(며칠)과 내부 테스트 업로드가 필요해 마감 내 보장 불가 |
+| D9 | 백엔드 **Supabase** (Auth: 익명 로그인 + 이메일·비밀번호) | 게스트(익명) 계정으로 바로 시작하고, 가입 시 같은 계정에 이메일을 연결해 기록이 이어진다. 인증·DB·Edge Function을 한 곳에서 처리 | 자체 서버 / 구글 로그인 — OAuth·앱 서명 등록 설정이 마감 내 부담 |
 | D10 | 출시 전략 **MVP 테스트 = Google 비공개 테스트 14일** | 개인 계정의 정식 출시 조건(12명 이상 × 14일 연속)을 피드백 수집 기간과 겹쳐 전체 일정 단축 | 웹 MVP 후 별도 비공개 테스트 |
 | D11 | 카메라 **세로 시야 고정(Keep Height)** | 화면이 넓은 폰일수록 좌우가 더 보여 와이드한 들판 느낌(PRD F-66)을 준다. 세로 시야가 고정이라 좀비 크기·UI 판단이 기종마다 달라지지 않는다 | 가로 시야 고정 — 넓은 폰에서 위아래가 잘려 답답해짐 |
 | D12 | 미션 **데이터 분리 (Resource)** | 스테이지 추가 시 코드 수정 없이 미션만 추가 (PRD F-95) | 미션을 코드에 직접 작성 |
+| D13 | 문의·제보 채팅 **OpenAI API를 Edge Function에서 호출** | API 키를 서버에만 두고, 사용량 제한·대화 저장·제보 정리를 한 곳에서 처리 (PRD 4.13) | 게임에서 OpenAI 직접 호출 — 키 노출 |
+| D14 | 앱 결제 결과 **폰 브라우저 결제 + 앱 복귀 시 서버 조회** | Godot에는 기본 인앱 웹뷰가 없다. 결제는 시스템 브라우저에서 하고, 앱으로 돌아오면(`NOTIFICATION_APPLICATION_RESUMED`) 서버의 주문 상태를 조회해 반영한다. 결제창 표시를 믿지 않으므로 보안상으로도 유리 | 인앱 웹뷰 플러그인 — 추가 의존성·호환성 위험 / 딥링크 — Gradle 빌드·매니페스트 수정 필요 |
 
 ---
 
@@ -69,7 +72,8 @@
 | 백엔드 | Supabase (Postgres, Auth, Edge Functions) + Supabase CLI | CLI 2.118.0, Deno 2.9.6 | ✅ CLI 설치됨, 프로젝트 생성 필요 | Claude (프로젝트 생성은 사용자) |
 | 결제 (앱) | Google Play Billing + Godot Google Play Billing 플러그인 | 설치 시 Godot 버전 호환 확인 | - | Claude |
 | 결제 (웹, 테스트) | 토스페이먼츠 결제위젯 JavaScript SDK + 테스트 키 | 구현 시 공식 가이드로 최신 버전 확인 | 개발자센터 가입 필요 | Claude (가입·키 확인은 사용자) |
-| 웹 호스팅 | Vercel (웹 체험판 + 결제 성공·실패 페이지) | CLI 59.16.0 | ✅ CLI 설치됨 | Claude |
+| 웹 호스팅 | Vercel (웹 체험판 + **토스 결제 페이지**·성공·실패 페이지) | CLI 59.16.0 | ✅ CLI 설치됨 | Claude |
+| LLM (채팅) | OpenAI API (Edge Function에서 호출) | 모델은 구현 시 공식 문서로 확인 (Q8) | API 키 필요 | Claude (키 발급·Secrets 등록은 사용자) |
 | 배포 | Google Play Console | - | 개발자 계정 필요 | 사용자 (첫 업로드), 이후 선택적 자동화 |
 | 런타임 (보조) | Node.js | v22 | ✅ 설치됨 | 보조 스크립트용 |
 
@@ -116,12 +120,17 @@
 │ Edge Functions                        │──→│ (구매 검증·확인 처리)  │
 │  ├─ submit-score (점수 검증)           │   └─────────────────────┘
 │  ├─ verify-google-purchase (결제 검증) │
-│  ├─ create-toss-order (웹 주문 생성)    │
-│  └─ confirm-toss-payment (웹 결제 승인) │
+│  ├─ create-toss-order (주문 생성)       │
+│  ├─ confirm-toss-payment (결제 승인)    │
+│  └─ support-chat (문의·제보 → OpenAI)  │──→ OpenAI API
 └──────────────────────────────────────┘
+          ↑
+   Vercel: 토스 결제 페이지 (웹 게임·앱 공통) ──→ Toss Payments (테스트)
 ```
 
-웹 체험판(3단계)은 같은 Godot 프로젝트를 웹으로 내보내 Vercel에 올리고, 결제만 토스페이먼츠 테스트 결제로 바꾼다. 결제 뒤 흐름(구매 기록·아이템 지급)은 앱과 같은 Supabase 테이블을 쓴다 (8.5).
+- **마감 범위**: Supabase Auth(게스트·이메일), 토스 테스트 결제(웹·앱 공통 결제 페이지, 8.5), 문의·제보 채팅(7.5).
+- 웹 빌드는 같은 Godot 프로젝트를 웹으로 내보내 Vercel에 올린다. 로그인·결제·채팅은 앱과 같은 서버를 쓴다.
+- 위 그림의 Google Play Billing 경로(`verify-google-purchase`)는 **마감 이후** Play 출시 버전에서 사용한다.
 
 ---
 
@@ -250,7 +259,10 @@ godot/
 | `mission_system` | 미션 정의(Resource) 로드, 게임 이벤트(처치·도착·구역 통과) 구독, 달성 판정, 로컬 저장 | game_state |
 | `stage_data` | 스테이지 이름·설명·목표 거리·대표 이미지·미션 3개 (Resource, `.tres` 텍스트) | 없음 |
 | `backend_client` | Supabase 인증, 점수 제출, 인벤토리 조회 | Supabase |
-| `billing_client` | Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
+| `auth_client` | 게스트 자동 로그인, 이메일 가입(게스트 계정에 연결)·로그인·로그아웃, 세션 저장·갱신 (7.4) | Supabase Auth |
+| `payment_client` | 토스 테스트 결제: 주문 생성 요청 → 웹은 결제 페이지로 이동 / 앱은 브라우저로 열기 → 복귀 시 주문 상태 조회 (8.5) | backend_client, auth_client |
+| `support_chat` | 문의·제보 채팅 UI, 메시지 전송, 버그 제보 시 기기·게임 정보 자동 첨부 (7.5) | backend_client, auth_client |
+| `billing_client` | (마감 이후) Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
 
 게임 로직 모듈은 `backend_client`·`billing_client` 없이도 동작해야 한다 (오프라인 플레이 가능, 테스트 용이).
 
@@ -275,22 +287,28 @@ game_state ── 이벤트 발행 ──→ mission_system
 
 ---
 
-## 7. 백엔드 (Supabase)
+## 7. 백엔드 (Supabase) — 계정·결제·채팅
 
 ### 7.1 테이블 (초안)
 | 테이블 | 주요 컬럼 | 용도 |
 |---|---|---|
-| `profiles` | `id`(= auth.users.id), `nickname`, `created_at` | 게스트 계정 |
+| `profiles` | `id`(= auth.users.id), `nickname`, `is_guest`, `created_at` | 게스트·가입 계정 공통 (가입해도 같은 `id` 유지) |
 | `scores` | `id`, `user_id`, `distance_m`, `kills`, `duration_s`, `app_version`, `created_at` | 기록·랭킹 |
 | `purchases` | `id`, `user_id`, `platform`(`google_play` \| `toss_test`), `product_id`, `purchase_token`(UNIQUE — 구글은 구매 토큰, 토스는 paymentKey), `order_id`, `amount`, `status`, `verified_at`, `created_at` | 결제 기록 (앱·웹 공통) |
 | `toss_orders` | `order_id`(PK), `user_id`, `product_id`, `amount`, `status`(`ready` \| `paid` \| `failed`), `created_at` | 토스 결제 전에 서버가 만드는 주문. 승인 시 금액 대조용 |
 | `mission_progress` | `user_id`, `stage_id`, `mission_id`, `completed_at` | 미션 달성 기록 (2단계. MVP는 기기 로컬 저장) |
 | `inventory` | `user_id`, `item_id`, `quantity`, `updated_at` | 보유 아이템 |
+| `support_threads` | `id`, `user_id`, `kind`(`question` \| `bug`), `status`(`ai_answered` \| `needs_human` \| `closed`), `summary`, `category`, `created_at` | 문의·제보 한 건 (LLM이 요약·분류) |
+| `support_messages` | `id`, `thread_id`, `role`(`user` \| `assistant` \| `team`), `content`, `created_at` | 대화 내용 |
+| `bug_context` | `thread_id`, `app_version`, `platform`, `device_model`, `os_version`, `last_run`(거리·사망 원인 등 JSON), `created_at` | 버그 제보에 자동 첨부되는 정보 |
+| `chat_usage` | `user_id`, `day`, `count` | 1인 하루 메시지 제한(PRD F-124) |
 
 ### 7.2 보안 규칙
 - 모든 테이블 **RLS 활성화**.
 - 클라이언트(anon key + 사용자 JWT)는 **자기 행만 조회** 가능.
-- `scores`, `purchases`, `inventory`의 **쓰기는 Edge Function(service role)만** 가능. 클라이언트 직접 INSERT/UPDATE 금지.
+- `scores`, `purchases`, `inventory`, `toss_orders`, `support_*`, `bug_context`, `chat_usage`의 **쓰기는 Edge Function(service role)만** 가능. 클라이언트 직접 INSERT/UPDATE 금지.
+- 클라이언트는 자기 `toss_orders`의 `status`를 조회해 결제 결과를 확인한다 (D14).
+- 채팅·제보 내용은 개인정보가 섞일 수 있으므로 팀원만 조회(대시보드), 테스터 간 공개 없음. 개인정보처리방침에 명시 (PRD N-09).
 - 랭킹은 상위 N개만 노출하는 읽기 전용 뷰로 공개한다.
 - service role 키와 Google 서비스 계정 키는 **Supabase Secrets에만** 저장한다. 게임 빌드·저장소에 포함 금지.
 
@@ -300,13 +318,44 @@ game_state ── 이벤트 발행 ──→ mission_system
 | `submit-score` | 거리, 킬 수, 플레이 시간, 앱 버전 | 사용자 인증 확인 → 물리적으로 불가능한 값 거부 (예: 거리 ÷ 시간이 최고 속도 × 1.2 초과) → 저장 | 저장 결과, 순위 |
 | `verify-google-purchase` | `product_id`, `purchase_token` | 사용자 인증 → Google Play Developer API로 구매 검증 → 중복 토큰 거부 → `purchases` 기록 → `inventory` 지급 → 구매 확인(acknowledge) | 지급 결과 |
 | `create-toss-order` | `product_id` | 사용자 인증 → **서버가 상품 가격표로 금액 결정** → `toss_orders`에 `ready`로 저장 | `order_id`, `amount`, 주문명 |
-| `confirm-toss-payment` | `paymentKey`, `order_id`, `amount` | 사용자 인증 → `toss_orders`의 금액과 대조(다르면 거부) → 토스 결제 승인 API 호출(테스트 시크릿 키) → `purchases` 기록 → `inventory` 지급 | 지급 결과 |
+| `confirm-toss-payment` | `paymentKey`, `order_id`, `amount` | `toss_orders`의 금액과 대조(다르면 거부) → 토스 결제 승인 API 호출(테스트 시크릿 키) → `purchases` 기록 → `inventory` 지급 → `toss_orders.status = paid` | 지급 결과 |
+| `support-chat` | `thread_id`(선택), `kind`, `message`, (버그면) 기기·게임 정보 | 사용자 인증 → 하루 제한 확인(`chat_usage`) → 게임 안내문(규칙·조작·알려진 문제)을 시스템 프롬프트로 OpenAI 호출 → 답변·요약·분류 저장 → 답하기 어려우면 `needs_human` | 답변, `thread_id` |
+
+### 7.4 인증 흐름 (PRD 4.11)
+```
+앱 첫 실행 → 저장된 세션 없음 → 익명 로그인(게스트) → 바로 플레이
+계정 화면 → 이메일·비밀번호 입력 → 현재 게스트 계정에 이메일 연결 (같은 user_id 유지 → 기록·구매 그대로)
+다른 기기 → 이메일 로그인 → 같은 user_id
+로그아웃 → 세션 삭제 → 새 게스트
+```
+- 세션(access·refresh 토큰)은 기기 `user://`에 저장하고 만료 전 자동 갱신한다. 토큰을 로그에 찍지 않는다.
+- 이메일 확인(메일 인증) 사용 여부는 WU-51에서 결정한다 (마감 내 테스트 편의를 위해 끌 수 있음 → 출시 전 다시 켬).
+- 구현 전 Supabase 공식 문서로 익명 로그인·계정 연결 API를 확인한다.
+
+### 7.5 문의·제보 채팅 흐름 (PRD 4.13)
+```
+[게임] 문의·제보 화면 → 메시지 입력 (버그 제보면 기기·게임 정보 자동 첨부)
+  → [Edge Function] support-chat → 하루 제한 확인 → OpenAI 호출 (API 키는 Secrets)
+  → DB 저장 (support_threads / support_messages / bug_context)
+  → [게임] 답변 표시
+[팀] Supabase 대시보드에서 needs_human 건 확인
+```
+| 규칙 | 이유 |
+|---|---|
+| OpenAI 키는 Supabase Secrets에만 | 게임·웹 빌드에 넣으면 누구나 꺼내 쓸 수 있음 |
+| 1인 하루 30회 + OpenAI 대시보드 월 한도 | 비용 폭주 방지 (PRD F-124, N-10) |
+| LLM에게 도구(결제 환불, DB 수정 등) 권한을 주지 않는다. 답변만 한다 | 채팅으로 LLM을 속여 조작하는 공격 방지 |
+| 시스템 프롬프트: 게임 규칙·조작·알려진 문제 문서만 근거로 답하고, 모르면 "팀에 전달했어요" | 없는 기능을 지어내 안내하는 것 방지 (F-125) |
+| 사용자 메시지·제보 원문을 서버 로그에 통째로 찍지 않는다 | 개인정보 유출 방지 |
+| 구현 전 OpenAI 공식 문서로 모델·API 형식 확인 | 모델·API가 자주 바뀜 (Q8) |
 
 ---
 
-## 8. 결제 (Google Play Billing)
+## 8. 결제
 
-### 8.1 구매 흐름
+> **마감 범위는 8.5 토스 테스트 결제(웹·앱 공통)**다. 8.1 - 8.4의 Google Play Billing은 **마감 이후** Play 출시 버전에서 앱 결제를 교체할 때 쓴다.
+
+### 8.1 구매 흐름 (Google Play Billing, 마감 이후)
 ```
 [게임] 상점에서 상품 선택
   → [Play 결제 시트] 사용자 결제 (테스트: 라이선스 테스터 + 테스트 카드)
@@ -325,30 +374,42 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 같은 `purchase_token`은 한 번만 지급 | 중복 지급 방지 (DB UNIQUE 제약) |
 | 앱 재실행 시 미처리 구매 조회·재검증 | 결제 중 앱 종료 대비 |
 
-### 8.3 상품 (예시, 확정은 PRD)
-| 상품 ID | 유형 | 내용 |
-|---|---|---|
-| `ammo_pack_small` | 소모성 | 탄약 묶음 |
-| `revive_token` | 소모성 | 즉시 부활 1회 |
-| `remove_ads` | 비소모성 | 광고 제거 (광고 도입 시에만) |
+### 8.3 상품
+- 마감 전 테스트 상품: PRD 4.12 (`ammo_start_pack` 소모성, `supporter_badge` 비소모성). 서버 가격표(`create-toss-order`)와 게임 상점이 같은 상품 ID를 쓴다.
+- 정식 상품 구성은 비공개 테스트 설문 이후 결정 (PRD Q3). 구글 결제로 교체할 때도 같은 상품 ID를 유지한다.
 
 ### 8.4 테스트 환경
 - 결제 프로필(판매자 계정) 생성 → 결제 기능이 포함된 빌드를 **내부 테스트 트랙**에 업로드 → 인앱 상품 등록 → 라이선스 테스터 등록.
 - 테스트 기기에는 **Play 스토어 테스트 링크로 설치**한다 (`adb` 직접 설치 빌드는 결제가 정상 동작하지 않을 수 있음).
 
-### 8.5 웹 체험판 토스페이먼츠 테스트 결제 (3단계)
-**적용 범위: 웹 빌드에만.** Android 빌드에는 토스 코드를 포함하지 않는다 (D8). 결제 상품은 F-82와 같은 상품 ID를 쓴다.
+### 8.5 토스페이먼츠 테스트 결제 — 웹·앱 공통 (마감 범위)
+**적용 범위: 웹 빌드와 Android APK 모두** (D8). 결제 페이지(Vercel)와 서버 흐름을 하나로 공유하고, 결과는 **서버의 주문 상태로만** 반영한다 (D14).
 
 ```
-[웹 게임] 상점에서 상품 선택
-  → [Edge Function] create-toss-order → 서버가 금액을 정해 주문 생성 (order_id, amount)
-  → [Godot → JavaScriptBridge] 웹 페이지의 토스 결제위젯 호출 (테스트 클라이언트 키 test_ck_...)
-  → [토스 결제창] 테스트 결제 (실제 돈 안 나감)
-  → [성공 URL] paymentKey, orderId, amount 쿼리로 돌아옴
-  → [Godot] confirm-toss-payment 호출
-  → [Edge Function] 주문 금액 대조 → 토스 승인 API (테스트 시크릿 키 test_sk_...) → purchases 기록 + inventory 지급
-  → [웹 게임] 아이템 반영
+            [게임] 상점에서 상품 선택
+                     ↓
+  [Edge Function] create-toss-order → 서버가 가격표로 금액을 정해 주문 생성 (order_id)
+                     ↓
+      ┌──────────────┴──────────────┐
+  🌐 웹 게임                        📱 앱
+  같은 탭에서 결제 페이지로 이동       OS.shell_open()으로 폰 브라우저에서 결제 페이지 열기
+      └──────────────┬──────────────┘
+                     ↓
+  [Vercel 결제 페이지 ?order_id=...] 토스 결제위젯 (테스트 클라이언트 키 test_ck_...)
+                     ↓ 테스트 결제 (실제 돈 안 나감)
+  [성공 URL] paymentKey, orderId, amount → 결제 페이지가 confirm-toss-payment 호출
+  [Edge Function] 주문 금액 대조 → 토스 승인 API (테스트 시크릿 키 test_sk_...)
+                  → purchases 기록 + inventory 지급 + toss_orders.status = paid
+                     ↓
+      ┌──────────────┴──────────────┐
+  🌐 결제 페이지 → 게임 페이지로 복귀   📱 사용자가 앱으로 돌아옴 (NOTIFICATION_APPLICATION_RESUMED)
+      └──────────────┬──────────────┘
+                     ↓
+  [게임] 자기 toss_orders.status 조회 (RLS) → paid면 아이템 반영, failed/ready면 안내
 ```
+
+- 결제 페이지는 주문의 소유자만 결제할 수 있도록 `order_id`와 함께 사용자 확인값(서버가 발급한 1회용 토큰)을 받는다.
+- 앱 복귀 후 상태가 아직 `ready`면 몇 초 간격으로 짧게 재조회한다(최대 30초).
 
 | 규칙 | 이유 |
 |---|---|
@@ -356,10 +417,12 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 브라우저는 토스 서버 API(`api.tosspayments.com`)를 **직접 호출하지 않는다**. 승인은 Edge Function이 한다 | 시크릿 키 보호, 금액 위변조 방지 |
 | 결제 금액은 **서버가 주문을 만들 때 정하고**, 승인 전에 성공 URL로 돌아온 금액과 대조한다 | 사용자가 URL의 금액을 바꿔 싸게 결제하는 공격 방지 |
 | 같은 `paymentKey`는 한 번만 지급한다 (`purchases.purchase_token` UNIQUE) | 새로고침 등으로 인한 중복 지급 방지 |
-| 결제위젯은 Godot 웹 내보내기의 **사용자 정의 HTML 셸**에 넣는다 | Godot 캔버스 밖에서 결제창을 띄우기 위함 |
+| 결제위젯은 **별도 결제 페이지(Vercel)**에 둔다. 웹 게임·앱이 같은 페이지를 쓴다 | 결제 코드를 한 곳에서만 관리, 앱은 브라우저로 열기만 하면 됨 |
+| 결과는 게임이 결제창 표시가 아니라 **서버 주문 상태**로 확인한다 | 결제 성공 화면 위조·중간 이탈 대비 |
+| Google Play 출시 버전의 앱에서는 토스 결제를 끈다 (구글 결제로 교체) | 디지털 상품은 Play 결제가 원칙 (D8) |
 | 구현 시 토스페이먼츠 공식 연동 가이드(MCP)로 최신 SDK·API를 확인한다 | SDK 버전·API가 바뀔 수 있음 |
 
-**테스트 시나리오**: 결제 성공 / 사용자가 결제창 닫기 / 결제 실패 / 성공 URL의 금액 위변조 / 같은 결제로 승인 두 번 요청
+**테스트 시나리오** (웹·앱 각각): 결제 성공 / 사용자가 결제창 닫기 / 결제 실패 / 성공 URL의 금액 위변조 / 같은 결제로 승인 두 번 요청 / (앱) 결제 중 앱으로 돌아왔다가 다시 결제 페이지로 가기
 
 ---
 
@@ -404,7 +467,7 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 아이콘 512×512, 대표 이미지 1024×500 | 나노바나나 시안 → 정리 |
 | 스크린샷 | Godot 게임 화면 자동 캡처 |
 | 개인정보처리방침 URL | 정적 페이지 (blog_ggg 또는 Vercel) |
-| 데이터 보안 양식 | Supabase 저장 항목(익명 ID, 점수, 구매 기록) 기준으로 작성 |
+| 데이터 보안 양식 | Supabase 저장 항목(익명 ID, 이메일, 구매 기록, 채팅·제보 내용, 기기 모델) 기준으로 작성 |
 | 콘텐츠 등급 | IARC 설문 (좀비·총기 폭력 → 12세 이상 예상) |
 | 타겟 연령 | 13세 이상 (아동 대상 선택 시 가족 정책 적용) |
 
@@ -467,7 +530,8 @@ game_state ── 이벤트 발행 ──→ mission_system
 ├── backend/
 │   └── supabase/
 │       ├── migrations/      # 테이블·RLS SQL
-│       └── functions/       # Edge Functions
+│       └── functions/       # Edge Functions (결제 승인, support-chat)
+├── web/                     # 토스 테스트 결제 페이지 (Vercel)
 └── build/                   # 빌드 산출물 — git 제외
 ```
 
@@ -498,6 +562,7 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 업로드 키스토어·비밀번호 | 저장소 밖 + 백업, 비밀번호는 환경변수 | Android 서명 |
 | 토스 테스트 클라이언트 키 (`test_ck_`) | 웹 빌드 설정 | 브라우저 결제위젯 초기화 (공개돼도 되는 키) |
 | 토스 테스트 시크릿 키 (`test_sk_`) | Supabase Secrets | `confirm-toss-payment`만 |
+| OpenAI API 키 | Supabase Secrets | `support-chat`만 |
 
 - 비밀 값은 채팅·문서·커밋에 적지 않는다. 사용자가 `.env`에 직접 입력한다.
 - 코드는 환경변수가 없으면 즉시 오류를 내고 멈춘다.
@@ -509,9 +574,9 @@ game_state ── 이벤트 발행 ──→ mission_system
 ### 13.1 팀 역할 (3인, PRD 2.1)
 | 역할 | 담당 모듈·폴더 |
 |---|---|
-| A. 에셋 | `art/` 전체, `godot/assets/models/` |
-| B. 게임 로직 | `godot/scripts/core/`, `actors/`, `weapons/`, `services/backend_client`, `godot/tests/`, `backend/supabase/migrations/` |
-| C. UI·빌드·출시 | `godot/scenes/ui/`, `scripts/ui/`, `assets/audio/`, `services/billing_client`, `backend/supabase/functions/`(결제), `pipeline.sh` 빌드 부분, 웹 셸, Play Console |
+| A. 에셋 + 채팅 | `art/` 전체, `godot/assets/models/`, **`services/support_chat`, 채팅 UI 씬, `backend/supabase/functions/support-chat/`** |
+| B. 게임 로직 | `godot/scripts/core/`, `actors/`, `weapons/`, `godot/tests/` |
+| C. 백엔드·UI·빌드 | **`backend/supabase/migrations/`, `functions/`(결제), `services/backend_client`·`auth_client`·`payment_client`**, `godot/scenes/ui/`, `scripts/ui/`, `assets/audio/`, **`web/`(결제 페이지)**, `pipeline.sh` 빌드 부분 |
 
 - 폴더 담당을 나눠 **같은 파일을 동시에 고치는 충돌**을 줄인다. 공용 파일(`project.godot`, `difficulty_config.gd`, `stage_data`)을 고칠 때는 팀에 먼저 알린다.
 - 작업 단위별 담당자는 `WORK_UNITS.md`에 적는다.
@@ -544,6 +609,11 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 배경음 AI 도구 라이선스 | 출시 후 분쟁 | 출시 전 약관 확인, 필요 시 CC0 음원으로 교체 |
 | 개인 개발자 주소 공개 (유료 상품 판매 시) | 개인정보 노출 | 정식 출시 전 공개용 주소 결정 |
 | Google 정책·콘솔 변경 | 절차 오류 | 각 단계 시작 시 공식 문서 재확인 |
+| **마감 72시간 + 범위 확대** | 미완성 제출 | WORK_UNITS 1.3 범위 축소 순서 사전 합의, 매일 저녁 진행 점검, 10/1 24:00 코드 동결 |
+| **C 역할 과부하** (백엔드·결제·UI·빌드) | 결제·UI 동시 지연 | 채팅을 A로 이관, UI 틀은 1일차부터 가짜 데이터로 먼저 제작 |
+| OpenAI 비용 폭주·남용 | 예상 밖 청구 | 1인 하루 30회, OpenAI 월 한도 설정, 키는 Secrets에만 |
+| 채팅으로 LLM 조작 시도 (프롬프트 인젝션) | 잘못된 안내 | LLM에 도구 권한 없음(답변만), 규칙 문서 근거 답변, 결제 문제는 사람 확인 |
+| 앱 결제 후 복귀 흐름 혼란 | 결제했는데 반영 안 됨 | 복귀 시 자동 재조회 + "결제 확인 중" 안내, 상점에 "결제 내역 새로고침" 버튼 |
 
 ---
 
@@ -558,6 +628,8 @@ game_state ── 이벤트 발행 ──→ mission_system
 | Q5 | 게임 정식 이름, Android 패키지 이름 | 첫 업로드 전 |
 | Q6 | ~~저장소 분리 여부~~ → **결정**: 독립 저장소 (11.3) | 2026-09-28 |
 | Q7 | 광고 도입 여부 | MVP 피드백 이후 |
+| Q8 | OpenAI 모델 (비용·속도) | 10/1 채팅 구현 시작 전, 공식 문서 확인 |
+| Q9 | Supabase 이메일 확인(메일 인증) 사용 여부 | WU-51 |
 
 ---
 
@@ -567,6 +639,7 @@ game_state ── 이벤트 발행 ──→ mission_system
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.3 | 2026-09-28 | PRD v0.3 반영 — 일정(내부 10/1 24:00, 최종 10/2 10:00), D8 수정(마감 전 웹·앱 토스 테스트 결제), D9 이메일+게스트 인증, D13 OpenAI 채팅, D14 앱 결제 복귀 조회, 모듈(auth_client·payment_client·support_chat), 테이블(support_threads·support_messages·bug_context·chat_usage), support-chat 함수, 7.4 인증 흐름, 7.5 채팅 흐름, 8.5 웹·앱 공통 결제 흐름, 역할 재배정, 리스크 5건, Q8·Q9 |
 | v0.2.3 | 2026-09-28 | WU-04 파이프라인 시험 결과를 14장 리스크에 반영 (Blender 5.2 API, adb 권한, 조명에 의한 색 변화) |
 | v0.2.2 | 2026-09-28 | 테스트 기기 Galaxy S24 Ultra 확정, 성능 목표 60fps + 중급 기기 30fps 기준, 발열 기준 추가 (Q1) |
 | v0.2.1 | 2026-09-28 | 도구 설치 결과(3.1) 반영, Q6 저장소 독립 분리 결정 (11.3) |
