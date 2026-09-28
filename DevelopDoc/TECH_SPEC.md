@@ -2,12 +2,12 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v0.3 |
+| 문서 버전 | v0.4 |
 | 작성일 | 2026-09-28 |
 | 상태 | DRAFT (검토 중) |
 | 가칭 | 3D_Game_MVP (정식 게임명 미정) |
 | 레퍼런스 게임 | Into the Dead (PikPok) — 1인칭 자동 달리기 좀비 생존 |
-| 관련 문서 | `README.md`, `DevelopDoc/PRD.md`, `DevelopDoc/WORK_UNITS.md`, `DevelopDoc/FINAL_CHECKLIST.md` |
+| 관련 문서 | `README.md`, `DevelopDoc/PRD.md`, `DevelopDoc/CONTRACTS.md`, `DevelopDoc/WORK_UNITS.md`, `DevelopDoc/FINAL_CHECKLIST.md` |
 
 > 이 문서는 **무엇으로(도구) 어떻게(구조·규칙) 만드는가**를 정한다.
 > **무엇을 만드는가(게임 기획·기능 범위)**는 `PRD.md`에서 정한다.
@@ -53,6 +53,8 @@
 | D11 | 카메라 **세로 시야 고정(Keep Height)** | 화면이 넓은 폰일수록 좌우가 더 보여 와이드한 들판 느낌(PRD F-66)을 준다. 세로 시야가 고정이라 좀비 크기·UI 판단이 기종마다 달라지지 않는다 | 가로 시야 고정 — 넓은 폰에서 위아래가 잘려 답답해짐 |
 | D12 | 미션 **데이터 분리 (Resource)** | 스테이지 추가 시 코드 수정 없이 미션만 추가 (PRD F-95) | 미션을 코드에 직접 작성 |
 | D13 | 문의·제보 채팅 **OpenAI API를 Edge Function에서 호출** | API 키를 서버에만 두고, 사용량 제한·대화 저장·제보 정리를 한 곳에서 처리 (PRD 4.13) | 게임에서 OpenAI 직접 호출 — 키 노출 |
+| D15 | 관리자 **Supabase 관리 화면(Studio) + 관리자 역할 + 전용 보기(뷰)** | 마감 72시간 안에 관리자 웹 페이지를 새로 만들면 C가 과부하. Studio는 표 조회·수정·검색을 이미 제공하므로 권한(RLS)과 보기만 만든다 (PRD 4.14) | 전용 관리자 웹 페이지 — 약 3시간 추가 (P2) |
+| D16 | 협업 **기능 단위 소유 + 약속서 + 가짜 부품 + 하루 두 번 조립** | 한 기능의 장면·스크립트·DB 표·서버 함수를 한 사람이 맡아 파일 충돌을 막고, 담당 간 경계는 CONTRACTS.md의 약속(이름·신호·크기)으로만 연결한다. 기다리지 않도록 가짜 부품으로 먼저 만들고 같은 이름으로 교체한다 | 업무 종류별 분담(장면은 C, 스크립트는 B 등) — 같은 파일 동시 수정으로 충돌 |
 | D14 | 앱 결제 결과 **폰 브라우저 결제 + 앱 복귀 시 서버 조회** | Godot에는 기본 인앱 웹뷰가 없다. 결제는 시스템 브라우저에서 하고, 앱으로 돌아오면(`NOTIFICATION_APPLICATION_RESUMED`) 서버의 주문 상태를 조회해 반영한다. 결제창 표시를 믿지 않으므로 보안상으로도 유리 | 인앱 웹뷰 플러그인 — 추가 의존성·호환성 위험 / 딥링크 — Gradle 빌드·매니페스트 수정 필요 |
 
 ---
@@ -163,7 +165,7 @@
 | 텍스처 | 최대 1024×1024, Godot에서 VRAM 압축(ETC2/ASTC) |
 | 재질 | 로우폴리 단색/팔레트 텍스처 우선, 재질 수 최소화 |
 | 파일 이름 | `소문자_스네이크케이스` — 예: `zombie_walker.glb`, `prop_barn.glb`, `weapon_pistol.glb` |
-| 접두사 | `zombie_` 좀비 / `prop_` 소품 / `env_` 지형 타일 / `weapon_` 무기 / `fx_` 이펙트 |
+| 접두사 | `zombie_` 좀비 / `prop_` 소품 / `obs_` 장애물 / `env_` 지형 타일 / `weapon_` 무기 / `fx_` 이펙트 (전체 목록: CONTRACTS ①-2) |
 
 ### 5.3 폴리곤·성능 예산 (자동 검사 기준)
 | 대상 | 삼각형 수 상한 |
@@ -222,27 +224,33 @@
 - 원경 실루엣은 플레이어와 함께 천천히 따라와 **달려도 멀리 있는 것은 느리게 움직이는** 시차(패럴랙스)를 만든다.
 - 이동 가능 폭 바깥에도 저폴리 들판·나무 줄을 배치해 화면 끝에서 세계가 끊기지 않게 한다. 바깥 영역은 충돌·AI 계산을 하지 않는다.
 
-### 6.2 폴더 구조 (Godot 프로젝트)
+### 6.2 폴더 구조 (Godot 프로젝트) — 괄호는 소유자 (13.1)
+장면(.tscn)과 그 스크립트(.gd)는 **같은 소유자**가 맡는다.
 ```
 godot/
-├── project.godot
+├── project.godot              (C) 입력 키·충돌 레이어는 CONTRACTS ④
+├── export_presets.cfg         (C)
 ├── assets/
-│   ├── models/        # .glb (파이프라인 출력)
-│   ├── audio/
-│   └── ui/
+│   ├── models/                (A) .glb (파이프라인 출력, 1단계는 가짜 부품)
+│   ├── audio/                 (A)
+│   └── ui/                    (C) 아이콘·폰트·UI 테마
 ├── scenes/
-│   ├── main.tscn      # 진입점
-│   ├── stage/         # 스테이지, 지형 타일
-│   ├── actors/        # player, zombie
-│   ├── weapons/
-│   └── ui/            # hud, result, shop
-├── scripts/
-│   ├── core/          # game_state, spawner, run_controller
-│   ├── actors/        # player, zombie_ai
-│   ├── weapons/
-│   ├── services/      # backend_client, billing_client
-│   └── ui/
-└── tests/             # GUT 테스트
+│   ├── main.tscn              (C) 진입점·화면 전환 (GameLayer + UILayer, CONTRACTS ④)
+│   ├── game/                  (B) game.tscn — 한 판 조립 (A의 환경·타일 + 플레이어 + 스포너)
+│   ├── stage/                 (A) 지형 타일, 환경(안개·조명), 원경, 헛간·탈출 트럭 배치물
+│   ├── fx/                    (A) 총구 섬광, 피격, 연막, 먼지
+│   ├── actors/                (B) player, zombie
+│   ├── weapons/               (B) pistol, supply_drop
+│   ├── debug/                 (B) 테스트 패널
+│   └── ui/                    (C) hud, stage_card, result, shop, account, support_chat, settings
+├── scripts/                   ← scenes/와 같은 구조, 같은 소유자
+│   ├── stage/                 (A) far_layers(원경 시차) 등 연출 스크립트
+│   ├── core/                  (B) game_state(신호 약속 ②), run_controller, stage_stream, spawner, mission_system, difficulty_config
+│   ├── actors/  weapons/  debug/   (B)
+│   ├── services/              (C) backend_client, auth_client, payment_client, support_chat, session(약속 ③)
+│   └── ui/                    (C)
+├── data/                      (B) stage_data.tres (미션·스테이지 정보)
+└── tests/                     각자 자기 기능의 테스트 (tests/b_*, tests/c_*)
 ```
 
 ### 6.3 모듈 책임
@@ -263,6 +271,9 @@ godot/
 | `payment_client` | 토스 테스트 결제: 주문 생성 요청 → 웹은 결제 페이지로 이동 / 앱은 브라우저로 열기 → 복귀 시 주문 상태 조회 (8.5) | backend_client, auth_client |
 | `support_chat` | 문의·제보 채팅 UI, 메시지 전송, 버그 제보 시 기기·게임 정보 자동 첨부 (7.5) | backend_client, auth_client |
 | `billing_client` | (마감 이후) Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
+| `session` | 로그인 상태·구매 효과 등 서비스 → 게임 전달값 (`is_logged_in`, `is_admin`, `start_ammo_bonus`) — CONTRACTS ③ | auth_client, payment_client |
+| `test_panel` | 테스트 모드 패널 (무적, 거리 건너뛰기, 탄약·칼 지급, 좀비 소환, FPS 표시). 디버그 빌드 또는 `session.is_admin`일 때만 활성 (PRD 4.15) | game_state, session |
+| `far_layers` (A) | 원경 실루엣의 시차 이동 (6.1.1) | camera_rig 위치 읽기만 |
 
 게임 로직 모듈은 `backend_client`·`billing_client` 없이도 동작해야 한다 (오프라인 플레이 가능, 테스트 용이).
 
@@ -292,23 +303,29 @@ game_state ── 이벤트 발행 ──→ mission_system
 ### 7.1 테이블 (초안)
 | 테이블 | 주요 컬럼 | 용도 |
 |---|---|---|
-| `profiles` | `id`(= auth.users.id), `nickname`, `is_guest`, `created_at` | 게스트·가입 계정 공통 (가입해도 같은 `id` 유지) |
+| `profiles` | `id`(= auth.users.id), `nickname`, `is_guest`, `role`(`user` \| `admin`), `created_at` | 게스트·가입 계정 공통 (가입해도 같은 `id` 유지). `role`은 사용자가 스스로 바꿀 수 없음 |
 | `scores` | `id`, `user_id`, `distance_m`, `kills`, `duration_s`, `app_version`, `created_at` | 기록·랭킹 |
 | `purchases` | `id`, `user_id`, `platform`(`google_play` \| `toss_test`), `product_id`, `purchase_token`(UNIQUE — 구글은 구매 토큰, 토스는 paymentKey), `order_id`, `amount`, `status`, `verified_at`, `created_at` | 결제 기록 (앱·웹 공통) |
 | `toss_orders` | `order_id`(PK), `user_id`, `product_id`, `amount`, `status`(`ready` \| `paid` \| `failed`), `created_at` | 토스 결제 전에 서버가 만드는 주문. 승인 시 금액 대조용 |
 | `mission_progress` | `user_id`, `stage_id`, `mission_id`, `completed_at` | 미션 달성 기록 (2단계. MVP는 기기 로컬 저장) |
 | `inventory` | `user_id`, `item_id`, `quantity`, `updated_at` | 보유 아이템 |
-| `support_threads` | `id`, `user_id`, `kind`(`question` \| `bug`), `status`(`ai_answered` \| `needs_human` \| `closed`), `summary`, `category`, `created_at` | 문의·제보 한 건 (LLM이 요약·분류) |
+| `support_threads` | `id`, `user_id`, `kind`(`question` \| `bug`), `status`(`ai_answered` \| `needs_human` \| `in_progress` \| `closed`), `summary`·`category`(P2, 비워 둠), `created_at` | 문의·제보 한 건 |
 | `support_messages` | `id`, `thread_id`, `role`(`user` \| `assistant` \| `team`), `content`, `created_at` | 대화 내용 |
 | `bug_context` | `thread_id`, `app_version`, `platform`, `device_model`, `os_version`, `last_run`(거리·사망 원인 등 JSON), `created_at` | 버그 제보에 자동 첨부되는 정보 |
 | `chat_usage` | `user_id`, `day`, `count` | 1인 하루 메시지 제한(PRD F-124) |
+| 보기 `admin_members` | 회원 목록 (이메일 일부 가림), 가입·게스트 구분, 가입일 | 관리자 (PRD F-131) |
+| 보기 `admin_purchases` | 구매 내역·상품별 합계 | 관리자 (F-132) |
+| 보기 `admin_support` | 문의·제보 목록, 첨부 정보, 상태 | 관리자 (F-133) |
+
+**마이그레이션 파일은 기능별로 나누고 소유자가 만든다** (D16): `0001_profiles_auth.sql`·`0002_purchases.sql`·`0003_support.sql`·`0004_admin_views.sql`(C), `0010_scores.sql`(B, 마감 이후). 다른 사람 파일을 고치지 않고, 바꿀 게 있으면 새 번호 파일을 추가한다.
 
 ### 7.2 보안 규칙
 - 모든 테이블 **RLS 활성화**.
 - 클라이언트(anon key + 사용자 JWT)는 **자기 행만 조회** 가능.
 - `scores`, `purchases`, `inventory`, `toss_orders`, `support_*`, `bug_context`, `chat_usage`의 **쓰기는 Edge Function(service role)만** 가능. 클라이언트 직접 INSERT/UPDATE 금지.
 - 클라이언트는 자기 `toss_orders`의 `status`를 조회해 결제 결과를 확인한다 (D14).
-- 채팅·제보 내용은 개인정보가 섞일 수 있으므로 팀원만 조회(대시보드), 테스터 간 공개 없음. 개인정보처리방침에 명시 (PRD N-09).
+- 채팅·제보 내용은 개인정보가 섞일 수 있으므로 관리자만 조회, 테스터 간 공개 없음. 개인정보처리방침에 명시 (PRD N-09).
+- 관리자 판정은 DB 함수 `is_admin()`(= `profiles.role = 'admin'`)으로만 한다. `admin_*` 보기는 `is_admin()`이 참일 때만 결과를 준다. `role`은 마이그레이션·Studio에서만 지정한다.
 - 랭킹은 상위 N개만 노출하는 읽기 전용 뷰로 공개한다.
 - service role 키와 Google 서비스 계정 키는 **Supabase Secrets에만** 저장한다. 게임 빌드·저장소에 포함 금지.
 
@@ -319,7 +336,8 @@ game_state ── 이벤트 발행 ──→ mission_system
 | `verify-google-purchase` | `product_id`, `purchase_token` | 사용자 인증 → Google Play Developer API로 구매 검증 → 중복 토큰 거부 → `purchases` 기록 → `inventory` 지급 → 구매 확인(acknowledge) | 지급 결과 |
 | `create-toss-order` | `product_id` | 사용자 인증 → **서버가 상품 가격표로 금액 결정** → `toss_orders`에 `ready`로 저장 | `order_id`, `amount`, 주문명 |
 | `confirm-toss-payment` | `paymentKey`, `order_id`, `amount` | `toss_orders`의 금액과 대조(다르면 거부) → 토스 결제 승인 API 호출(테스트 시크릿 키) → `purchases` 기록 → `inventory` 지급 → `toss_orders.status = paid` | 지급 결과 |
-| `support-chat` | `thread_id`(선택), `kind`, `message`, (버그면) 기기·게임 정보 | 사용자 인증 → 하루 제한 확인(`chat_usage`) → 게임 안내문(규칙·조작·알려진 문제)을 시스템 프롬프트로 OpenAI 호출 → 답변·요약·분류 저장 → 답하기 어려우면 `needs_human` | 답변, `thread_id` |
+| `support-chat` | `thread_id`(선택), `kind`, `message`, (버그면) 기기·게임 정보 | 사용자 인증 → 하루 제한 확인(`chat_usage`) → 게임 안내문(규칙·조작·알려진 문제)을 시스템 프롬프트로 OpenAI 호출 → 답변 저장 → 버그 제보이거나 답하기 어려우면 `needs_human` | 답변, `thread_id` |
+| `delete-account` | - | 사용자 인증 → 본인 데이터(`profiles`, `inventory`, `support_*`) 삭제 → Auth 계정 삭제 (service role, 서버에서만) (PRD F-107) | 삭제 결과 |
 
 ### 7.4 인증 흐름 (PRD 4.11)
 ```
@@ -338,7 +356,7 @@ game_state ── 이벤트 발행 ──→ mission_system
   → [Edge Function] support-chat → 하루 제한 확인 → OpenAI 호출 (API 키는 Secrets)
   → DB 저장 (support_threads / support_messages / bug_context)
   → [게임] 답변 표시
-[팀] Supabase 대시보드에서 needs_human 건 확인
+[관리자] Supabase 관리 화면의 admin_support 보기에서 needs_human 건 확인 → 팀 답변 작성 → 상태 변경 (7.6)
 ```
 | 규칙 | 이유 |
 |---|---|
@@ -348,6 +366,20 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 시스템 프롬프트: 게임 규칙·조작·알려진 문제 문서만 근거로 답하고, 모르면 "팀에 전달했어요" | 없는 기능을 지어내 안내하는 것 방지 (F-125) |
 | 사용자 메시지·제보 원문을 서버 로그에 통째로 찍지 않는다 | 개인정보 유출 방지 |
 | 구현 전 OpenAI 공식 문서로 모델·API 형식 확인 | 모델·API가 자주 바뀜 (Q8) |
+
+### 7.6 관리자 (PRD 4.14, D15)
+```
+관리자 계정 지정: 마이그레이션 또는 Studio에서 profiles.role = 'admin'
+        ↓
+Supabase 관리 화면(Studio) 로그인 (팀 계정)
+        ↓
+보기(뷰)로 확인: admin_members / admin_purchases / admin_support
+        ↓
+문의 답변: support_messages에 role = 'team'으로 추가, support_threads.status 변경
+```
+- Studio 접근 권한은 팀원 3명에게만 준다 (Supabase 프로젝트 멤버).
+- 게임 안의 테스트 패널은 `profiles.role = 'admin'`인 계정에서도 열린다 (PRD F-141).
+- 전용 관리자 웹 페이지는 P2 (F-135). 과제 요건이 전용 페이지를 요구하면 범위를 다시 정한다 (PRD Q6).
 
 ---
 
@@ -503,23 +535,28 @@ game_state ── 이벤트 발행 ──→ mission_system
 
 ## 11. 저장소·파일 관리
 
-### 11.1 폴더 구조
+### 11.1 폴더 구조 (괄호는 소유자, 13.1)
 ```
 3D_Game_MVP/
-├── README.md                # 서비스 소개
-├── DevelopDoc/
+├── README.md                (C)
+├── DevelopDoc/              (문서 — 수정 시 팀 공유)
 │   ├── PRD.md
 │   ├── TECH_SPEC.md         # 이 문서
+│   ├── CONTRACTS.md         # 담당 간 약속 (각 약속의 주인이 수정)
 │   ├── WORK_UNITS.md
 │   └── FINAL_CHECKLIST.md
-├── ASSETS_LICENSE.md        # 외부 에셋 출처·라이선스 기록
-├── pipeline.sh              # 전체 자동화 진입점
-├── art/
+├── ASSETS_LICENSE.md        (A)
+├── pipeline.sh              (C) tools/assets·tools/build를 순서대로 부르기만 함
+├── tools/
+│   ├── assets/              (A) 에셋 생성·검사·내보내기 실행 스크립트
+│   ├── build/               (C) 안드로이드·웹 빌드, 설치, 조립 확인 스크립트
+│   └── check_setup.sh       (C) 팀원 컴퓨터 도구 설치 점검
+├── art/                     (A)
 │   ├── STYLE.md             # 아트 규칙서 (팔레트, 비율, 분위기)
 │   ├── concept/             # 나노바나나 콘셉트 이미지
 │   ├── blender/
 │   │   ├── lib/             # 공통 함수 (재질, 검사, 내보내기)
-│   │   ├── make_*.py        # 모델 생성
+│   │   ├── make_*.py        # 모델 생성 (make_placeholders.py = 가짜 부품)
 │   │   ├── import_*.py      # 외부 에셋 정리
 │   │   ├── render_preview.py
 │   │   ├── validate.py
@@ -527,11 +564,14 @@ game_state ── 이벤트 발행 ──→ mission_system
 │   ├── source/              # 외부 원본 (Mixamo FBX 등) — git 제외
 │   └── previews/            # 미리보기 렌더 — git 제외
 ├── godot/                   # Godot 프로젝트 (6.2)
-├── backend/
-│   └── supabase/
-│       ├── migrations/      # 테이블·RLS SQL
-│       └── functions/       # Edge Functions (결제 승인, support-chat)
-├── web/                     # 토스 테스트 결제 페이지 (Vercel)
+├── backend/supabase/
+│   ├── migrations/          # 기능별 SQL 파일, 파일마다 소유자 (7.1)
+│   └── functions/           (C) create-toss-order, confirm-toss-payment, support-chat, delete-account
+├── web/
+│   └── pay/                 (C) 토스 테스트 결제 페이지 (Vercel)
+├── docs/
+│   ├── evidence/            # 작업 근거 (각자)
+│   └── SECURITY_REVIEW.md   (C) 보안 점검 보고서 (12.1)
 └── build/                   # 빌드 산출물 — git 제외
 ```
 
@@ -567,19 +607,58 @@ game_state ── 이벤트 발행 ──→ mission_system
 - 비밀 값은 채팅·문서·커밋에 적지 않는다. 사용자가 `.env`에 직접 입력한다.
 - 코드는 환경변수가 없으면 즉시 오류를 내고 멈춘다.
 
+### 12.1 보안 점검 (PRD N-11)
+**방식**: 기능을 만들 때 공격 테스트를 같이 작성하고(각 WU 완료 조건), 3일차에 **Claude 보안 검토 에이전트**로 전체를 한 번에 점검한 뒤, 사람이 결과를 확인하고 서명한다. 결과는 `docs/SECURITY_REVIEW.md`.
+
+| # | 점검 항목 | 방법 | 통과 기준 |
+|---|---|---|---|
+| S1 | RLS 우회 | 사용자 A 토큰으로 B의 데이터 조회·수정 시도 | 전부 거부 |
+| S2 | 관리자 권한 우회 | 일반 사용자가 `admin_*` 보기 조회, 자기 `role`을 `admin`으로 수정 시도 | 전부 거부 |
+| S3 | 결제 위변조 | 성공 URL 금액 변경, 남의 주문으로 승인, 같은 결제 두 번 승인 | 전부 거부·1회만 지급 |
+| S4 | 비밀 키 노출 | 저장소 현재 파일 + **git 이력 전체** + APK·웹 빌드 문자열 검색 (service role, 토스 시크릿, OpenAI, 키스토어) | 0건 |
+| S5 | 채팅 남용 | 하루 제한 초과, 인증 없이 호출, "환불해줘·관리자로 만들어줘" 요청 | 거부, DB 변화 없음 |
+| S6 | 로그 노출 | `adb logcat`, Edge Function 로그에서 토큰·키·채팅 원문 검색 | 0건 |
+| S7 | 테스트 모드 노출 | 일반 계정 + 릴리스 빌드에서 테스트 패널 열기 시도 | 열리지 않음 |
+| S8 | 회원 탈퇴 | 탈퇴 후 같은 토큰으로 조회, 관리자 보기에서 흔적 확인 | 데이터 삭제됨 |
+
+- 발견 사항은 마감 전에 고치거나, 위험도(높음·중간·낮음)와 이유를 보고서에 남긴다.
+- 로그인·결제를 만든 C가 아닌 **B가 결과를 교차 확인하고 서명**한다 (만든 사람과 확인하는 사람 분리).
+
 ---
 
 ## 13. 역할 분담
 
-### 13.1 팀 역할 (3인, PRD 2.1)
-| 역할 | 담당 모듈·폴더 |
+### 13.1 파일 소유권 (3인, PRD 2.1 — 기능 단위 소유, D16)
+| 역할 | 소유 (장면·스크립트·DB·함수를 기능 단위로) |
 |---|---|
-| A. 에셋 + 채팅 | `art/` 전체, `godot/assets/models/`, **`services/support_chat`, 채팅 UI 씬, `backend/supabase/functions/support-chat/`** |
-| B. 게임 로직 | `godot/scripts/core/`, `actors/`, `weapons/`, `godot/tests/` |
-| C. 백엔드·UI·빌드 | **`backend/supabase/migrations/`, `functions/`(결제), `services/backend_client`·`auth_client`·`payment_client`**, `godot/scenes/ui/`, `scripts/ui/`, `assets/audio/`, **`web/`(결제 페이지)**, `pipeline.sh` 빌드 부분 |
+| **A. 월드·비주얼** | `art/`, `tools/assets/`, `ASSETS_LICENSE.md`, `godot/assets/models/`·`audio/`, `godot/scenes/stage/`·`fx/`, `godot/scripts/stage/` |
+| **B. 게임플레이** | `godot/scenes/game/`·`actors/`·`weapons/`·`debug/`, `godot/scripts/core/`·`actors/`·`weapons/`·`debug/`, `godot/data/stage_data.tres`, `godot/tests/b_*`, `migrations/0010_scores.sql`(마감 이후) |
+| **C. 서비스·UI·배포** | `godot/scenes/ui/`·`scripts/ui/`·`scripts/services/`, `godot/assets/ui/`, `godot/tests/c_*`, `migrations/0001 - 0004`, `backend/supabase/functions/`, `web/`, `tools/build/`, `docs/SECURITY_REVIEW.md` |
 
-- 폴더 담당을 나눠 **같은 파일을 동시에 고치는 충돌**을 줄인다. 공용 파일(`project.godot`, `difficulty_config.gd`, `stage_data`)을 고칠 때는 팀에 먼저 알린다.
-- 작업 단위별 담당자는 `WORK_UNITS.md`에 적는다.
+### 13.1.1 공동 파일 — 주인이 한 명씩 있다
+공동 파일은 **주인만 수정**한다. 다른 사람은 주인에게 요청하고, 주인이 반영한다.
+
+| 파일 | 주인 | 이유 |
+|---|---|---|
+| `godot/project.godot`, `export_presets.cfg` | C | 빌드·입력·렌더러 설정 |
+| `godot/scenes/main.tscn` | C | 화면 전환과 조립 |
+| `pipeline.sh` | C | tools/assets(A)·tools/build(C)를 부르기만 함 |
+| `godot/scripts/core/game_state.gd`의 **신호 목록** | B | 약속 ② (CONTRACTS) |
+| `godot/scripts/core/difficulty_config.gd`, `data/stage_data.tres` | B | 밸런스·미션 수치 |
+| `scripts/services/session.gd` | C | 약속 ③ |
+| `.gitignore`, `scripts/git-hooks/` | C | 저장소 규칙 |
+| `DevelopDoc/CONTRACTS.md` | 약속별 주인 (①A ②B ③④C) | 약속 변경은 주인이 문서부터 고치고 팀에 알림 |
+
+### 13.1.2 협업 규칙
+| 규칙 | 내용 |
+|---|---|
+| 브랜치 | 각자 `a/<작업>`, `b/<작업>`, `c/<작업>` 브랜치에서 작업. `main`에 직접 커밋 금지 (C의 조립 커밋 제외) |
+| 조립(머지) | **하루 두 번 (점심·저녁)** C가 세 브랜치를 `main`에 머지 → 자동 확인 → 폰 확인 (WORK_UNITS WU-39) |
+| 자동 확인 | GUT 전체 통과 + 메인 장면 10초 무화면 실행 오류 0개 + 서명 APK 빌드 성공 |
+| 깨졌을 때 | 방금 머지한 조각을 되돌리고, 그 조각의 주인이 고쳐 다시 올림 |
+| 조립 후 | 세 명 모두 최신 `main`을 받아서 이어서 작업 |
+| 가짜 부품 교체 | 진짜 부품은 **같은 경로·같은 이름**으로 덮어쓴다 (CONTRACTS) |
+| 도와주기 | 2일차 저녁(M4) 점검에서 늦은 라인의 **기능 조각을 통째로** 넘긴다 (장면·스크립트·DB·함수 전부). 반쪽 분할 금지 |
 
 ### 13.2 Claude와 사람의 역할
 | 작업 | Claude | 사용자 |
@@ -610,7 +689,9 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 개인 개발자 주소 공개 (유료 상품 판매 시) | 개인정보 노출 | 정식 출시 전 공개용 주소 결정 |
 | Google 정책·콘솔 변경 | 절차 오류 | 각 단계 시작 시 공식 문서 재확인 |
 | **마감 72시간 + 범위 확대** | 미완성 제출 | WORK_UNITS 1.3 범위 축소 순서 사전 합의, 매일 저녁 진행 점검, 10/1 24:00 코드 동결 |
-| **C 역할 과부하** (백엔드·결제·UI·빌드) | 결제·UI 동시 지연 | 채팅을 A로 이관, UI 틀은 1일차부터 가짜 데이터로 먼저 제작 |
+| **C 역할 과부하** (서비스·UI·배포, 약 26시간) | 결제·채팅·UI 동시 지연 | 범위 축소(관리자 = Studio, 채팅 요약 P2, 보안 점검 = 테스트 선작성 + 에이전트), Claude 세션 2개 병렬, 공통 UI 부품 먼저, 2일차 점검에서 기능 조각 단위로 넘김 |
+| 머지 충돌 | 조립 지연 | 기능 단위 파일 소유, 공동 파일 주인제, 하루 두 번 조립 (13.1.2) |
+| 가짜 부품과 진짜 부품 불일치 | 교체 시 깨짐 | CONTRACTS ① 규격을 `validate.py`가 자동 검사 (이름·크기·원점·애니메이션 이름) |
 | OpenAI 비용 폭주·남용 | 예상 밖 청구 | 1인 하루 30회, OpenAI 월 한도 설정, 키는 Secrets에만 |
 | 채팅으로 LLM 조작 시도 (프롬프트 인젝션) | 잘못된 안내 | LLM에 도구 권한 없음(답변만), 규칙 문서 근거 답변, 결제 문제는 사람 확인 |
 | 앱 결제 후 복귀 흐름 혼란 | 결제했는데 반영 안 됨 | 복귀 시 자동 재조회 + "결제 확인 중" 안내, 상점에 "결제 내역 새로고침" 버튼 |
@@ -630,6 +711,7 @@ game_state ── 이벤트 발행 ──→ mission_system
 | Q7 | 광고 도입 여부 | MVP 피드백 이후 |
 | Q8 | OpenAI 모델 (비용·속도) | 10/1 채팅 구현 시작 전, 공식 문서 확인 |
 | Q9 | Supabase 이메일 확인(메일 인증) 사용 여부 | WU-51 |
+| Q10 | 과제 제출 요건 원문 (관리자·테스트 모드·보안 점검 해석 검증, PRD Q6) | 9/29 (화) 오전 |
 
 ---
 
@@ -639,6 +721,7 @@ game_state ── 이벤트 발행 ──→ mission_system
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.4 | 2026-09-29 | PRD v0.4 반영 — D15 관리자 = Supabase Studio + 역할 + 보기, D16 기능 단위 소유·약속서·가짜 부품·하루 두 번 조립. 6.2·11.1 폴더에 소유자 표기(tools/assets·tools/build 분리, scenes/fx·debug 추가), 모듈 session·test_panel·far_layers, profiles.role·admin 보기·기능별 마이그레이션 파일, delete-account 함수, 7.6 관리자, 12.1 보안 점검표(S1 - S8), 13.1 파일 소유권·공동 파일 주인·협업 규칙, 리스크 갱신, Q10 |
 | v0.3 | 2026-09-28 | PRD v0.3 반영 — 일정(내부 10/1 24:00, 최종 10/2 10:00), D8 수정(마감 전 웹·앱 토스 테스트 결제), D9 이메일+게스트 인증, D13 OpenAI 채팅, D14 앱 결제 복귀 조회, 모듈(auth_client·payment_client·support_chat), 테이블(support_threads·support_messages·bug_context·chat_usage), support-chat 함수, 7.4 인증 흐름, 7.5 채팅 흐름, 8.5 웹·앱 공통 결제 흐름, 역할 재배정, 리스크 5건, Q8·Q9 |
 | v0.2.3 | 2026-09-28 | WU-04 파이프라인 시험 결과를 14장 리스크에 반영 (Blender 5.2 API, adb 권한, 조명에 의한 색 변화) |
 | v0.2.2 | 2026-09-28 | 테스트 기기 Galaxy S24 Ultra 확정, 성능 목표 60fps + 중급 기기 30fps 기준, 발열 기준 추가 (Q1) |
