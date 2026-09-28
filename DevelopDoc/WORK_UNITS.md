@@ -244,13 +244,13 @@
 | 산출물 | GitHub 공개 저장소, 팀원 초대, 각자 브랜치 |
 
 **완료 조건**
-- [ ] 👤 공개 저장소 생성·푸시를 사용자가 승인했다
-- [ ] `git log`·`git grep`으로 비밀 값이 없는 것을 확인한 뒤 푸시했다 (공개 저장소)
+- [x] 👤 공개 저장소 생성·푸시를 사용자가 승인했다 (2026-09-29, `Lightnine999/3D_Game_MVP`)
+- [x] `git log`·`git grep`으로 비밀 값이 없는 것을 확인한 뒤 푸시했다 (공개 저장소) — 이력 전체 비밀 키 패턴 0건, 작성자 이메일 noreply
 - [ ] 👤 팀원 2명을 초대했고, 각자 저장소를 받았다
 - [ ] 팀원 각자 `git config core.hooksPath scripts/git-hooks`와 noreply 이메일을 설정했다
 - [ ] 팀원 각자 `tools/check_setup.sh`가 통과한다 (A: Godot·Blender / B: Godot·Android SDK / C: Godot·Android SDK·Supabase CLI·Node)
 - [ ] 각자 `a/…`, `b/…`, `c/…` 브랜치를 만들었다
-- [ ] README와 CLAUDE.md 등에 GitHub 링크를 채웠다
+- [x] README에 GitHub 링크를 채웠다
 
 ---
 
