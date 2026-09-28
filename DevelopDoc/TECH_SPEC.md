@@ -1,0 +1,566 @@
+# TECH_SPEC — 3D 좀비 생존 러너 MVP (기술 명세)
+
+| 항목 | 내용 |
+|---|---|
+| 문서 버전 | v0.2 |
+| 작성일 | 2026-09-28 |
+| 상태 | DRAFT (검토 중) |
+| 가칭 | 3D_Game_MVP (정식 게임명 미정) |
+| 레퍼런스 게임 | Into the Dead (PikPok) — 1인칭 자동 달리기 좀비 생존 |
+| 관련 문서 | `README.md`, `DevelopDoc/PRD.md`, `DevelopDoc/WORK_UNITS.md`, `DevelopDoc/FINAL_CHECKLIST.md` |
+
+> 이 문서는 **무엇으로(도구) 어떻게(구조·규칙) 만드는가**를 정한다.
+> **무엇을 만드는가(게임 기획·기능 범위)**는 `PRD.md`에서 정한다.
+
+---
+
+## 1. 개요
+
+### 1.1 한 줄 요약
+안개 낀 밤 들판을 1인칭으로 자동 질주하며 좀비를 피하고 쏘는 모바일 3D 생존 게임. Godot 4로 만들고 Google Play에 출시한다.
+
+### 1.2 목표 플랫폼
+| 구분 | 내용 |
+|---|---|
+| 주 플랫폼 | **Android (Google Play)** |
+| 화면 방향 | 가로 (Landscape) |
+| 보조 플랫폼 | Web (Godot HTML5) — 아이폰 사용자 테스터용 체험판 + **토스페이먼츠 테스트 결제** (3단계) |
+| 테스트 기기 | 사용자 보유 Android 폰 (기종 확인 후 확정 → 10.3 성능 목표에 반영) |
+
+### 1.3 개발 원칙
+1. **바이브 코딩** — Claude가 스크립트·코드·씬 파일을 작성하고 명령줄로 실행·검증한다. Blender와 Godot 에디터를 사람이 열지 않아도 되는 구조를 유지한다.
+2. **모든 산출물은 텍스트 우선** — 모델은 Python 스크립트로, 씬은 `.tscn` 텍스트로 관리해 git에서 변경 내용을 추적할 수 있게 한다.
+3. **Claude가 눈으로 확인하는 단계** — Blender 미리보기 렌더와 Godot 스크린샷을 PNG로 뽑아 결과를 확인한 뒤 다음 단계로 넘어간다.
+4. **MVP 우선** — 3일 안에 스테이지 1개를 완성해 재미를 검증한다. 백엔드·결제는 MVP 이후 단계에서 붙인다.
+
+---
+
+## 2. 핵심 기술 결정 (요약)
+
+| # | 결정 | 이유 | 버린 대안 |
+|---|---|---|---|
+| D1 | 게임 엔진 **Godot 4** | 씬·리소스가 텍스트 파일이라 Claude가 직접 수정 가능 / 명령줄 빌드 / 무료(MIT) / GDScript가 파이썬과 유사 | Unity — 씬이 YAML+GUID라 스크립트 수정 시 깨지기 쉽고 에디터 작업 비중이 큼 |
+| D2 | 렌더러 **Mobile** | Android 대상. 조명·그림자·글로우 품질이 Compatibility보다 좋음 | Forward+ — 모바일 성능 부담 / Compatibility — 웹 체험판에서만 사용 |
+| D3 | 안개 표현 **거리·높이 안개 + 안개 판(반투명 평면)** | 볼류메트릭 안개는 Forward+ 전용이라 Mobile에서 사용 불가 | 볼류메트릭 안개 |
+| D4 | 배경·소품 **Blender 스크립트 생성** | 로우폴리 소품은 코드로 충분히 생성 가능, 어둠·안개가 디테일을 가려줌 | 수작업 모델링 |
+| D5 | 좀비 **Mixamo 캐릭터 + 모션** | 리깅과 좀비 전용 모션(걷기·달리기·공격·사망)이 이미 있음 → 리깅 문제 해소 | Blender 스크립트 리깅 — 인체형 리깅·스키닝 품질 확보가 어려움 |
+| D6 | 1인칭 **팔 모델 생략** (MVP) | 총만 화면에 띄우고 흔들림·반동을 코드로 구현 → 리깅 불필요 | Mixamo 팔 모델 |
+| D7 | 무기 **CC0 무료 에셋 우선** | 1인칭에서 총이 화면에 크게 보여 품질이 중요 | Blender 스크립트 (에셋이 없을 때 대안) |
+| D8 | 결제 **앱 = Google Play Billing / 웹 = 토스페이먼츠(테스트)** | Google Play 앱의 디지털 상품 판매는 Play 결제 사용이 원칙이므로 앱 안에는 토스를 넣지 않는다. 토스는 웹 체험판에서 테스트 키로만 검증한다. 두 결제는 서버의 구매 기록·지급 로직을 공유한다 | 앱 안에 토스 결제 — 정책 위반 소지 |
+| D9 | 백엔드 **Supabase** | 익명 로그인·DB·Edge Function을 한 곳에서 처리 | 자체 서버 |
+| D10 | 출시 전략 **MVP 테스트 = Google 비공개 테스트 14일** | 개인 계정의 정식 출시 조건(12명 이상 × 14일 연속)을 피드백 수집 기간과 겹쳐 전체 일정 단축 | 웹 MVP 후 별도 비공개 테스트 |
+| D11 | 카메라 **세로 시야 고정(Keep Height)** | 화면이 넓은 폰일수록 좌우가 더 보여 와이드한 들판 느낌(PRD F-66)을 준다. 세로 시야가 고정이라 좀비 크기·UI 판단이 기종마다 달라지지 않는다 | 가로 시야 고정 — 넓은 폰에서 위아래가 잘려 답답해짐 |
+| D12 | 미션 **데이터 분리 (Resource)** | 스테이지 추가 시 코드 수정 없이 미션만 추가 (PRD F-95) | 미션을 코드에 직접 작성 |
+
+---
+
+## 3. 기술 스택
+
+### 3.1 개발 도구
+| 영역 | 도구 | 버전 | 설치 상태 | 조작 주체 |
+|---|---|---|---|---|
+| 게임 엔진 | Godot | **4.7.2 stable** | ✅ 설치됨 (`/opt/homebrew/bin/godot`), 내보내기 템플릿 4.7.2 설치됨 | Claude |
+| 스크립트 언어 | GDScript | Godot 번들 | - | Claude |
+| 3D 모델링 | Blender (headless, Python `bpy`) | 5.2.2 LTS | ✅ 설치됨 (`/opt/homebrew/bin/blender`) | Claude |
+| 콘셉트 아트 | 나노바나나 (Gemini 이미지 생성 API) | - | API 키 필요 | Claude (키 설정은 사용자) |
+| 캐릭터·모션 | Mixamo (Adobe) | - | Adobe 계정 필요 | 다운로드는 사용자, 정리는 Claude |
+| 테스트 프레임워크 | GUT (Godot Unit Test) | Godot 4 호환판 | 미설치 | Claude |
+| Android 빌드 | OpenJDK 17, Android SDK (platform-tools, build-tools 35.0.1, platforms android-35, cmdline-tools, cmake 3.10.2.4988404, ndk 28.1.13356709) | Godot 4.7 공식 문서 요구 버전 | ✅ 설치됨 (`JAVA_HOME`, `ANDROID_HOME`은 `~/.zshrc`에 등록) | Claude |
+| 백엔드 | Supabase (Postgres, Auth, Edge Functions) + Supabase CLI | CLI 2.118.0, Deno 2.9.6 | ✅ CLI 설치됨, 프로젝트 생성 필요 | Claude (프로젝트 생성은 사용자) |
+| 결제 (앱) | Google Play Billing + Godot Google Play Billing 플러그인 | 설치 시 Godot 버전 호환 확인 | - | Claude |
+| 결제 (웹, 테스트) | 토스페이먼츠 결제위젯 JavaScript SDK + 테스트 키 | 구현 시 공식 가이드로 최신 버전 확인 | 개발자센터 가입 필요 | Claude (가입·키 확인은 사용자) |
+| 웹 호스팅 | Vercel (웹 체험판 + 결제 성공·실패 페이지) | CLI 59.16.0 | ✅ CLI 설치됨 | Claude |
+| 배포 | Google Play Console | - | 개발자 계정 필요 | 사용자 (첫 업로드), 이후 선택적 자동화 |
+| 런타임 (보조) | Node.js | v22 | ✅ 설치됨 | 보조 스크립트용 |
+
+> 모든 버전은 설치 시점에 공식 문서로 재확인하고 이 표를 갱신한다. 특히 Blender 5.x는 `bpy` API가 이전 버전과 다를 수 있으므로 코드 작성 전 문서를 조회한다.
+
+### 3.2 에셋 출처
+| 에셋 | 1순위 | 2순위 | 라이선스 조건 |
+|---|---|---|---|
+| 콘셉트 이미지 | 나노바나나 | - | 생성 이미지 이용 약관 확인 |
+| 배경·소품 | Blender 스크립트 | CC0 에셋 (Kenney, Quaternius, Poly Pizza) | CC0 |
+| 무기 (총·칼) | CC0 에셋 | Blender 스크립트 | CC0 (받기 전 출처·라이선스 확인) |
+| 좀비 캐릭터·모션 | Mixamo | 나노바나나 → AI 3D 생성(Tripo/Meshy) → Mixamo 자동 리깅 (MVP 이후) | Mixamo: 게임 내 사용 무료, **원본 파일 재배포 금지** |
+| 효과음 | Kenney 오디오 (CC0) | freesound.org | 파일별 라이선스 확인 (CC0 우선, CC-BY는 크레딧 표기) |
+| 배경음 | AI 음악 도구 (예: Suno) | CC0 음원 | **무료 요금제는 상업 이용 불가일 수 있음 → 출시 전 확인** |
+
+모든 외부 에셋은 `ASSETS_LICENSE.md`에 출처·라이선스·다운로드일을 기록한다 (11장 참고).
+
+---
+
+## 4. 시스템 아키텍처
+
+```
+┌──────────────────────── 에셋 파이프라인 (로컬, 명령줄) ────────────────────────┐
+│                                                                              │
+│  나노바나나 ──→ art/concept/*.png (분위기 정답지)                               │
+│                                                                              │
+│  Blender 스크립트 ─┐                                                          │
+│  CC0 무기 에셋 ────┼──→ Blender 정리 스크립트 ──→ 자동 검사 ──→ *.glb            │
+│  Mixamo FBX ──────┘     (크기·원점·이름·폴리곤)     │                           │
+│                                                  └──→ 미리보기 PNG (Claude 확인) │
+└──────────────────────────────────────────────────────┬───────────────────────┘
+                                                       ↓
+┌──────────────────────── Godot 4 클라이언트 (Android) ──────────────────────────┐
+│  godot/assets/models/*.glb → 씬(.tscn) + GDScript                              │
+│  ├─ 게임 루프 (달리기·좀비·사격·스폰)                                             │
+│  ├─ UI (HUD, 결과 화면, 상점)                                                   │
+│  ├─ BackendClient ──── HTTPS ────┐                                            │
+│  └─ BillingClient ── Play 결제 ──┼───────────┐                                 │
+└──────────────────────────────────┼───────────┼────────────────────────────────┘
+                                   ↓           ↓
+┌────────────── Supabase ──────────────┐   ┌──── Google Play ────┐
+│ Auth (익명 로그인)                     │   │ Play Billing         │
+│ Postgres (profiles/scores/purchases)  │←──│ Play Developer API   │
+│ Edge Functions                        │──→│ (구매 검증·확인 처리)  │
+│  ├─ submit-score (점수 검증)           │   └─────────────────────┘
+│  ├─ verify-google-purchase (결제 검증) │
+│  ├─ create-toss-order (웹 주문 생성)    │
+│  └─ confirm-toss-payment (웹 결제 승인) │
+└──────────────────────────────────────┘
+```
+
+웹 체험판(3단계)은 같은 Godot 프로젝트를 웹으로 내보내 Vercel에 올리고, 결제만 토스페이먼츠 테스트 결제로 바꾼다. 결제 뒤 흐름(구매 기록·아이템 지급)은 앱과 같은 Supabase 테이블을 쓴다 (8.5).
+
+---
+
+## 5. 에셋 파이프라인
+
+### 5.1 단계
+| 단계 | 입력 | 처리 | 출력 | 실행 |
+|---|---|---|---|---|
+| 1. 콘셉트 | 프롬프트 | 나노바나나 이미지 생성 | `art/concept/*.png` | API 스크립트 |
+| 2. 생성 | 파라미터 | Blender 모델 생성 스크립트 | `.blend` (중간 산출물) | `blender -b -P art/blender/make_*.py -- <옵션>` |
+| 3. 가져오기 | Mixamo FBX, CC0 에셋 | Blender 정리 스크립트 (크기·원점·이름 통일, 폴리곤 감소) | `.blend` | `blender -b -P art/blender/import_*.py -- <파일>` |
+| 4. 미리보기 | `.blend` | 4방향 렌더 + 애니메이션 프레임 모음 이미지 | `art/previews/*.png` | `blender -b -P art/blender/render_preview.py` |
+| 5. 검사 | `.blend` / `.glb` | 규칙 검사 (5.3) | 통과/실패 리포트 | `art/blender/validate.py` |
+| 6. 내보내기 | `.blend` | glTF 2.0 바이너리 | `godot/assets/models/*.glb` | `art/blender/export_glb.py` |
+| 7. Godot 가져오기 | `.glb` | Godot 리소스 가져오기 | `.import` | `godot --headless --path godot --import` |
+
+전 단계를 `pipeline.sh`로 묶는다.
+```bash
+./pipeline.sh asset zombie_walker   # 에셋 하나를 생성부터 Godot 가져오기까지
+./pipeline.sh assets                # 전체 에셋
+```
+
+### 5.2 공통 규격
+| 항목 | 규격 |
+|---|---|
+| 단위 | 1 Blender unit = 1 m = 1 Godot unit |
+| 축 | glTF 내보내기 기본값 사용 (Blender Z-up → glTF Y-up 자동 변환). Godot에서 캐릭터 정면은 -Z |
+| 원점 | 캐릭터·소품 모두 **발밑 중앙** (지면 y = 0) |
+| 좀비 키 | 1.7 - 1.9 m |
+| 텍스처 | 최대 1024×1024, Godot에서 VRAM 압축(ETC2/ASTC) |
+| 재질 | 로우폴리 단색/팔레트 텍스처 우선, 재질 수 최소화 |
+| 파일 이름 | `소문자_스네이크케이스` — 예: `zombie_walker.glb`, `prop_barn.glb`, `weapon_pistol.glb` |
+| 접두사 | `zombie_` 좀비 / `prop_` 소품 / `env_` 지형 타일 / `weapon_` 무기 / `fx_` 이펙트 |
+
+### 5.3 폴리곤·성능 예산 (자동 검사 기준)
+| 대상 | 삼각형 수 상한 |
+|---|---|
+| 좀비 1마리 | 10,000 |
+| 무기 1개 | 5,000 |
+| 소품 1개 | 2,000 |
+| 지형 타일 1개 | 5,000 |
+| 화면 전체 (동시 표시) | 300,000 |
+
+검사 스크립트는 위 상한 초과, 원점 위치 오류, 크기 이상(좀비 키 범위 이탈), 애니메이션 이름 누락을 **실패**로 보고한다.
+
+### 5.4 좀비 애니메이션 규격
+| 애니메이션 이름 | 용도 | Mixamo 다운로드 옵션 |
+|---|---|---|
+| `idle` | 대기 | - |
+| `walk` | 느린 좀비 이동 | **In Place** 체크 |
+| `run` | 빠른 좀비 이동 | **In Place** 체크 |
+| `attack` | 공격 | - |
+| `hit` | 피격 | - |
+| `death` | 사망 | - |
+
+- 모든 좀비는 Mixamo 동일 뼈대를 사용해 애니메이션을 공유한다 (Godot 리타깃).
+- 이동은 코드가 담당하므로 이동 모션은 반드시 **In Place**로 받는다.
+- 다운로드 목록(캐릭터·모션·옵션)은 작업 단위에서 Claude가 정리해 사용자에게 전달한다.
+
+### 5.5 1인칭 무기 (Viewmodel)
+- 팔 모델 없이 무기만 카메라 앞에 배치한다.
+- 걷기 흔들림(bob), 사격 반동(recoil), 재장전 동작은 코드(Tween)로 구현한다.
+
+---
+
+## 6. Godot 클라이언트
+
+### 6.1 프로젝트 설정
+| 항목 | 값 |
+|---|---|
+| 렌더러 | Mobile |
+| 화면 방향 | Landscape (sensor landscape) |
+| 기준 해상도 | 1920×1080, stretch mode `canvas_items`, aspect `expand` |
+| 물리 | Godot 기본 3D 물리 (필요 시 Jolt 검토) |
+| 입력 | 터치 + 개발용 키보드/마우스 동시 지원 |
+| 카메라 비율 | `keep_aspect = KEEP_HEIGHT` — 세로 시야(FOV) 고정, 넓은 화면일수록 좌우 시야 확장 (D11) |
+| 세로 시야 | 초기값 60° (와이드 폰 21:9에서 가로 시야가 과하게 왜곡되지 않는지 확인 후 조정) |
+| 지원 비율 | 16:9 - 21:9 가로. `aspect = expand`로 검은 띠 없이 꽉 채움 |
+| Safe area | `DisplayServer.get_display_safe_area()`로 노치·카메라 구멍 영역을 받아 HUD 여백에 반영 |
+
+### 6.1.1 깊이감 층 구성 (PRD F-67, F-68)
+| 층 | 거리 | 내용 | 표현 |
+|---|---|---|---|
+| 근경 | 0-10m | 풀, 소품, 장애물 | 선명, 빠르게 스쳐 지나감 |
+| 중경 | 10-40m | 좀비, 장애물, 보급 상자 | 안개로 점점 흐려짐 (플레이 영역) |
+| 원경 | 40-150m | 나무 줄, 헛간 불빛, 송전탑 실루엣 | 단순한 저폴리 판(카드)으로 그리고 안개 색에 거의 묻힘 |
+| 배경 | 무한 | 밤하늘, 달, 구름 | 하늘 셰이더 (카메라와 함께 이동) |
+
+- 원경 실루엣은 플레이어와 함께 천천히 따라와 **달려도 멀리 있는 것은 느리게 움직이는** 시차(패럴랙스)를 만든다.
+- 이동 가능 폭 바깥에도 저폴리 들판·나무 줄을 배치해 화면 끝에서 세계가 끊기지 않게 한다. 바깥 영역은 충돌·AI 계산을 하지 않는다.
+
+### 6.2 폴더 구조 (Godot 프로젝트)
+```
+godot/
+├── project.godot
+├── assets/
+│   ├── models/        # .glb (파이프라인 출력)
+│   ├── audio/
+│   └── ui/
+├── scenes/
+│   ├── main.tscn      # 진입점
+│   ├── stage/         # 스테이지, 지형 타일
+│   ├── actors/        # player, zombie
+│   ├── weapons/
+│   └── ui/            # hud, result, shop
+├── scripts/
+│   ├── core/          # game_state, spawner, run_controller
+│   ├── actors/        # player, zombie_ai
+│   ├── weapons/
+│   ├── services/      # backend_client, billing_client
+│   └── ui/
+└── tests/             # GUT 테스트
+```
+
+### 6.3 모듈 책임
+| 모듈 | 책임 | 의존 |
+|---|---|---|
+| `run_controller` | 자동 전진, 좌우 이동, 달린 거리 계산 | 입력 |
+| `spawner` | 전방 좀비·소품·아이템 배치, 피할 수 없는 배치 방지 | 난이도 설정 |
+| `zombie_ai` | 상태 머신 (대기 → 추적 → 공격 → 사망), 애니메이션 전환 | 플레이어 위치 |
+| `weapon` | 사격(레이캐스트), 탄약, 재장전, 반동 | 입력, 좀비 피격 |
+| `game_state` | 체력, 점수, 게임오버, 결과 | 모든 게임 모듈 |
+| `difficulty_config` | 밸런스 상수 전부 (속도, 스폰 간격, 좀비 수, 장애물 감속) — **밸런스 조정은 이 파일만 수정** | 없음 |
+| `camera_rig` | 1인칭 카메라, Keep Height 비율, 흔들림(bob·충돌·잡힘), 원경 시차 | run_controller |
+| `obstacle` | 폐차·드럼통·쓰레기 더미 충돌 판정, 비틀거림 + 감속(1초, 50%) | run_controller |
+| `mission_system` | 미션 정의(Resource) 로드, 게임 이벤트(처치·도착·구역 통과) 구독, 달성 판정, 로컬 저장 | game_state |
+| `stage_data` | 스테이지 이름·설명·목표 거리·대표 이미지·미션 3개 (Resource, `.tres` 텍스트) | 없음 |
+| `backend_client` | Supabase 인증, 점수 제출, 인벤토리 조회 | Supabase |
+| `billing_client` | Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
+
+게임 로직 모듈은 `backend_client`·`billing_client` 없이도 동작해야 한다 (오프라인 플레이 가능, 테스트 용이).
+
+### 6.3.1 미션 판정 구조
+```
+game_state ── 이벤트 발행 ──→ mission_system
+  zombie_killed(type)          미션마다 조건 검사
+  zone_entered(zone_id)        예: {type: "kill_count", target: 15}
+  stage_cleared()                  {type: "pass_zone", zone: "barn_inside"}
+  knife_used()                     {type: "survive"}
+                                 → 달성 시 mission_completed 알림 → HUD 토스트
+                                 → 결과 화면에 ★ 표시, user://에 달성 기록 저장
+```
+- 미션 종류(`survive`, `kill_count`, `pass_zone`, `no_knife` 등)는 코드에 구현하고, **어떤 스테이지에 어떤 미션을 몇으로** 줄지는 `stage_data`에서만 정한다.
+- 헛간 통과(`pass_zone`)는 헛간 내부에 Area3D 구역을 두어 판정한다. 헛간 모델에는 통과 가능한 내부 통로가 있어야 한다.
+
+### 6.4 성능 기법
+- 스테이지는 **지형 타일 재사용**: 플레이어 앞에 타일을 붙이고 뒤로 지나간 타일은 재활용(오브젝트 풀).
+- 좀비도 오브젝트 풀로 재사용하고, 멀리 있는 좀비는 애니메이션 갱신 빈도를 낮춘다.
+- 시야 거리를 안개로 제한해 멀리 있는 물체를 그리지 않는다 (카메라 far 거리 = 안개 끝 거리).
+- 동시 표시 좀비 수 상한을 `difficulty_config`에서 관리한다.
+
+---
+
+## 7. 백엔드 (Supabase)
+
+### 7.1 테이블 (초안)
+| 테이블 | 주요 컬럼 | 용도 |
+|---|---|---|
+| `profiles` | `id`(= auth.users.id), `nickname`, `created_at` | 게스트 계정 |
+| `scores` | `id`, `user_id`, `distance_m`, `kills`, `duration_s`, `app_version`, `created_at` | 기록·랭킹 |
+| `purchases` | `id`, `user_id`, `platform`(`google_play` \| `toss_test`), `product_id`, `purchase_token`(UNIQUE — 구글은 구매 토큰, 토스는 paymentKey), `order_id`, `amount`, `status`, `verified_at`, `created_at` | 결제 기록 (앱·웹 공통) |
+| `toss_orders` | `order_id`(PK), `user_id`, `product_id`, `amount`, `status`(`ready` \| `paid` \| `failed`), `created_at` | 토스 결제 전에 서버가 만드는 주문. 승인 시 금액 대조용 |
+| `mission_progress` | `user_id`, `stage_id`, `mission_id`, `completed_at` | 미션 달성 기록 (2단계. MVP는 기기 로컬 저장) |
+| `inventory` | `user_id`, `item_id`, `quantity`, `updated_at` | 보유 아이템 |
+
+### 7.2 보안 규칙
+- 모든 테이블 **RLS 활성화**.
+- 클라이언트(anon key + 사용자 JWT)는 **자기 행만 조회** 가능.
+- `scores`, `purchases`, `inventory`의 **쓰기는 Edge Function(service role)만** 가능. 클라이언트 직접 INSERT/UPDATE 금지.
+- 랭킹은 상위 N개만 노출하는 읽기 전용 뷰로 공개한다.
+- service role 키와 Google 서비스 계정 키는 **Supabase Secrets에만** 저장한다. 게임 빌드·저장소에 포함 금지.
+
+### 7.3 Edge Functions
+| 함수 | 입력 | 처리 | 출력 |
+|---|---|---|---|
+| `submit-score` | 거리, 킬 수, 플레이 시간, 앱 버전 | 사용자 인증 확인 → 물리적으로 불가능한 값 거부 (예: 거리 ÷ 시간이 최고 속도 × 1.2 초과) → 저장 | 저장 결과, 순위 |
+| `verify-google-purchase` | `product_id`, `purchase_token` | 사용자 인증 → Google Play Developer API로 구매 검증 → 중복 토큰 거부 → `purchases` 기록 → `inventory` 지급 → 구매 확인(acknowledge) | 지급 결과 |
+| `create-toss-order` | `product_id` | 사용자 인증 → **서버가 상품 가격표로 금액 결정** → `toss_orders`에 `ready`로 저장 | `order_id`, `amount`, 주문명 |
+| `confirm-toss-payment` | `paymentKey`, `order_id`, `amount` | 사용자 인증 → `toss_orders`의 금액과 대조(다르면 거부) → 토스 결제 승인 API 호출(테스트 시크릿 키) → `purchases` 기록 → `inventory` 지급 | 지급 결과 |
+
+---
+
+## 8. 결제 (Google Play Billing)
+
+### 8.1 구매 흐름
+```
+[게임] 상점에서 상품 선택
+  → [Play 결제 시트] 사용자 결제 (테스트: 라이선스 테스터 + 테스트 카드)
+  → [게임] purchase_token 수신
+  → [Edge Function] verify-google-purchase → Google 서버에서 진위 확인
+  → [DB] purchases 기록 + inventory 지급
+  → [게임] 소모성 상품은 consume 처리 → 아이템 반영
+```
+
+### 8.2 규칙
+| 규칙 | 이유 |
+|---|---|
+| 서버 검증 전에는 아이템을 지급하지 않는다 | 변조된 클라이언트로 무료 획득 방지 |
+| 구매는 **3일 이내 확인(acknowledge)** 처리 | 미확인 구매는 Google이 자동 환불 |
+| 소모성 상품은 지급 후 consume | 미처리 시 같은 상품 재구매 불가 |
+| 같은 `purchase_token`은 한 번만 지급 | 중복 지급 방지 (DB UNIQUE 제약) |
+| 앱 재실행 시 미처리 구매 조회·재검증 | 결제 중 앱 종료 대비 |
+
+### 8.3 상품 (예시, 확정은 PRD)
+| 상품 ID | 유형 | 내용 |
+|---|---|---|
+| `ammo_pack_small` | 소모성 | 탄약 묶음 |
+| `revive_token` | 소모성 | 즉시 부활 1회 |
+| `remove_ads` | 비소모성 | 광고 제거 (광고 도입 시에만) |
+
+### 8.4 테스트 환경
+- 결제 프로필(판매자 계정) 생성 → 결제 기능이 포함된 빌드를 **내부 테스트 트랙**에 업로드 → 인앱 상품 등록 → 라이선스 테스터 등록.
+- 테스트 기기에는 **Play 스토어 테스트 링크로 설치**한다 (`adb` 직접 설치 빌드는 결제가 정상 동작하지 않을 수 있음).
+
+### 8.5 웹 체험판 토스페이먼츠 테스트 결제 (3단계)
+**적용 범위: 웹 빌드에만.** Android 빌드에는 토스 코드를 포함하지 않는다 (D8). 결제 상품은 F-82와 같은 상품 ID를 쓴다.
+
+```
+[웹 게임] 상점에서 상품 선택
+  → [Edge Function] create-toss-order → 서버가 금액을 정해 주문 생성 (order_id, amount)
+  → [Godot → JavaScriptBridge] 웹 페이지의 토스 결제위젯 호출 (테스트 클라이언트 키 test_ck_...)
+  → [토스 결제창] 테스트 결제 (실제 돈 안 나감)
+  → [성공 URL] paymentKey, orderId, amount 쿼리로 돌아옴
+  → [Godot] confirm-toss-payment 호출
+  → [Edge Function] 주문 금액 대조 → 토스 승인 API (테스트 시크릿 키 test_sk_...) → purchases 기록 + inventory 지급
+  → [웹 게임] 아이템 반영
+```
+
+| 규칙 | 이유 |
+|---|---|
+| **시크릿 키(`test_sk_`)는 Edge Function에만** 둔다. 웹 빌드·Vercel 공개 환경변수(`NEXT_PUBLIC_` 등)에 넣지 않는다 | 브라우저에 노출되면 누구나 결제 승인 API를 호출할 수 있음 |
+| 브라우저는 토스 서버 API(`api.tosspayments.com`)를 **직접 호출하지 않는다**. 승인은 Edge Function이 한다 | 시크릿 키 보호, 금액 위변조 방지 |
+| 결제 금액은 **서버가 주문을 만들 때 정하고**, 승인 전에 성공 URL로 돌아온 금액과 대조한다 | 사용자가 URL의 금액을 바꿔 싸게 결제하는 공격 방지 |
+| 같은 `paymentKey`는 한 번만 지급한다 (`purchases.purchase_token` UNIQUE) | 새로고침 등으로 인한 중복 지급 방지 |
+| 결제위젯은 Godot 웹 내보내기의 **사용자 정의 HTML 셸**에 넣는다 | Godot 캔버스 밖에서 결제창을 띄우기 위함 |
+| 구현 시 토스페이먼츠 공식 연동 가이드(MCP)로 최신 SDK·API를 확인한다 | SDK 버전·API가 바뀔 수 있음 |
+
+**테스트 시나리오**: 결제 성공 / 사용자가 결제창 닫기 / 결제 실패 / 성공 URL의 금액 위변조 / 같은 결제로 승인 두 번 요청
+
+---
+
+## 9. 빌드·배포
+
+### 9.1 빌드
+```bash
+./pipeline.sh build-android   # 에셋 검사 → 테스트 → 서명된 .aab
+./pipeline.sh install-device  # 디버그 빌드를 USB 연결 폰에 설치 (adb)
+./pipeline.sh build-web       # 웹 체험판 (Compatibility 렌더러 + 토스 결제 HTML 셸)
+```
+내부적으로 `godot --headless --path godot --export-release "Android" build/game.aab` 를 사용한다.
+
+### 9.2 서명
+| 항목 | 규칙 |
+|---|---|
+| 업로드 키 | `keytool`로 생성, **git 제외**, 저장소 밖에 보관 + 별도 백업 |
+| 앱 서명 | Google Play 앱 서명 사용 (업로드 키 분실 시 재설정 요청 가능) |
+| 키 비밀번호 | 환경변수로 주입, 파일·저장소에 기록 금지 |
+
+### 9.3 Android 설정
+| 항목 | 값 |
+|---|---|
+| 패키지 이름 | 미정 (예: `com.<개발자>.<게임명>`) — **한 번 정하면 변경 불가** |
+| Target API | Google Play의 현재 요구 수준 (빌드 시점에 공식 문서로 확인) |
+| 권한 | 인터넷, 결제(`BILLING`) 외 최소화 |
+| 버전 | `versionCode` 업로드마다 +1, `versionName` = 의미적 버전 |
+
+### 9.4 Play Console 트랙
+| 트랙 | 인원 | 용도 |
+|---|---|---|
+| 내부 테스트 | 최대 100명, 심사 없음 | 개발자 확인, 결제 테스트 |
+| 비공개 테스트 | **12명 이상 × 14일 연속** | MVP 피드백 + 정식 출시 조건 충족 |
+| 프로덕션 | 전체 | 정식 출시 |
+
+- 첫 업로드는 사용자가 Play Console에서 직접 수행한다.
+- 이후 업로드는 선택적으로 Google Play Developer API(서비스 계정)로 자동화한다.
+
+### 9.5 스토어 등록 자료
+| 항목 | 준비 방법 |
+|---|---|
+| 아이콘 512×512, 대표 이미지 1024×500 | 나노바나나 시안 → 정리 |
+| 스크린샷 | Godot 게임 화면 자동 캡처 |
+| 개인정보처리방침 URL | 정적 페이지 (blog_ggg 또는 Vercel) |
+| 데이터 보안 양식 | Supabase 저장 항목(익명 ID, 점수, 구매 기록) 기준으로 작성 |
+| 콘텐츠 등급 | IARC 설문 (좀비·총기 폭력 → 12세 이상 예상) |
+| 타겟 연령 | 13세 이상 (아동 대상 선택 시 가족 정책 적용) |
+
+---
+
+## 10. 테스트·검증
+
+### 10.1 자동 검증
+| 대상 | 도구 | 기준 |
+|---|---|---|
+| 에셋 규격 | `validate.py` (Blender) | 5.2·5.3 규격 전부 통과 |
+| 에셋 외형 | 미리보기 렌더 PNG | 콘셉트 이미지와 비교해 Claude·사용자 확인 |
+| 게임 로직 | GUT (headless) | 이동, 스폰, 사격, 피격, 게임오버, 점수 계산 테스트 통과 |
+| 화면 | Godot 스크린샷 | 안개·조명·UI 배치 확인 |
+| 백엔드 | Edge Function 테스트 | 정상 값 저장, 비정상 값 거부, RLS로 타인 데이터 접근 차단 |
+| 결제 | 라이선스 테스터 구매 | 승인·거절·중복 토큰·앱 중단 후 복구 시나리오 |
+
+### 10.2 실기기 검증
+- USB 디버깅으로 사용자 폰에 설치 → `adb logcat`으로 로그와 오류 확인.
+- 성능 측정: Godot 성능 모니터(FPS, 드로우 콜, 메모리)를 게임 안 디버그 오버레이로 표시.
+
+### 10.3 성능 목표
+| 항목 | 목표 |
+|---|---|
+| FPS | 테스트 폰에서 **30fps 이상 유지** (기종 확인 후 60fps 목표 여부 결정) |
+| 동시 좀비 수 | 최소 15마리에서 30fps 유지 |
+| 첫 실행 로딩 | 5초 이내 |
+| 설치 용량 | 150MB 이하 |
+
+---
+
+## 11. 저장소·파일 관리
+
+### 11.1 폴더 구조
+```
+3D_Game_MVP/
+├── README.md                # 서비스 소개
+├── DevelopDoc/
+│   ├── PRD.md
+│   ├── TECH_SPEC.md         # 이 문서
+│   ├── WORK_UNITS.md
+│   └── FINAL_CHECKLIST.md
+├── ASSETS_LICENSE.md        # 외부 에셋 출처·라이선스 기록
+├── pipeline.sh              # 전체 자동화 진입점
+├── art/
+│   ├── STYLE.md             # 아트 규칙서 (팔레트, 비율, 분위기)
+│   ├── concept/             # 나노바나나 콘셉트 이미지
+│   ├── blender/
+│   │   ├── lib/             # 공통 함수 (재질, 검사, 내보내기)
+│   │   ├── make_*.py        # 모델 생성
+│   │   ├── import_*.py      # 외부 에셋 정리
+│   │   ├── render_preview.py
+│   │   ├── validate.py
+│   │   └── export_glb.py
+│   ├── source/              # 외부 원본 (Mixamo FBX 등) — git 제외
+│   └── previews/            # 미리보기 렌더 — git 제외
+├── godot/                   # Godot 프로젝트 (6.2)
+├── backend/
+│   └── supabase/
+│       ├── migrations/      # 테이블·RLS SQL
+│       └── functions/       # Edge Functions
+└── build/                   # 빌드 산출물 — git 제외
+```
+
+### 11.2 git 제외 대상 (`.gitignore`)
+| 대상 | 이유 |
+|---|---|
+| `art/source/` (Mixamo FBX 등 원본) | Mixamo 원본 재배포 금지 |
+| `art/previews/`, `build/`, `godot/.godot/` | 재생성 가능한 산출물 |
+| `*.keystore`, `*.jks` | 앱 서명 키 |
+| `.env`, 서비스 계정 JSON | 비밀 정보 |
+
+### 11.3 저장소 결정 사항
+- **결정 (2026-09-28)**: `3D_Game_MVP`는 자체 `.git`을 가진 **독립 저장소**로 분리한다. 공개 저장소인 `aiffel_work` 루트의 커밋 이력과 섞이지 않고, 3인 팀이 이 저장소만 공유하면 된다.
+- 커밋·푸시 전에는 `git remote -v`로 원격이 이 프로젝트 저장소인지 확인한다 (루트 저장소로 잘못 푸시하는 사고 방지).
+- 어느 쪽이든 커밋 전 untracked 목록을 사람이 직접 검토하고, 비밀 정보·원본 에셋이 포함되지 않았는지 확인한다.
+
+---
+
+## 12. 보안·비밀 관리
+
+| 비밀 | 저장 위치 | 사용처 |
+|---|---|---|
+| Gemini API 키 | 로컬 `.env` | 콘셉트 이미지 생성 스크립트 |
+| Supabase URL, anon key | 게임 빌드 설정 | 클라이언트 (공개돼도 되는 키. RLS로 보호) |
+| Supabase service role key | Supabase Secrets | Edge Functions만 |
+| Google Play 서비스 계정 JSON | Supabase Secrets (+ 업로드 자동화 시 로컬 `.env` 경로) | 구매 검증, 업로드 자동화 |
+| 업로드 키스토어·비밀번호 | 저장소 밖 + 백업, 비밀번호는 환경변수 | Android 서명 |
+| 토스 테스트 클라이언트 키 (`test_ck_`) | 웹 빌드 설정 | 브라우저 결제위젯 초기화 (공개돼도 되는 키) |
+| 토스 테스트 시크릿 키 (`test_sk_`) | Supabase Secrets | `confirm-toss-payment`만 |
+
+- 비밀 값은 채팅·문서·커밋에 적지 않는다. 사용자가 `.env`에 직접 입력한다.
+- 코드는 환경변수가 없으면 즉시 오류를 내고 멈춘다.
+
+---
+
+## 13. 역할 분담
+
+### 13.1 팀 역할 (3인, PRD 2.1)
+| 역할 | 담당 모듈·폴더 |
+|---|---|
+| A. 에셋 | `art/` 전체, `godot/assets/models/` |
+| B. 게임 로직 | `godot/scripts/core/`, `actors/`, `weapons/`, `services/backend_client`, `godot/tests/`, `backend/supabase/migrations/` |
+| C. UI·빌드·출시 | `godot/scenes/ui/`, `scripts/ui/`, `assets/audio/`, `services/billing_client`, `backend/supabase/functions/`(결제), `pipeline.sh` 빌드 부분, 웹 셸, Play Console |
+
+- 폴더 담당을 나눠 **같은 파일을 동시에 고치는 충돌**을 줄인다. 공용 파일(`project.godot`, `difficulty_config.gd`, `stage_data`)을 고칠 때는 팀에 먼저 알린다.
+- 작업 단위별 담당자는 `WORK_UNITS.md`에 적는다.
+
+### 13.2 Claude와 사람의 역할
+| 작업 | Claude | 사용자 |
+|---|---|---|
+| 스크립트·코드·씬·SQL 작성 | ✅ | - |
+| 명령줄 실행 (Blender, Godot, 빌드, 테스트) | ✅ | 도구 설치 허락 |
+| 결과 확인 (렌더·스크린샷) | ✅ | 스타일·재미 피드백 |
+| 계정 생성·로그인·결제·키 발급 | ❌ | ✅ Play Console, 결제 프로필, Adobe, Gemini, Supabase |
+| Mixamo 다운로드 | 목록 정리 | ✅ 다운로드 |
+| Play Console 업로드·상품 등록·테스터 관리 | 입력 내용 정리 | ✅ |
+| 외부 에셋 다운로드 | 출처·파일명·용량 안내 | ✅ 허락 |
+| 폰 개발자 옵션·USB 디버깅 | 방법 안내 | ✅ 설정 |
+
+---
+
+## 14. 제약·리스크
+
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 볼류메트릭 안개 미지원 (Mobile 렌더러) | 분위기 약화 | 거리·높이 안개 + 안개 판 + 어두운 조명으로 1일차에 분위기 검증 |
+| Blender 5.x `bpy` API 변경 | 스크립트 오류 | 문서 조회 후 작은 스크립트부터 검증 |
+| 저가형 폰 성능 부족 | 버벅임, 이탈 | 폴리곤 예산 자동 검사, 오브젝트 풀, 좀비 수 상한, 품질 옵션 |
+| Mixamo 모델이 다른 게임과 비슷함 | 차별성 부족 | MVP 이후 콘셉트 → AI 3D 생성 → Mixamo 리깅으로 교체 |
+| 테스터 12명 × 14일 미달 | 정식 출시 지연 | 15-20명 사전 모집, 참여 유지 안내 |
+| 배경음 AI 도구 라이선스 | 출시 후 분쟁 | 출시 전 약관 확인, 필요 시 CC0 음원으로 교체 |
+| 개인 개발자 주소 공개 (유료 상품 판매 시) | 개인정보 노출 | 정식 출시 전 공개용 주소 결정 |
+| Google 정책·콘솔 변경 | 절차 오류 | 각 단계 시작 시 공식 문서 재확인 |
+
+---
+
+## 15. 미결 사항
+
+| # | 항목 | 결정 시점 |
+|---|---|---|
+| Q1 | 테스트 폰 기종 → 성능 목표(30/60fps) 확정 | 1일차 시작 전 |
+| Q2 | Godot 정확한 버전, Billing 플러그인 호환 버전 | 설치 시 |
+| Q3 | ~~이동 조작 방식~~ → **결정**: 드래그 + 기울이기, 설정에서 선택 (PRD F-02 - F-05) | PRD v0.1 |
+| Q4 | ~~스테이지·좀비·무기~~ → **결정**: 1,000m 목표 거리, 좀비 4종, 권총(낙하산 보급 탄약) + 칼(스테이지당 1회) (PRD 4장). 상품 구성은 미정 (PRD Q3) | PRD v0.1 |
+| Q5 | 게임 정식 이름, Android 패키지 이름 | 첫 업로드 전 |
+| Q6 | ~~저장소 분리 여부~~ → **결정**: 독립 저장소 (11.3) | 2026-09-28 |
+| Q7 | 광고 도입 여부 | MVP 피드백 이후 |
+
+---
+
+## 16. 변경 이력
+
+| 버전 | 날짜 | 내용 |
+|---|---|---|
+| v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
+| v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.2.1 | 2026-09-28 | 도구 설치 결과(3.1) 반영, Q6 저장소 독립 분리 결정 (11.3) |
+| v0.2 | 2026-09-28 | PRD v0.2 반영 — D8 수정(앱 구글 결제 + 웹 토스 테스트 결제), D11 카메라 Keep Height, D12 미션 데이터 분리, 6.1.1 깊이감 층, 모듈(camera_rig·obstacle·mission_system·stage_data), 6.3.1 미션 판정, 테이블(toss_orders·mission_progress), Edge Function(create-toss-order·confirm-toss-payment), 8.5 토스 흐름·보안 규칙, 비밀 키 2종, 13.1 3인 팀 역할 |

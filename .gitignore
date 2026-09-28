@@ -1,0 +1,196 @@
+# ─────────────────────────────────────────────────────────────
+# 3D_Game_MVP .gitignore  (TECH_SPEC 11.2)
+#
+# ⚠️ 이 저장소는 PUBLIC(공개)이다. 커밋되는 모든 것은 전 세계가 볼 수 있다.
+#
+# - 커밋 전에 `git status`로 untracked·staged 목록을 사람이 직접 확인한다.
+# - 이미 추적 중인 파일은 여기에 추가해도 계속 추적된다.
+#   그때는 `git rm --cached <파일>`이 따로 필요하다.
+# - .gitignore는 "새 파일 추가"만 막는다. 코드 안에 키를 붙여넣는 실수는
+#   scripts/git-hooks/pre-commit(비밀 키 검사)이 막는다.
+# - macOS는 대소문자를 구분하지 않으므로 Cache/와 cache/ 모두 걸린다.
+# ─────────────────────────────────────────────────────────────
+
+
+# ═════════════════════════════════════════════════════════════
+# 1. 비밀 정보 (CRITICAL — 절대 커밋 금지)
+# ═════════════════════════════════════════════════════════════
+
+# 실제 값이 든 환경변수 파일. 빈 템플릿(.env.example)만 허용한다.
+.env
+.env.*
+!.env.example
+*.env
+.envrc
+
+# 앱 서명 키 (분실·유출 모두 치명적 → 저장소 밖에 보관)
+*.keystore
+*.jks
+keystore.properties
+signing.properties
+
+# 개인키·인증서
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+id_rsa*
+id_ed25519*
+
+# Google 서비스 계정 키, OAuth 클라이언트, 기타 자격증명
+*service-account*.json
+*service_account*.json
+credentials*.json
+client_secret*.json
+google-services.json
+*.credentials
+secrets/
+*secret*.json
+*secret*.txt
+
+# Godot 내보내기 자격증명 (키스토어 비밀번호가 여기에 저장됨)
+export_credentials.cfg
+
+# Supabase 로컬 비밀 값
+backend/supabase/.env*
+backend/supabase/functions/.env*
+
+
+# ═════════════════════════════════════════════════════════════
+# 2. 개인정보·내부 문서 (공개되면 안 되는 문서)
+# ═════════════════════════════════════════════════════════════
+
+# 비공개 작업 폴더 — 여기에 넣은 것은 전부 커밋되지 않는다.
+# 테스터 명단(이메일), 설문 원본 응답, 계약·정산, 계정 정보 메모 등은 이 폴더에 둔다.
+private/
+**/private/
+
+# 테스터 명단·설문 원본 (이메일·이름 등 개인정보)
+*testers*.csv
+*testers*.xlsx
+*tester_list*
+docs/feedback/raw/
+
+# Play Console·스토어 계정 관련 내보내기 파일
+*play-console-export*
+*payments-report*
+
+# 개인 메모
+*.private.md
+NOTES.local.md
+
+
+# ═════════════════════════════════════════════════════════════
+# 3. 외부 원본 에셋 (재배포 금지 / 용량 큼)
+# ═════════════════════════════════════════════════════════════
+
+# Mixamo FBX 등 원본. 게임 안에서 쓰는 가공본(.glb)만 커밋한다.
+art/source/*
+!art/source/.gitkeep
+
+# Godot 내보내기 템플릿 등 설치 파일
+*.tpz
+
+
+# ═════════════════════════════════════════════════════════════
+# 4. 캐시·임시 파일 (용량만 차지하고 다시 생성됨)
+# ═════════════════════════════════════════════════════════════
+
+Cache/
+cache/
+.cache/
+Temp/
+temp/
+tmp/
+.tmp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Blender 자동 백업·캐시
+*.blend1
+*.blend2
+*.blend@
+blendcache_*/
+
+# 미리보기 렌더 (스크립트로 다시 만듦)
+art/previews/
+
+# Godot 에디터 캐시·가져오기 캐시
+.godot/
+godot/.godot/
+.import/
+*.import.tmp
+*.translation
+*.tmp.res
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# Node / Deno
+node_modules/
+.deno/
+.npm/
+
+# Supabase 로컬 실행 산출물
+backend/supabase/.branches/
+backend/supabase/.temp/
+
+
+# ═════════════════════════════════════════════════════════════
+# 5. 빌드 산출물 (파이프라인으로 다시 만듦)
+# ═════════════════════════════════════════════════════════════
+
+Build/
+build/
+dist/
+export/
+*.apk
+*.aab
+*.idsig
+*.apks
+
+# Godot 안드로이드 사용자 정의 빌드
+godot/android/build/
+godot/android/.build_version
+
+# 웹 빌드 로컬 배포 설정
+.vercel/
+
+
+# ═════════════════════════════════════════════════════════════
+# 6. 로그·분석 덤프
+# ═════════════════════════════════════════════════════════════
+
+*.log
+logs/
+*.hprof
+*.trace
+*.heapsnapshot
+
+
+# ═════════════════════════════════════════════════════════════
+# 7. OS·에디터·도구
+# ═════════════════════════════════════════════════════════════
+
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.code-workspace
+.omc/
+.claude/settings.local.json

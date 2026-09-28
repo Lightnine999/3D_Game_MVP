@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────
+# pre-commit: 공개 저장소에 비밀 정보·대용량 파일이 커밋되는 것을 막는다.
+#
+# 비유: .gitignore가 "현관문 잠금"이라면, 이 훅은 "택배 보내기 전 검색대"다.
+#       이미 추적 중인 파일 안에 키를 붙여넣은 경우까지 잡아낸다.
+#
+# 설치 (저장소를 받은 뒤 한 번만):
+#   git config core.hooksPath scripts/git-hooks
+#
+# 검사 항목
+#   1. 커밋 금지 파일 이름 (git add -f 로 강제로 넣은 경우 대비)
+#   2. 새로 추가되는 줄 안의 비밀 키 패턴
+#   3. 10MB 이상 대용량 파일
+#
+# 오탐으로 막혔을 때: 내용을 먼저 확인하고, 정말 비밀이 아니면 팀에 알린 뒤
+#   이 파일의 패턴을 고친다. `git commit --no-verify`로 건너뛰는 것은 최후의 수단이다.
+# ─────────────────────────────────────────────────────────────
+set -u
+
+MAX_BYTES=$((10 * 1024 * 1024))
+failed=0
+
+red()  { printf '\033[31m%s\033[0m\n' "$1"; }
+warn() { red "✖ $1"; failed=1; }
+
+# 스테이징된 파일 목록 (추가·복사·수정)
+files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$files" ] && exit 0
+
+# ── 1. 커밋 금지 파일 이름 ────────────────────────────────────
+forbidden_name_regex='(^|/)(\.env(\..+)?|.*\.keystore|.*\.jks|export_credentials\.cfg|.*service[-_]account.*\.json|client_secret.*\.json|google-services\.json|.*\.pem|.*\.p12|.*\.pfx|id_rsa.*|id_ed25519.*)$'
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    .env.example|*/.env.example) continue ;;
+  esac
+  if printf '%s\n' "$f" | grep -Eiq "$forbidden_name_regex"; then
+    warn "커밋 금지 파일: $f"
+  fi
+  case "$f" in
+    private/*|*/private/*|art/source/*)
+      [ "$(basename "$f")" != ".gitkeep" ] && warn "비공개·원본 폴더의 파일: $f" ;;
+  esac
+done <<EOF
+$files
+EOF
+
+# ── 2. 새로 추가되는 줄 안의 비밀 키 패턴 ───────────────────────
+# 문서에 적힌 "test_sk_..." 같은 설명은 통과하도록 실제 키 길이까지 요구한다.
+secret_patterns=(
+  'AIza[0-9A-Za-z_-]{35}'                                  # Google / Gemini API 키
+  '(test|live)_(sk|gsk)_[0-9A-Za-z]{16,}'                  # 토스페이먼츠 시크릿 키
+  'sb_secret_[0-9A-Za-z_-]{16,}'                           # Supabase 시크릿 키
+  'service_role[^\n]{0,20}eyJ[0-9A-Za-z_-]{20,}'           # Supabase service role JWT
+  '-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'                  # 개인키 (서비스 계정 JSON 포함)
+  '"private_key"[[:space:]]*:[[:space:]]*"'                # 서비스 계정 JSON
+  'gh[pousr]_[0-9A-Za-z]{30,}'                             # GitHub 토큰
+  'sk-(ant-|proj-)?[0-9A-Za-z_-]{20,}'                     # Anthropic / OpenAI 키
+  '(storepass|keypass|keystore_password|KEYSTORE_PASSWORD)[[:space:]]*[:=][[:space:]]*[^[:space:]$]{4,}'  # 키스토어 비밀번호
+)
+
+added=$(git diff --cached -U0 --diff-filter=ACM -- . ':(exclude)scripts/git-hooks/*' | grep -E '^\+' | grep -Ev '^\+\+\+ ')
+for p in "${secret_patterns[@]}"; do
+  hit=$(printf '%s\n' "$added" | grep -En -- "$p" | head -3)
+  if [ -n "$hit" ]; then
+    warn "비밀 키로 보이는 내용 발견 (패턴: $p)"
+    # 키 전체를 화면에 다시 찍지 않도록 앞부분만 보여준다
+    printf '%s\n' "$hit" | cut -c1-60 | sed 's/^/    /'
+  fi
+done
+
+# ── 3. 대용량 파일 ─────────────────────────────────────────────
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  [ -f "$f" ] || continue
+  size=$(wc -c < "$f" | tr -d ' ')
+  if [ "$size" -gt "$MAX_BYTES" ]; then
+    warn "10MB 넘는 파일: $f ($((size / 1024 / 1024))MB) — 원본은 art/source/ 또는 build/에 두세요"
+  fi
+done <<EOF
+$files
+EOF
+
+if [ "$failed" -ne 0 ]; then
+  echo
+  red "커밋을 중단했습니다. 위 파일을 스테이징에서 빼세요: git restore --staged <파일>"
+  red "(첫 커밋 전이라 위 명령이 안 되면: git rm --cached <파일>)"
+  red "키가 이미 다른 곳에 노출됐다면 키를 폐기하고 새로 발급받으세요."
+  exit 1
+fi
+exit 0
