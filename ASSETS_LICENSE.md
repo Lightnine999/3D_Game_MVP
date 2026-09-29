@@ -65,4 +65,4 @@
 ## AI 생성물
 | 결과물 | 도구 | 요금제 | 이용 약관 확인일 | 상업 이용 | 사용 위치 (파일) |
 |---|---|---|---|---|---|
-| 카드 소품 시트(폐차·나무·그루터기), 하늘 파노라마 | OpenAI 이미지 · Gemini | (확인 필요) | (확인 필요) | (확인 필요) | `art/cards_src/`, `art/sky_src/` → `godot/assets/textures/cards/`, `textures/v2/backdrop_pano.png` |
+| 카드 소품 시트(폐차·나무·그루터기), 하늘 파노라마 | OpenAI 이미지 · Gemini | 유료 플랜 (사용자 확인) | 2026-09-29 | 가능 (OpenAI: 결과물 권리 사용자 귀속 · Google: 생성물 소유권 주장 안 함) — 약관 변경 시 재확인 | `art/cards_src/`, `art/sky_src/` → `godot/assets/textures/cards/`, `textures/v2/backdrop_pano.png` |
