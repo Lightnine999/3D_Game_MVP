@@ -75,6 +75,7 @@
 ## 사운드
 | 에셋명 | 종류 | 출처 URL | 제작자 | 라이선스 | 상업 이용 | 크레딧 표기 위치 | 다운로드일 | 사용 위치 (파일) |
 |---|---|---|---|---|---|---|---|---|
+| Post Apocalyptic Wastelands [Loop Ready] ("Horror Atmosphere") | 배경음 (5분 23초 → 150초 반복으로 자름, 96 kbps) | https://opengameart.org/content/horror-atmosphere | Juhani Junkala (SubspaceAudio) | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/bgm_field.ogg` |
 
 ## AI 생성물
 | 결과물 | 도구 | 요금제 | 이용 약관 확인일 | 상업 이용 | 사용 위치 (파일) |
