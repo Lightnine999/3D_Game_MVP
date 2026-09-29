@@ -6,6 +6,7 @@ render_mode cull_back;
 
 uniform float river_z0 = 680.0;   // 강이 시작하는 거리 (양수 m)
 uniform float river_z1 = 720.0;
+uniform float bridge_half = 3.8;   // 다리 상판 반폭 (m)
 uniform vec3 mud_wet : source_color = vec3(0.09, 0.085, 0.08);
 uniform vec3 soil_color : source_color = vec3(0.075, 0.075, 0.065);
 uniform vec3 moss_color : source_color = vec3(0.09, 0.10, 0.07);
@@ -33,6 +34,9 @@ void fragment() {
 	if (d > river_z0 && d < river_z1) {
 		discard;   // 강물이 보이도록 바닥을 뚫는다
 	}
+	if (d > river_z0 - 10.2 && d <= river_z0 && abs(world_pos.x) < bridge_half) {
+		discard;   // 다리 첫 칸 상판 아래: 상판 윗면과 바닥이 같은 높이라 폰에서 번갈아 보이며 깜빡였다
+	}
 	float n = fbm(world_pos.xz * 0.4);
 	float fine = fbm(world_pos.xz * 3.5);
 	// 물웅덩이: 큰 노이즈의 봉우리만 골라 대지 곳곳에 드문드문
@@ -49,7 +53,7 @@ void fragment() {
 	float rough_tex = texture(mud_rgh, uv).r;
 	// 강가(둑) 근처는 젖어서 어둡게
 	float bank = 1.0 - smoothstep(0.0, 8.0, min(abs(d - river_z0), abs(d - river_z1)));
-	col = mix(col, mud_wet, bank * 0.7);
+	col = mix(col, mud_wet, bank * 0.3);   // 0.7 이면 다리 앞 바닥이 그림자처럼 까맣게 보였다
 	ALBEDO = col;
 	ROUGHNESS = mix(rough_tex, 0.55, max(puddle, bank * 0.4));   // 웅덩이는 반짝
 	SPECULAR = mix(0.3, 0.45, puddle);

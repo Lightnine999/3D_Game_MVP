@@ -6,9 +6,12 @@ render_mode cull_disabled;
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_disable;
-uniform float saturation = 0.35;                      // 원래 채도를 35%만 남긴다
-uniform float contrast = 0.8;                         // 대비를 살짝 눌러 튀지 않게
-uniform vec3 tint : source_color = vec3(0.80, 0.87, 0.97);   // 차가운 청회색 필터
+uniform float saturation = 0.6;                       // 원래 채도의 60% (35%일 때 너무 단조로웠다)
+uniform float contrast = 0.9;
+uniform vec3 tint : source_color = vec3(0.92, 0.94, 1.0);    // 살짝 차가운 필터
+instance uniform vec3 variation = vec3(1.0);             // 카드마다 다른 색조 (단조로움 방지)
+uniform float fade_begin = 88.0;                     // 여기서부터 점점 흩어져서 (Distance Fade · Pixel Dither)
+uniform float fade_end = 105.0;                       // 여기서 사라진다 (visibility_range_end 와 같게)
 
 void vertex() {
 	// Y축 빌보드 (StandardMaterial3D 의 BILLBOARD_FIXED_Y 와 같은 식, 좌우 뒤집기는 부호로 유지)
@@ -31,8 +34,11 @@ void fragment() {
 	float gray = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
 	vec3 col = mix(vec3(gray), tex.rgb, saturation);
 	col = mix(vec3(0.22), col, contrast);
-	ALBEDO = col * tint;
-	ALPHA = tex.a;
+	ALBEDO = col * tint * variation;
+	// 먼 카드는 반투명 계산 없이 픽셀에 구멍을 뚫어(디더) 서서히 사라지게 → 120m에서 뚝 사라지지 않는다
+	float fade = 1.0 - smoothstep(fade_begin, fade_end, length(VERTEX));
+	float bayer = fract(sin(dot(floor(FRAGCOORD.xy), vec2(12.9898, 78.233))) * 43758.5453);
+	ALPHA = tex.a * step(bayer, fade);
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	NORMAL_MAP = texture(normal_tex, UV).rgb;
 	ROUGHNESS = 1.0;

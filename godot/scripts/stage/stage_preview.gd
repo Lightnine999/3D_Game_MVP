@@ -50,7 +50,8 @@ func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.keep_aspect = Camera3D.KEEP_HEIGHT   # TECH_SPEC D11 와이드 화면
 	_camera.fov = 60.0
-	_camera.far = 60.0
+	_camera.near = 0.15                         # 가까운 한계를 조금 늘려 먼 거리의 깊이 정밀도를 올린다 (다리 쪽 깜빡임)
+	_camera.far = 400.0                         # 180m 배경막(먼 산)과 120m 카드 숲까지 보이게 (60m 였을 때 모두 잘렸다)
 	holder.add_child(_camera)
 	_camera.make_current()
 	_build_overlay(holder)

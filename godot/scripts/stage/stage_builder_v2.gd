@@ -48,7 +48,7 @@ var _perf_off := ""
 
 func build(seed_value: int = 20260929) -> void:
 	_rng.seed = seed_value
-	for a in OS.get_cmdline_user_args():
+	for a in OS.get_cmdline_user_args() + OS.get_cmdline_args():   # 폰에서는 adb 인텐트로 받은 인자가 앞쪽 목록에 온다
 		if a.begins_with("--perf-off="):
 			_perf_off = a.trim_prefix("--perf-off=")
 	get_viewport().mesh_lod_threshold = 4.0   # 멀리 있는 모델은 가져올 때 만든 간단한 버전(LOD)으로 일찍 바꾼다
@@ -65,6 +65,8 @@ func build(seed_value: int = 20260929) -> void:
 	_build_obstacles()
 	_build_wrecks_3d()
 	_build_card_props()
+	_build_mist()
+	_build_backdrop()
 	print("[stage v2] obstacles=%d fires=%d" % [obstacles.size(), _fires.size()])
 
 
@@ -81,10 +83,12 @@ func _process(delta: float) -> void:
 
 # 달린 거리에 따라 안개·하늘을 바꾼다 (남은 400m부터 회색으로 무거워짐 — 콘셉트 4·5번째 장면)
 func update_atmosphere(dist: float) -> void:
+	if _backdrop:
+		_backdrop.position.z = -dist                       # 배경막은 카메라와 함께 움직인다 (산이 멀리 그대로 있는 느낌)
 	var t := smoothstep(480.0, 760.0, dist)
 	_env.fog_light_color = FOG_NEAR.lerp(FOG_FAR, t)
 	_env.fog_sky_affect = lerpf(0.12, 0.35, t)   # 그림 하늘이 보이도록 약하게
-	_env.fog_depth_end = lerpf(68.0, 60.0, t)
+	_env.fog_depth_end = lerpf(80.0, 70.0, t)
 
 
 # ── 환경 ──────────────────────────────────────────────────────────
@@ -97,20 +101,21 @@ func _build_environment() -> void:
 	_env.background_mode = Environment.BG_SKY
 	_env.sky = sky
 	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_env.ambient_light_color = Color8(84, 90, 102)
-	_env.ambient_light_energy = 0.65
+	_env.ambient_light_color = Color8(96, 98, 110)
+	_env.ambient_light_energy = 0.85            # 너무 어두워 나무 색이 뭉개지던 것을 한 단계 밝게
 	_env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	_env.tonemap_exposure = 1.0
+	_env.tonemap_exposure = 1.12
 	_env.fog_enabled = true
 	_env.fog_mode = Environment.FOG_MODE_DEPTH
 	_env.fog_light_color = FOG_NEAR
-	_env.fog_depth_begin = 6.0
-	_env.fog_depth_end = 68.0
-	_env.fog_depth_curve = 0.95            # 가까운 곳부터 고르게 → 먼 나무는 안개색 실루엣으로 겹겹이
-	_env.fog_sun_scatter = 0.03
+	_env.fog_depth_begin = 4.0
+	_env.fog_depth_end = 80.0
+	_env.fog_depth_curve = 0.9             # 가까운 곳은 맑게, 20m부터 옅은 청회색이 끼기 시작해 멀수록 겹겹이 짙어진다
+	_env.fog_aerial_perspective = 0.55      # 먼 물체일수록 하늘(노을)색이 섞인다 (대기 원근)
+	_env.fog_sun_scatter = 0.0                # 해 방향 산란 끔: 폰(Vulkan)에서 해 쪽 풀이 검은 쐐기로 나왔다
 	_env.fog_sky_affect = 0.12
-	_env.fog_height = 1.0                   # 땅에 깔리는 안개
-	_env.fog_height_density = 0.065
+	_env.fog_height = 1.6                   # 땅에 깔리는 안개 (무릎-허리 높이까지 조금 더 짙게)
+	_env.fog_height_density = 0.22
 	_env.glow_enabled = true                # 불빛·투광등 번짐
 	_env.glow_intensity = 0.8
 	_env.glow_bloom = 0.12
@@ -120,10 +125,12 @@ func _build_environment() -> void:
 	we.environment = _env
 	add_child(we)
 	var sun := DirectionalLight3D.new()    # 먼 앞쪽의 낮은 노을빛 → 물체가 역광 실루엣
-	sun.light_color = Color(0.68, 0.75, 0.87)  # 차갑고 약한 빛 (붉은 기는 하늘에만)
-	sun.light_energy = 0.35
+	sun.light_color = Color(0.88, 0.76, 0.76)  # 정면 노을에서 오는 은은한 역광 → 나무 가장자리에 색이 실린다
+	sun.light_energy = 0.5
 	sun.rotation_degrees = Vector3(-12, 180, 0)
-	sun.shadow_enabled = not ("shadow" in _perf_off)
+	# 그림자 끔: 해가 정면 낮은 곳(12°)이라 그림자가 카메라 쪽으로 5배 길게 늘어지고, 모바일 렌더러에서는
+	# 정밀도가 낮아 화면 가운데에 삼각형 얼룩으로 뭉개졌다 (S24 Ultra 2026-09-29). 역광이라 그림자 효과도 거의 없다
+	sun.shadow_enabled = false
 	sun.directional_shadow_max_distance = 25.0   # 그림자는 가까운 폐차·소품에만
 	add_child(sun)
 
@@ -154,7 +161,7 @@ func _build_ground_and_river() -> void:
 		bank.size = Vector3(WORLD_HALF * 2.0 + 60.0, 3.0, 1.5)
 		bank.material = _mats._material_for(_named_mat("dark_mud", Color(0.07, 0.065, 0.06)))
 		var z: float = -d - (0.75 if d == RIVER_Z0 else -0.75)
-		_mesh_node(bank, Vector3(0, -1.52, z), false)
+		_mesh_node(bank, Vector3(0, -1.7, z), false)   # 윗면을 바닥보다 20cm 아래로: 2cm 차이일 땐 먼 거리에서 두 면이 번갈아 보이며 깜빡였다
 
 
 # ── 풀·덤불·나무 (50m 조각마다) ──────────────────────────────────────
@@ -181,7 +188,8 @@ const GRASS_TUFTS := [
 
 # 구해 온 3D 에셋 (art/blender/optimize_glb.py 로 줄인 것) — 가까운 곳(7-22m)은 3D, 그 너머는 카드가 채운다
 # 가지가 조각나거나 삼각형 판자처럼 깎인 모델(tree_dead_01·04, tree_old_02, tree_dead_real)은 뺐다 (2026-09-29 확대 점검)
-const TREES_3D := ["tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01", "tree_fantasy_dead", "tree_old_01"]
+# tree_fantasy_dead: 줄기가 공중에서 끝나고 가는 가지만 땅까지 늘어져, 세우면 떠 보이고 묻으면 잘려 보여서 뺐다
+const TREES_3D := ["tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01", "tree_old_01"]
 const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "car_scan_01", "car_scan_02", "car_scan_03",
 	"car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]
 const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)
@@ -235,6 +243,33 @@ func _plant(node: Node3D, model: String) -> void:
 	var height := _local_aabb(node).size.y * node.scale.y
 	node.position.y -= height * float(TREE_SINK.get(model, 0.0)) + 0.15
 	_no_shadow(node)                                          # 나무 그림자는 역광·약한 빛이라 거의 안 보이는데 가장 비싸다 (면 수 -60%)
+	_matte_bark(node, model)
+
+
+# 나무 재질 손보기: ① 가는 잔가지 면이 역광에 하얗게 반짝이던 반사(specular)를 끈다
+# ② 같은 모델도 3가지 색조(따뜻한 갈색·잿빛·짙은 먹색) 중 하나로 칠해 단조롭지 않게
+const BARK_TINTS := [Color(1.12, 0.98, 0.88), Color(0.92, 0.95, 1.0), Color(0.72, 0.7, 0.72)]
+var _bark_mats := {}
+
+
+func _matte_bark(node: Node3D, model: String) -> void:
+	var tint_i := _rng.randi() % BARK_TINTS.size()
+	for g in node.find_children("*", "MeshInstance3D", true, false):
+		var mi := g as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(i) as BaseMaterial3D
+			if src == null:
+				continue
+			var key := "%s_%s_%d" % [model, src.resource_name, tint_i]
+			if not _bark_mats.has(key):
+				var m := src.duplicate() as BaseMaterial3D
+				m.metallic = 0.0
+				m.roughness = 1.0
+				m.metallic_specular = 0.0                        # 반짝임 원인
+				m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+				m.albedo_color = src.albedo_color * BARK_TINTS[tint_i]
+				_bark_mats[key] = m
+			mi.set_surface_override_material(i, _bark_mats[key])
 
 
 func _no_shadow(node: Node) -> void:
@@ -245,6 +280,9 @@ func _no_shadow(node: Node) -> void:
 # 수풀: clusters 개의 "한 줌" 중심 주변에 70%, 나머지 30%는 아무 데나. 한 줌마다 색(마른 풀·짙은 풀·잿빛)이 다르다.
 func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, clusters: int, is_bush: bool, carpet := false, in_lane := true) -> void:
 	if "grass" in _perf_off: return
+	if "carpet" in _perf_off and carpet: return
+	if "tufts" in _perf_off and not carpet and not is_bush: return
+	if "bush" in _perf_off and is_bush: return
 	var tints := [Color(0.9, 0.86, 0.74), Color(0.62, 0.68, 0.58), Color(0.78, 0.78, 0.78), Color(0.84, 0.78, 0.68)]   # 회갈색·잿빛 올리브
 	var centers: Array = []
 	for c in clusters:
@@ -254,7 +292,10 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	mm.mesh = _card_mesh(tex, size)
-	mm.instance_count = count
+	# 숨길 풀(강·다리 위, 달리는 폭 덤불)은 크기 0.0001로 줄여 두지 않고 목록에서 아예 뺀다.
+	# 초소형 인스턴스는 폰(Vulkan·Adreno)에서 빛 계산이 망가져 가운데 길을 따라 검은 쐐기로 보였다 (2026-09-29)
+	var xforms: Array[Transform3D] = []
+	var colors: Array[Color] = []
 	for i in count:
 		var x: float
 		var d: float
@@ -279,9 +320,15 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 		elif d > RIVER_Z0 - 11.0 and d < RIVER_Z1 + 1.0 and absf(x) < 3.6:
 			s = 0.0001                                             # 다리 상판 위에도 없음
 		var basis := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(s, s * _rng.randf_range(0.75, 1.3), s))
-		mm.set_instance_transform(i, Transform3D(basis, Vector3(x, 0, -d)))
-		var shade := _rng.randf_range(0.6, 1.0)
-		mm.set_instance_color(i, Color(tint.r * shade, tint.g * shade, tint.b * shade))
+		var shade := _rng.randf_range(0.6, 1.0)                  # (난수 순서를 지키려고 건너뛰기 전에 뽑는다)
+		if s < 0.01:
+			continue
+		xforms.append(Transform3D(basis, Vector3(x, 0, -d)))
+		colors.append(Color(tint.r * shade, tint.g * shade, tint.b * shade))
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+		mm.set_instance_color(i, colors[i])
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.visibility_range_end = GRASS_RANGE
@@ -305,6 +352,7 @@ func _veg_scale(ax: float, is_bush: bool) -> float:
 	return _rng.randf_range(1.05, 1.4)
 
 
+const GRASS_LIT := Color(0.46, 0.46, 0.5)   # 조명을 받던 풀 밝기에 맞춘 값 (미리보기 캡처로 비교)
 var _cards := {}
 func _card_mesh(tex: String, size: Vector2) -> ArrayMesh:
 	var key := "%s_%.2f_%.2f" % [tex, size.x, size.y]
@@ -325,10 +373,14 @@ func _card_mesh(tex: String, size: Vector2) -> ArrayMesh:
 	mat.albedo_texture = load("res://assets/textures/v2/" + tex)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	mat.alpha_scissor_threshold = 0.5
-	mat.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
+	# ALPHA_TO_COVERAGE 는 뺐다: MSAA 가 꺼진 폰에서는 효과가 없고 드라이버마다 결과가 달라진다
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 1.0
+	# 조명 계산 없이(unshaded) 그린다: 폰(Vulkan·Adreno)에서 풀 조명이 화면 가운데 삼각형 영역만 검게 망가졌다.
+	# 밝기는 조명을 받던 때와 맞춰 미리 곱해 두고(GRASS_LIT), 안개는 그대로 적용된다. 수만 포기 조명 계산이 빠져 더 가볍다
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = GRASS_LIT
 	st.set_material(mat)
 	_cards[key] = st.commit()
 	return _cards[key]
@@ -526,6 +578,76 @@ func _scene_bus(d: float) -> void:
 	obstacles.append({"z": d - 6.0, "x": 1.8, "half_width": 1.0})
 
 
+# ── 먼 산 배경막 (반지름 180m 원통, 카메라를 따라감) ────────────────
+var _backdrop: MeshInstance3D
+
+
+func _build_backdrop() -> void:
+	if "backdrop" in _perf_off: return
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var r := 180.0
+	var top := 150.0          # 원통 위·아래 높이: 그림의 산 능선이 지평선 위 약 6-12°에 오도록 맞춘 값
+	var bottom := -70.0
+	for i in 64:
+		var a0 := -PI / 2.0 + TAU * i / 64.0
+		var a1 := -PI / 2.0 + TAU * (i + 1) / 64.0
+		var pts := [Vector3(sin(a0) * r, top, -cos(a0) * r), Vector3(sin(a1) * r, top, -cos(a1) * r),
+			Vector3(sin(a1) * r, bottom, -cos(a1) * r), Vector3(sin(a0) * r, bottom, -cos(a0) * r)]
+		var uvs := [Vector2(i / 64.0, 0), Vector2((i + 1) / 64.0, 0), Vector2((i + 1) / 64.0, 1), Vector2(i / 64.0, 1)]
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_uv(uvs[k])
+			st.add_vertex(pts[k])
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://scripts/stage/backdrop.gdshader")
+	mat.set_shader_parameter("panorama", load("res://assets/textures/v2/backdrop_pano.png"))
+	mat.set_shader_parameter("fog_color", FOG_NEAR)
+	_backdrop = MeshInstance3D.new()
+	_backdrop.mesh = st.commit()
+	_backdrop.material_override = mat
+	_backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_backdrop)
+
+
+# ── 나무 사이 안개 판 (대기감) ────────────────────────────────────
+# 모바일 렌더러는 입체 안개가 없어서, 옅은 안개 그림을 크게 세워 숲 사이에 층을 만든다.
+# 가까이 오면(5-16m) 스르르 사라지고 멀면(70-95m) 흐려져서 화면을 덮거나 튀어나오지 않는다 (mist.gdshader)
+var _mist_mesh: QuadMesh
+
+
+func _build_mist() -> void:
+	if "mist" in _perf_off: return
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://scripts/stage/mist.gdshader")
+	mat.set_shader_parameter("mist_tex", load("res://assets/textures/v2/mist.png"))
+	mat.set_shader_parameter("mist_color", FOG_NEAR.lightened(0.25))
+	_mist_mesh = QuadMesh.new()
+	_mist_mesh.size = Vector2(1.0, 1.0)
+	_mist_mesh.center_offset = Vector3(0, 0.5, 0)
+	_mist_mesh.material = mat
+	# 안개 "줄": 달리는 방향을 가로질러 14-24m마다 한 줄씩 세운다.
+	# 줄과 줄 사이에 나무가 끼어서 "나무 - 안개 - 나무 - 안개" 층이 생기고, 멀수록 겹쳐 짙어진다.
+	# 줄마다 비는 틈을 두어 안개가 군데군데 벗겨진 곳으로 먼 숲·산이 보이게 한다.
+	var d := 8.0
+	while d < STAGE_LENGTH + 60.0:
+		d += _rng.randf_range(14.0, 24.0)
+		var gap := _rng.randf_range(-30.0, 30.0)              # 이 줄에서 안개가 벗겨진 곳
+		var x := -46.0
+		while x < 46.0:
+			var w := _rng.randf_range(16.0, 28.0)
+			var cx := x + w * 0.5
+			x += w * _rng.randf_range(0.55, 0.8)                # 판끼리 조금씩 겹친다
+			if absf(cx - gap) < 9.0:
+				continue
+			var mi := MeshInstance3D.new()
+			mi.mesh = _mist_mesh
+			mi.position = Vector3(cx, _rng.randf_range(-0.8, 0.2), -(d + _rng.randf_range(-2.0, 2.0)))
+			mi.scale = Vector3(w, _rng.randf_range(2.5, 5.0), 1.0)   # 낮게: 높으면 나무 밑동을 덮어 잘려 보인다
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.visibility_range_end = 95.0
+			add_child(mi)
+
+
 # 길옆(달리는 폭 바로 밖)의 3D 폐차: 30-50m마다 1-2대. 무거운 스캔 폐차는 15%만 (성능: 스캔 1대 = 가벼운 차 5-8대)
 func _build_wrecks_3d() -> void:
 	if "wrecks" in _perf_off: return
@@ -594,14 +716,14 @@ func _roadside_litter(d: float) -> void:
 # → 카드는 원거리(달리는 폭 중심에서 12m 밖) 전용. 근거리 폐차·나무는 3D 에셋으로 채운다
 const CARD_MIN_X := 10.0      # 카드는 원거리 전용: 5m 안은 평면 티가 난다 (2026-09-29 근거리 테스트). 12 → 10: 가운데 쪽으로
 const CARD_FAR_X := 60.0      # 카드 나무는 옆으로 60m까지 — 안개 너머 실루엣이 겹겹이 보여 깊이감(Z 뎁스)을 만든다
-const CARD_RANGE := 120.0     # 카드는 가벼워서 3D 모델(68m)보다 멀리까지 그린다
+const CARD_RANGE := 105.0     # 카드는 가벼워서 3D 모델보다 멀리까지 그린다 (120 → 105: 폰 FPS)
 
 
 func _build_card_props() -> void:
 	if "cards" in _perf_off: return
 	var d0 := 0.0
 	while d0 < STAGE_LENGTH:
-		for i in 96:                                      # 나무 카드 (크기 랜덤) — 40%는 가까운 12-30m, 나머지는 75m까지
+		for i in 72:                                      # 나무 카드 (크기 랜덤) — 40%는 가까운 쪽, 나머지는 멀리 (96 → 72: 폰 FPS)
 			var tx := _side() * (_rng.randf_range(CARD_MIN_X, 24.0) if _rng.randf() < 0.4 else lerpf(24.0, CARD_FAR_X, _rng.randf()))
 			var td := d0 + _rng.randf() * CHUNK
 			_card_at(_pick_card(CardProps.TREES, tx, td), tx, td, _rng.randf_range(0.5, 1.6), true)
@@ -674,6 +796,9 @@ func _card_at(card_name: String, x: float, d: float, scale_f: float, may_flip: b
 	if may_flip and _rng.randf() < 0.5:
 		mi.scale.x = -mi.scale.x                          # 좌우 뒤집어 같은 그림 반복을 숨긴다
 	mi.visibility_range_end = CARD_RANGE
+	mi.set_instance_shader_parameter("variation", [Vector3(1.1, 0.97, 0.88), Vector3(0.92, 0.96, 1.05), Vector3(0.8, 0.8, 0.84), Vector3(1.0, 1.0, 1.0)][_rng.randi() % 4]
+		* (0.6 if card_name in CardProps.GROUND else 1.0))   # 그루터기·뿌리 카드는 원래 색이 밝은 베이지라 어둡게 (튀어 보였다)
+	mi.visibility_range_end_margin = 0.0                  # 흩어짐은 셰이더 디더가 100-120m에서 처리
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -695,6 +820,7 @@ func _burning_drums(pos: Vector3, count: int) -> void:
 
 
 func _fire(at: Vector3) -> void:
+	if "fire" in _perf_off: return
 	var fire := GPUParticles3D.new()
 	fire.amount = 26
 	fire.lifetime = 0.7
@@ -822,7 +948,10 @@ func _spawn(model: String, pos: Vector3, yaw_deg: float = 0.0, scale_f: float = 
 		_mats.apply(node)
 	if cull:
 		for child in node.find_children("*", "GeometryInstance3D", true, false):
-			(child as GeometryInstance3D).visibility_range_end = range_end
+			var g := child as GeometryInstance3D
+			g.visibility_range_end = range_end
+			g.visibility_range_end_margin = 8.0                     # 사라질 때 8m 동안 점점 흩어지며 (튀어나오지 않게)
+			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	return node
 
 
