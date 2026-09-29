@@ -140,6 +140,26 @@ def check(path):
 
     hips = next((pb for pb in arm.pose.bones if pb.name.lower().endswith("hips")), None)
     ad = arm.animation_data or arm.animation_data_create()
+
+    # 애니메이션이 실제로 뼈를 움직이는지: 이름만 있고 몸이 안 움직이는 파일을 막는다
+    # (뼈 이름이 달라 동작이 입혀지지 않은 경우 — 예: mixamorig5: 와 mixamorig:)
+    for n, act in sorted(acts.items()):
+        ad.action = act
+        if hasattr(ad, "action_slot") and ad.action_slot is None and getattr(act, "slots", None):
+            ad.action_slot = act.slots[0]
+        f0, f1 = (int(round(v)) for v in act.frame_range)
+        poses = []
+        for f in (f0, (f0 + f1) // 2, f1):
+            scene.frame_set(f)
+            poses.append([pb.matrix.copy() for pb in arm.pose.bones])
+        moved = max(
+            (a.to_quaternion().rotation_difference(b.to_quaternion()).angle
+             for i in range(1, len(poses)) for a, b in zip(poses[0], poses[i])),
+            default=0.0,
+        )
+        if moved < math.radians(1):
+            fails.append("%s 애니메이션이 뼈를 움직이지 않음 (최대 회전 %.2f°)" % (n, math.degrees(moved)))
+
     for n in ("walk", "run"):
         if n not in acts or not hips:
             continue

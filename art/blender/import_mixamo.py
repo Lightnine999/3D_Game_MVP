@@ -20,6 +20,7 @@
 """
 import argparse
 import math
+import re
 import sys
 
 import bpy
@@ -77,7 +78,25 @@ def shrink_textures(limit):
 def import_fbx(path):
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=path)
-    return [o for o in bpy.data.objects if o not in before]
+    objs = [o for o in bpy.data.objects if o not in before]
+    for o in objs:
+        if o.type == "ARMATURE":
+            normalize_bone_names(o)
+    return objs
+
+
+def normalize_bone_names(arm):
+    """Mixamo 는 캐릭터마다 뼈 이름 앞에 숫자를 붙인다 (mixamorig5:Hips).
+    동작 파일은 mixamorig:Hips 라서 이름이 다르면 동작이 몸에 입혀지지 않는다 → 숫자를 뗀다.
+    Blender 는 뼈 이름을 바꾸면 메시의 가중치 그룹과 그 뼈대의 동작 경로도 함께 바꾼다."""
+    renamed = 0
+    for b in arm.data.bones:
+        new = re.sub(r"^mixamorig\d+:", "mixamorig:", b.name)
+        if new != b.name:
+            b.name = new
+            renamed += 1
+    if renamed:
+        print("IMPORT_MIXAMO bones: %s 뼈 이름 %d개를 mixamorig: 로 통일" % (arm.name, renamed))
 
 
 def armature_of(objs):
@@ -190,6 +209,8 @@ def main():
         missing = sorted({b.name for b in src.data.bones} - {b.name for b in arm.data.bones})
         if missing:
             print("IMPORT_MIXAMO warn %s: 캐릭터에 없는 뼈 %d개 %s" % (name, len(missing), missing[:5]))
+            if len(missing) > len(src.data.bones) // 2:
+                raise SystemExit("IMPORT_MIXAMO 중단: %s 동작의 뼈 대부분이 캐릭터에 없다 (뼈대가 다름)" % name)
         act.name = name
         act.use_fake_user = True
         for o in objs:
