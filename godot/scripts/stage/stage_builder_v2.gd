@@ -36,6 +36,7 @@ var obstacles: Array[Dictionary] = []   # 미리보기 카메라 회피용: {z(�
 var _rng := RandomNumberGenerator.new()
 var _scenes := {}
 var _mats := StageMaterials.new()
+var _card_props := CardProps.new()     # 그림 카드 소품 (폐차·나무) — 테스트 중
 var _env: Environment
 var _fires: Array[OmniLight3D] = []
 var _t := 0.0
@@ -54,6 +55,7 @@ func build(seed_value: int = 20260929) -> void:
 	_build_zone_objective()
 	_build_signs()
 	_build_obstacles()
+	_build_card_props()
 	print("[stage v2] obstacles=%d fires=%d" % [obstacles.size(), _fires.size()])
 
 
@@ -152,15 +154,16 @@ func _build_ground_and_river() -> void:
 # 비유: 씨앗을 고르게 뿌리지 않고 "한 줌씩" 던진다 → 수풀 덩어리와 빈터가 자연스럽게 생긴다.
 func _build_vegetation_chunk(d0: float) -> void:
 	var zone := _zone(d0 + CHUNK * 0.5)
-	_grass_multimesh(d0, 8000, "grass_v2.png", Vector2(1.5, 1.25), 46, false)
+	_grass_multimesh(d0, 12000, "grass_v2.png", Vector2(2.4, 0.75), 30, false, true)   # 바닥 카펫: 넓고 낮게 흙을 덮는다
+	_grass_multimesh(d0, 16000, "grass_v2.png", Vector2(1.3, 1.0), 46, false)          # 포기: 정강이-허벅지 높이 변화
 	_grass_multimesh(d0, [520, 700, 420, 380, 360][zone], "bush_v2.png", Vector2(1.8, 1.6), 14, true)
 	_trees_chunk(d0, zone)
 
 
 # 나무: 숲 덩어리(grove) + 홀로 선 나무 + 쓰러진 나무. 달리는 폭 안의 나무는 장애물에서 따로 둔다.
 func _trees_chunk(d0: float, zone: int) -> void:
-	var groves: int = [3, 7, 3, 3, 2][zone]
-	var singles: int = [6, 8, 5, 5, 4][zone]
+	var groves: int = [5, 9, 4, 4, 3][zone]
+	var singles: int = [9, 12, 8, 8, 6][zone]
 	for g in groves:
 		var cx := _side() * _rng.randf_range(LANE_HALF + 3.0, WORLD_HALF)
 		var cd := d0 + _rng.randf() * CHUNK
@@ -184,19 +187,19 @@ func _tree(pos: Vector3) -> Node3D:
 	if absf(pos.x) < LANE_HALF + 1.0:                      # 달리는 폭은 장애물 배치가 맡는다
 		pos.x = signf(pos.x if pos.x != 0.0 else 1.0) * (LANE_HALF + 1.0 + _rng.randf() * 2.0)
 	var tree: String = ["v2_tree_a", "v2_tree_b", "v2_tree_c", "v2_tree_d"][_rng.randi() % 4]
-	var node := _spawn(tree, pos, _rng.randf() * 360.0, _rng.randf_range(0.45, 1.15))
+	var node := _spawn(tree, pos, _rng.randf() * 360.0, _rng.randf_range(0.4, 1.5))
 	node.rotation_degrees.x = _rng.randf_range(-6.0, 6.0)    # 살짝 기운 나무
 	node.rotation_degrees.z = _rng.randf_range(-6.0, 6.0)
 	return node
 
 
 # 수풀: clusters 개의 "한 줌" 중심 주변에 70%, 나머지 30%는 아무 데나. 한 줌마다 색(마른 풀·짙은 풀·잿빛)이 다르다.
-func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, clusters: int, is_bush: bool) -> void:
+func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, clusters: int, is_bush: bool, carpet := false) -> void:
 	var tints := [Color(1.08, 0.94, 0.72), Color(0.66, 0.74, 0.56), Color(0.86, 0.84, 0.82), Color(0.95, 0.8, 0.62)]
 	var centers: Array = []
 	for c in clusters:
 		centers.append([_rng.randf_range(-WORLD_HALF, WORLD_HALF), d0 + _rng.randf() * CHUNK,
-			_rng.randf_range(2.0, 8.0), tints[_rng.randi() % tints.size()], _rng.randf_range(0.8, 1.35)])
+			_rng.randf_range(2.0, 8.0), tints[_rng.randi() % tints.size()], _rng.randf_range(0.9, 1.15)])
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -207,7 +210,7 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 		var d: float
 		var tint := Color(0.9, 0.86, 0.8)
 		var boost := 1.0
-		if _rng.randf() < 0.7:
+		if _rng.randf() < 0.5:
 			var c: Array = centers[_rng.randi() % centers.size()]
 			var a := _rng.randf() * TAU
 			var r := sqrt(_rng.randf()) * float(c[2])
@@ -218,7 +221,7 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 		else:
 			x = _rng.randf_range(-WORLD_HALF, WORLD_HALF)
 			d = d0 + _rng.randf() * CHUNK
-		var s := _veg_scale(absf(x), is_bush) * boost
+		var s := (_rng.randf_range(0.55, 0.95) if carpet else _veg_scale(absf(x), is_bush)) * boost
 		if d > RIVER_Z0 - 1.0 and d < RIVER_Z1 + 1.0:
 			s = 0.0001                                             # 강 위에는 풀 없음
 		elif d > RIVER_Z0 - 11.0 and d < RIVER_Z1 + 1.0 and absf(x) < 3.6:
@@ -234,19 +237,21 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 	add_child(mmi)
 
 
-# 길은 없다: 달리는 폭 안에도 수풀이 있지만 시야를 가리지 않게 조금 낮게
+# 길은 없다: 풀은 어디든 정강이(0.35m)-허벅지(0.8m) 높이로 바닥을 채운다 (카드 높이 1.0m × 배율)
+# 매복 좀비가 풀 속에 누워 있다가 일어나고, 폐차·카드 밑동도 풀에 묻혀 떠 보이지 않는다
 func _veg_scale(ax: float, is_bush: bool) -> float:
-	if ax < LANE_HALF:
-		if is_bush:
-			return _rng.randf_range(0.4, 0.7) if _rng.randf() < 0.35 else 0.0001
-		return _rng.randf_range(0.4, 0.85)
-	return _rng.randf_range(0.7, 1.45)
+	if is_bush:
+		if ax < LANE_HALF:
+			return _rng.randf_range(0.4, 0.6) if _rng.randf() < 0.35 else 0.0001
+		return _rng.randf_range(0.5, 1.1)
+	return _rng.randf_range(0.35, 0.8)
 
 
 var _cards := {}
 func _card_mesh(tex: String, size: Vector2) -> ArrayMesh:
-	if _cards.has(tex):
-		return _cards[tex]
+	var key := "%s_%.2f_%.2f" % [tex, size.x, size.y]
+	if _cards.has(key):
+		return _cards[key]
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for a in [0.0, PI / 2.0]:
@@ -267,8 +272,8 @@ func _card_mesh(tex: String, size: Vector2) -> ArrayMesh:
 	mat.vertex_color_use_as_albedo = true
 	mat.roughness = 1.0
 	st.set_material(mat)
-	_cards[tex] = st.commit()
-	return _cards[tex]
+	_cards[key] = st.commit()
+	return _cards[key]
 
 
 # ── 구간별 큰 배치 (폐허는 듬성듬성, 대지는 수풀·나무가 주인공) ──────────
@@ -499,6 +504,44 @@ func _roadside_litter(d: float) -> void:
 		var x := _side() * _rng.randf_range(LANE_HALF + 0.5, LANE_HALF + 5.0)
 		var model: String = ["v2_tire", "v2_suitcase_red", "v2_suitcase_blue", "v2_crate", "v2_trash"][_rng.randi() % 5]
 		_spawn(model, Vector3(x, 0, -(d + _rng.randf_range(-10, 10))), _rng.randf() * 360.0, _rng.randf_range(0.8, 1.1))
+
+
+# ── 그림 카드 소품 (폐차 무더기·나무·그루터기) ─────────────────────
+# 테스트 결과(2026-09-29): 12m 밖에서는 자연스럽고 5m 안에서는 떠 보이고 평면 티가 난다
+# → 카드는 원거리(달리는 폭 중심에서 12m 밖) 전용. 근거리 폐차·나무는 3D 에셋으로 채운다
+const CARD_MIN_X := 12.0      # 카드는 원거리 전용: 이보다 가까우면 평면 티가 난다 (2026-09-29 근거리 테스트)
+
+
+func _build_card_props() -> void:
+	var d0 := 0.0
+	while d0 < STAGE_LENGTH:
+		for i in 24:                                      # 나무 카드 (크기 랜덤)
+			_card_at(CardProps.TREES[_rng.randi() % CardProps.TREES.size()], _side() * _rng.randf_range(CARD_MIN_X, WORLD_HALF), d0 + _rng.randf() * CHUNK, _rng.randf_range(0.5, 1.6), true)
+		for i in 5:                                       # 그루터기·쓰러진 통나무
+			_card_at(CardProps.GROUND[_rng.randi() % CardProps.GROUND.size()], _side() * _rng.randf_range(CARD_MIN_X, 24.0), d0 + _rng.randf() * CHUNK, _rng.randf_range(0.85, 1.1), true)
+		d0 += CHUNK
+	var d := 30.0
+	while d < STAGE_LENGTH - 10.0:                        # 폐차 무더기: 2-4대가 모여 있다
+		var side := _side()
+		var cx := side * _rng.randf_range(CARD_MIN_X + 5.0, 34.0)
+		for k in _rng.randi_range(3, 6):
+			_card_at(CardProps.VEHICLES[_rng.randi() % CardProps.VEHICLES.size()], cx + _rng.randf_range(-8, 8), d + _rng.randf_range(-7, 7), _rng.randf_range(0.95, 1.05), false)
+		d += _rng.randf_range(20.0, 35.0)
+
+
+func _card_at(card_name: String, x: float, d: float, scale_f: float, may_flip: bool) -> void:
+	if d > RIVER_Z0 - 12.0 and d < RIVER_Z1 + 4.0:
+		return
+	if d > STAGE_LENGTH + 5.0:
+		return
+	if absf(x) < CARD_MIN_X:                              # 원거리 전용
+		x = signf(x if x != 0.0 else 1.0) * (CARD_MIN_X + _rng.randf() * 3.0)
+	var mi := _card_props.make(card_name, scale_f)
+	mi.position = Vector3(x, 0, -d)
+	if may_flip and _rng.randf() < 0.5:
+		mi.scale.x = -mi.scale.x                          # 좌우 뒤집어 같은 그림 반복을 숨긴다
+	mi.visibility_range_end = DRAW_RANGE
+	add_child(mi)
 
 
 # ── 불타는 드럼통 (불꽃·연기 입자 + 깜빡이는 주황 조명) ─────────────

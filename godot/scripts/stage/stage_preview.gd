@@ -168,8 +168,8 @@ func _capture_shots() -> void:
 		_builder.update_atmosphere(d)
 		_apply_camera(0.3)
 		_label.text = "%dm" % StageBuilderV2.remaining(d)
-		for i in 12:                                     # 몇 프레임 기다려 그림자·가시 범위 갱신
-			await get_tree().process_frame
+		for i in 6:                                      # 실제로 그려질 때까지 기다린다 (창이 가려지면 macOS가 그리기를 늦춤)
+			await RenderingServer.frame_post_draw
 		var img := get_viewport().get_texture().get_image()
 		var path := "%s/dist_%04d.png" % [_shots_dir, int(d)]
 		img.save_png(path)
