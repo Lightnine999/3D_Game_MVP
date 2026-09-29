@@ -14,6 +14,8 @@
   - 삼각형을 --max-tris 이하로 줄인다 (좀비 기본 10,000)       (5.3)
   - 정면이 Godot 기준 -Z 를 보게 돌린다                        (5.2 "캐릭터 정면은 -Z")
   - 원점은 발밑 중앙, 1 unit = 1 m 을 유지한다                 (5.2)
+  - --height 로 기본 자세의 키를 맞춘다 (탱커 2.0 - 2.4 m 예외)  (5.2)
+  - 그림을 한 변 --max-texture(기본 1024) 픽셀 이하로 줄인다     (5.2)
 원본 FBX(art/source/)는 읽기만 하고 고치지 않는다.
 """
 import argparse
@@ -36,7 +38,40 @@ def parse_args():
     p.add_argument("--target-tris", type=int, default=9000, help="여유를 두고 줄일 목표")
     p.add_argument("--in-place", default=IN_PLACE_DEFAULT,
                    help="제자리로 만들 동작 이름들 (쉼표). 5.4 는 walk·run 필수, 살아 있는 동안 쓰는 hit 도 권장")
+    p.add_argument("--height", type=float, default=0.0,
+                   help="기본 자세의 키를 이 값(m)으로 맞춘다. 0 이면 그대로 (탱커 2.0 - 2.4 m 예외, 5.2)")
+    p.add_argument("--max-texture", type=int, default=1024, help="그림 한 변 최대 픽셀 (5.2)")
     return p.parse_args(argv)
+
+
+def rest_height(arm, meshes):
+    """기본 자세(rest)에서 메시의 키. 동작 때문에 달라지지 않게 rest 로 잰다."""
+    arm.data.pose_position = "REST"
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    zs = []
+    for o in meshes:
+        ev = o.evaluated_get(dg)
+        m = ev.to_mesh()
+        zs += [(ev.matrix_world @ v.co).z for v in m.vertices]
+        ev.to_mesh_clear()
+    arm.data.pose_position = "POSE"
+    bpy.context.view_layer.update()
+    return max(zs) - min(zs)
+
+
+def shrink_textures(limit):
+    """그림을 한 변 limit 픽셀 이하로 줄이고, 줄인 그림을 파일 안에 넣는다(pack)."""
+    done = []
+    for img in bpy.data.images:
+        w, h = img.size
+        if max(w, h) <= limit or w == 0:
+            continue
+        k = limit / max(w, h)
+        img.scale(max(1, int(w * k)), max(1, int(h * k)))
+        img.pack()
+        done.append("%s %dx%d -> %dx%d" % (img.name, w, h, img.size[0], img.size[1]))
+    return done
 
 
 def import_fbx(path):
@@ -61,10 +96,10 @@ def count_tris(meshes):
     return total
 
 
-def decimate(meshes, target):
-    """메시마다 같은 비율로 줄이고, 가중치(뼈대 연결)는 Decimate 가 보간해 유지한다."""
+def decimate(meshes, target, limit):
+    """상한(limit)을 넘을 때만 목표(target)까지 줄인다. 메시마다 같은 비율, 가중치(뼈대 연결)는 보간해 유지."""
     now = count_tris(meshes)
-    if now <= target:
+    if now <= limit:
         return now, now
     ratio = target / now
     for o in meshes:
@@ -136,6 +171,14 @@ def main():
     for a in list(bpy.data.actions):
         bpy.data.actions.remove(a)
 
+    # 키 맞추기: 뼈대 오브젝트의 크기만 바꾼다 (뼈 안의 이동값은 그대로 두어야 동작이 어긋나지 않는다)
+    h0 = rest_height(arm, meshes)
+    h1 = h0
+    if args.height > 0:
+        arm.scale *= args.height / h0
+        bpy.context.view_layer.update()
+        h1 = rest_height(arm, meshes)
+
     # 애니메이션 파일마다 동작만 꺼내 오고, 같이 딸려 온 뼈대·메시는 지운다
     named = []
     for spec in args.anim:
@@ -143,6 +186,10 @@ def main():
         objs = import_fbx(path)
         src = armature_of(objs)
         act = src.animation_data.action
+        # 동작이 움직이는 뼈 중 이 캐릭터에 없는 뼈 (있으면 그 부분만 안 움직인다)
+        missing = sorted({b.name for b in src.data.bones} - {b.name for b in arm.data.bones})
+        if missing:
+            print("IMPORT_MIXAMO warn %s: 캐릭터에 없는 뼈 %d개 %s" % (name, len(missing), missing[:5]))
         act.name = name
         act.use_fake_user = True
         for o in objs:
@@ -164,7 +211,7 @@ def main():
     arm.rotation_euler.z += math.pi
     bpy.context.view_layer.update()
 
-    tris_before, tris_after = decimate(meshes, args.target_tris)
+    tris_before, tris_after = decimate(meshes, args.target_tris, args.max_tris)
 
     # 애니메이션마다 NLA 트랙 하나 → glTF 애니메이션 이름 = 트랙 이름
     arm.animation_data.action = None
@@ -175,6 +222,8 @@ def main():
         if hasattr(strip, "action_slot") and strip.action_slot is None and getattr(act, "slots", None):
             strip.action_slot = act.slots[0]
 
+    shrunk = shrink_textures(args.max_texture)
+
     bpy.ops.export_scene.gltf(
         filepath=args.out,
         export_format="GLB",
@@ -182,6 +231,9 @@ def main():
         export_yup=True,
     )
 
+    print("IMPORT_MIXAMO height %.3f m -> %.3f m" % (h0, h1))
+    for s in shrunk:
+        print("IMPORT_MIXAMO texture " + s)
     print("IMPORT_MIXAMO tris %d -> %d (max %d)" % (tris_before, tris_after, args.max_tris))
     for name, (b, a) in report.items():
         print("IMPORT_MIXAMO in_place %s: %.3f m -> %.3f m" % (name, b, a))

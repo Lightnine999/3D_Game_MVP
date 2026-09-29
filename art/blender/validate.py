@@ -21,6 +21,42 @@ IN_PLACE_TOL = 0.05                  # 5.4 walk/run 수평 이동 5cm 이내
 REQUIRED = ["idle", "attack", "hit", "death"]   # WU-20: idle, walk 또는 run, attack, hit, death
 
 
+MAX_TEXTURE = 1024                  # 5.2 텍스처 최대 1024×1024
+
+
+def glb_texture_sizes(path):
+    """glb 안에 들어 있는 그림(PNG·JPEG)의 가로·세로를 파일에서 직접 읽는다."""
+    import json
+    import struct
+    data = open(path, "rb").read()
+    jlen = struct.unpack("<I", data[12:16])[0]
+    gltf = json.loads(data[20:20 + jlen])
+    bin_start = 20 + jlen + 8
+    sizes = []
+    for img in gltf.get("images", []):
+        if "bufferView" not in img:
+            continue
+        bv = gltf["bufferViews"][img["bufferView"]]
+        raw = data[bin_start + bv.get("byteOffset", 0): bin_start + bv.get("byteOffset", 0) + bv["byteLength"]]
+        if raw[:8] == b"\x89PNG\r\n\x1a\n":
+            w, h = struct.unpack(">II", raw[16:24])
+        elif raw[:2] == b"\xff\xd8":
+            i, w, h = 2, 0, 0
+            while i < len(raw) - 9:
+                if raw[i] != 0xFF:
+                    i += 1
+                    continue
+                marker, seg = raw[i + 1], struct.unpack(">H", raw[i + 2:i + 4])[0]
+                if marker in (0xC0, 0xC1, 0xC2):
+                    h, w = struct.unpack(">HH", raw[i + 5:i + 9])
+                    break
+                i += 2 + seg
+        else:
+            continue
+        sizes.append((img.get("name", "?"), w, h))
+    return sizes
+
+
 def check(path):
     fails, notes = [], []
     name = path.replace("\\", "/").split("/")[-1]
@@ -32,6 +68,12 @@ def check(path):
     prefix = next((p for p in PREFIXES if stem.startswith(p)), None)
     if not prefix:
         fails.append("접두사 없음 (zombie_/prop_/env_/weapon_/fx_): " + stem)
+
+    # 5.2 텍스처 크기
+    for tname, w, h in glb_texture_sizes(path):
+        notes.append("그림 %s %dx%d" % (tname, w, h))
+        if max(w, h) > MAX_TEXTURE:
+            fails.append("그림 %s %dx%d > %d" % (tname, w, h, MAX_TEXTURE))
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=path)
