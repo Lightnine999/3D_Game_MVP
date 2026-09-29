@@ -45,6 +45,8 @@ def parse_args():
     p.add_argument("--max-texture", type=int, default=1024, help="그림 한 변 최대 픽셀 (5.2)")
     p.add_argument("--brightness", type=float, default=1.0,
                    help="몸 색 그림(Base Color)의 밝기 배율. 1.25 = 한 단계(25%%) 밝게. 다른 그림은 그대로")
+    p.add_argument("--zombify", type=float, default=0.0,
+                   help="몸 색 그림을 썩은 피부색(회녹색)으로 바꾸고 얼룩·핏자국을 입힌다. 0 = 안 함, 1 = 최대")
     return p.parse_args(argv)
 
 
@@ -72,6 +74,56 @@ def brighten_base_color(factor):
         img.update()
         img.pack()
         done.append("%s 평균 밝기 %.3f -> %.3f" % (img.name, before, float(rgba[:, :3].mean())))
+    return done
+
+
+def smooth_noise(h, w, cells, rng):
+    """부드러운 얼룩 무늬 (0 - 1). 작은 무작위 격자를 크게 늘린 뒤 흐리게 한다."""
+    import numpy as np
+    g = rng.random((cells + 1, cells + 1)).astype(np.float32)
+    ys = np.linspace(0, cells, h, dtype=np.float32)
+    xs = np.linspace(0, cells, w, dtype=np.float32)
+    y0, x0 = np.minimum(ys.astype(int), cells - 1), np.minimum(xs.astype(int), cells - 1)
+    fy, fx = (ys - y0)[:, None], (xs - x0)[None, :]
+    fy, fx = fy * fy * (3 - 2 * fy), fx * fx * (3 - 2 * fx)          # 부드럽게 이어지게
+    a = g[y0][:, x0]; b = g[y0][:, x0 + 1]; c = g[y0 + 1][:, x0]; d = g[y0 + 1][:, x0 + 1]
+    return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy
+
+
+def zombify_base_color(k):
+    """몸 색 그림을 좀비답게: 색을 빼고(선명한 주황·파랑이 사라지게) 회녹색 썩은 살색을 입힌 뒤,
+    때 얼룩으로 어둡게 하고 군데군데 마른 핏자국을 남긴다. 무작위 씨앗 고정이라 매번 같다."""
+    import numpy as np
+    rng = np.random.default_rng(13)
+    done, seen = [], set()
+    for m in bpy.data.materials:
+        if not m.use_nodes:
+            continue
+        bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if not bsdf or not bsdf.inputs["Base Color"].is_linked:
+            continue
+        img = getattr(bsdf.inputs["Base Color"].links[0].from_node, "image", None)
+        if img is None or img.name in seen:
+            continue
+        seen.add(img.name)
+        w, h = img.size
+        px = np.empty(len(img.pixels), dtype=np.float32)
+        img.pixels.foreach_get(px)
+        rgb = px.reshape(h, w, 4)[:, :, :3]
+        before = rgb.mean(axis=(0, 1))
+        lum = (rgb @ np.array([0.3, 0.59, 0.11], dtype=np.float32))[:, :, None]
+        rotten = lum * np.array([0.78, 0.86, 0.66], dtype=np.float32) * 1.15         # 회녹색 썩은 살
+        out = rgb * (1 - k * 0.85) + rotten * (k * 0.85)                              # 원래 색은 15% 만 남김
+        grime = smooth_noise(h, w, 24, rng)[:, :, None]
+        out *= 1 - k * 0.35 * grime                                                   # 때 얼룩
+        blood = np.clip((smooth_noise(h, w, 40, rng) - 0.68) / 0.12, 0, 1)[:, :, None] * k
+        out = out * (1 - blood * 0.7) + np.array([0.22, 0.03, 0.02], dtype=np.float32) * blood * 0.7
+        px.reshape(h, w, 4)[:, :, :3] = np.clip(out, 0, 1)
+        img.pixels.foreach_set(px)
+        img.update()
+        img.pack()
+        after = px.reshape(h, w, 4)[:, :, :3].mean(axis=(0, 1))
+        done.append("%s 평균 색 (%.2f %.2f %.2f) -> (%.2f %.2f %.2f)" % (img.name, *before, *after))
     return done
 
 
@@ -292,6 +344,7 @@ def main():
 
     shrunk = shrink_textures(args.max_texture)
     brightened = brighten_base_color(args.brightness) if args.brightness != 1.0 else []
+    zombified = zombify_base_color(args.zombify) if args.zombify > 0 else []
     non_metal = zero_metallic()
 
     bpy.ops.export_scene.gltf(
@@ -307,6 +360,8 @@ def main():
     for s in brightened:
         print("IMPORT_MIXAMO brightness " + s)
     print("IMPORT_MIXAMO metallic -> 0: %d materials" % non_metal)
+    for s in zombified:
+        print("IMPORT_MIXAMO zombify " + s)
     print("IMPORT_MIXAMO tris %d -> %d (max %d)" % (tris_before, tris_after, args.max_tris))
     for name, (b, a) in report.items():
         print("IMPORT_MIXAMO in_place %s: %.3f m -> %.3f m" % (name, b, a))
