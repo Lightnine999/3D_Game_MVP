@@ -64,6 +64,42 @@ def glb_texture_sizes(path):
     return sizes
 
 
+# TECH_SPEC 13.3.1 ①-2: 무기는 원점 = 손잡이, 길이 약속이 있다 (발밑 원점 규칙 대신)
+WEAPON_LENGTH = {"weapon_pistol": 0.2, "weapon_knife": 0.25}
+WEAPON_LENGTH_TOL = 0.10            # 약속 길이의 ±10%
+
+
+def check_supply_crate(meshes, fails, notes):
+    """13.3.1 ①-2 "0.6m 정육면체 + 낙하산". B 가 착지 뒤 낙하산만 숨기도록 Crate·Parachute 두 부분이어야 한다."""
+    names = {o.name.split(".")[0]: o for o in meshes}
+    for need in ("Crate", "Parachute"):
+        if need not in names:
+            fails.append("보급 상자에 '%s' 부분이 없음 (B 가 이 이름으로 찾는다)" % need)
+    crate = names.get("Crate")
+    if crate:
+        vs = [crate.matrix_world @ v.co for v in crate.data.vertices]
+        dims = [max(v[i] for v in vs) - min(v[i] for v in vs) for i in range(3)]
+        notes.append("상자 크기 %.2f × %.2f × %.2f m" % tuple(dims))
+        if any(abs(d - 0.6) > 0.06 for d in dims):
+            fails.append("상자가 0.6m 정육면체가 아님 (%.2f × %.2f × %.2f)" % tuple(dims))
+
+
+def check_weapon(stem, pts, fails, notes):
+    """무기: 길이(앞뒤 = Blender Y), 원점이 손잡이(모델 안쪽, 뒤쪽 절반), 앞쪽(총구·칼끝)이 Godot -Z."""
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    hi = [max(p[i] for p in pts) for i in range(3)]
+    length = hi[1] - lo[1]
+    notes.append("길이 %.3f m, 앞쪽 끝 y %.3f, 뒤쪽 끝 y %.3f" % (length, hi[1], lo[1]))
+    want = WEAPON_LENGTH.get(stem)
+    if want and abs(length - want) > want * WEAPON_LENGTH_TOL:
+        fails.append("길이 %.3f m 가 약속 %.2f m (±%d%%) 와 다름" % (length, want, WEAPON_LENGTH_TOL * 100))
+    if not all(lo[i] < 0 < hi[i] for i in range(3)):
+        fails.append("원점이 모델 밖에 있음 (손잡이 안이어야 함)")
+    # 원점(손잡이)에서 앞쪽이 더 길어야 한다 = 총구·칼끝이 +Y(Godot -Z) 쪽
+    if hi[1] <= -lo[1]:
+        fails.append("앞쪽(총구·칼끝)이 Godot -Z 가 아님 (원점 앞쪽이 뒤쪽보다 짧음)")
+
+
 def check(path):
     fails, notes = [], []
     name = path.replace("\\", "/").split("/")[-1]
@@ -113,6 +149,11 @@ def check(path):
         height = max(p.z for p in pts) - lo_z
         cx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
         cy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
+        if prefix == "weapon_":
+            check_weapon(stem, pts, fails, notes)
+            return name, fails, notes
+        if stem == "prop_supply_crate":
+            check_supply_crate(meshes, fails, notes)
         notes.append("키 %.3f m, 발밑 z %.3f, 중심 (%.2f, %.2f)" % (height, lo_z, cx, cy))
         if abs(lo_z) > ORIGIN_TOL:
             fails.append("원점이 발밑이 아님 (최저점 z = %.3f)" % lo_z)

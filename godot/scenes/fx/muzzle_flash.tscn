@@ -1,0 +1,64 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scenes/fx/muzzle_flash.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="mat_flame"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1, 0.72, 0.3, 0.9)
+cull_mode = 2
+
+[sub_resource type="CylinderMesh" id="mesh_flame"]
+material = SubResource("mat_flame")
+top_radius = 0.0
+bottom_radius = 0.034
+height = 0.13
+radial_segments = 6
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="mat_spark"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 0.85, 0.45, 1)
+
+[sub_resource type="SphereMesh" id="mesh_spark"]
+material = SubResource("mat_spark")
+radius = 0.5
+height = 1.0
+radial_segments = 4
+rings = 2
+
+[sub_resource type="Gradient" id="fade_spark"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 0.5, 0.2, 0)
+
+[node name="MuzzleFlash" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Flame" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.06)
+mesh = SubResource("mesh_flame")
+
+[node name="Light" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.78, 0.45, 1)
+light_energy = 0.0
+omni_range = 3.5
+
+[node name="Sparks" type="CPUParticles3D" parent="."]
+emitting = false
+amount = 8
+lifetime = 0.15
+one_shot = true
+explosiveness = 1.0
+mesh = SubResource("mesh_spark")
+direction = Vector3(0, 0, -1)
+spread = 25.0
+gravity = Vector3(0, -2, 0)
+initial_velocity_min = 2.5
+initial_velocity_max = 4.5
+scale_amount_min = 0.005
+scale_amount_max = 0.011
+color_ramp = SubResource("fade_spark")

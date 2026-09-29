@@ -1,0 +1,77 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scenes/fx/hit_blood.gd" id="1_script"]
+
+[sub_resource type="StandardMaterial3D" id="mat_drop"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.34, 0.02, 0.02, 1)
+
+[sub_resource type="SphereMesh" id="mesh_drop"]
+material = SubResource("mat_drop")
+radius = 0.5
+height = 1.0
+radial_segments = 6
+rings = 3
+
+[sub_resource type="StandardMaterial3D" id="mat_mist"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.3, 0.025, 0.025, 0.35)
+
+[sub_resource type="SphereMesh" id="mesh_mist"]
+material = SubResource("mat_mist")
+radius = 0.5
+height = 1.0
+radial_segments = 8
+rings = 4
+
+[sub_resource type="Curve" id="shrink"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.4), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.85, 1, 1, 1, 0)
+
+[sub_resource type="Gradient" id="fade_mist"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[node name="HitBlood" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Spray" type="CPUParticles3D" parent="."]
+emitting = false
+amount = 16
+lifetime = 0.45
+one_shot = true
+explosiveness = 0.95
+mesh = SubResource("mesh_drop")
+direction = Vector3(0, 0.6, 1)
+spread = 55.0
+gravity = Vector3(0, -9.8, 0)
+initial_velocity_min = 1.2
+initial_velocity_max = 2.8
+scale_amount_min = 0.012
+scale_amount_max = 0.03
+scale_amount_curve = SubResource("shrink")
+color_ramp = SubResource("fade")
+
+[node name="Mist" type="CPUParticles3D" parent="."]
+emitting = false
+amount = 5
+lifetime = 0.35
+one_shot = true
+explosiveness = 1.0
+mesh = SubResource("mesh_mist")
+direction = Vector3(0, 0.3, 1)
+spread = 40.0
+gravity = Vector3(0, -1, 0)
+initial_velocity_min = 0.3
+initial_velocity_max = 0.7
+scale_amount_min = 0.05
+scale_amount_max = 0.09
+color_ramp = SubResource("fade_mist")

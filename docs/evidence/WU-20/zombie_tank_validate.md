@@ -11,9 +11,13 @@ blender -b --factory-startup --python art/blender/import_mixamo.py -- \
   --anim attack="art/source/mixamo/scary_zombie_pack/zombie attack.fbx" \
   --anim hit="art/source/mixamo/Zombie Reaction Hit.fbx" \
   --anim death="art/source/mixamo/scary_zombie_pack/zombie death.fbx" \
-  --in-place walk,hit --out godot/assets/models/zombie_tank.glb
+  --in-place walk,hit --zombify 1.0 --out godot/assets/models/zombie_tank.glb
 ```
 변환 결과: 키 2.040 → 2.300 m / 그림 2048×2048 두 장 → 1024×1024 / 삼각형 9,620 (상한 이하라 줄이지 않음) / 수평 이동 walk 1.486 → 0.000 m, hit 0.799 → 0.000 m / 캐릭터에 없는 뼈 경고 없음
+
+**2026-09-29 색 수정 (`--zombify 1.0`, 전후 비교 `zombie_tank_zombify.png`)**: 원본 PumpkinHulk 는 주황 줄무늬·파란 바지라 좀비보다 괴물처럼 보였다.
+몸 색 그림에서 원래 색을 15% 만 남기고 회녹색 썩은 살색을 입힌 뒤, 때 얼룩과 마른 핏자국을 더했다
+(평균 색 (0.55 0.46 0.44) → (0.36 0.36 0.28)). 모양·뼈·동작·삼각형 수는 그대로다.
 
 탱커는 PRD F-42 "크고 느리지만" 이라 run 을 넣지 않았다 (걷기 속도 0.8 m/s 는 게임 코드가 정한다).
 

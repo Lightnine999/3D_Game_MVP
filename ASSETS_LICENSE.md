@@ -43,6 +43,7 @@
 | Slum Shanty Shack Stilt (pixellabs-slum-4808) | 3D 모델 (AI 생성, 작가 표시) | https://pixabay.com/3d-models/slum-shanty-shack-stilt-house-4808/ | PixelLabs | Pixabay Content License | 가능 | 불필요 (원본 단독 재배포 금지 → 최적화본만 커밋) | 2026-09-29 | `godot/assets/models/house/house_slum_01.glb` |
 | weathered_planks · rusty_metal_02 · concrete_wall_003 · brown_mud_leaves_01 | 질감 | https://polyhaven.com | Poly Haven | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/textures/polyhaven/` |
 | industrial_sunset_puresky | HDRI | https://polyhaven.com/a/industrial_sunset_puresky | Poly Haven | CC0 | 가능 | 불필요 | 2026-09-29 | `art/polyhaven/` → `textures/v2/sky_ph.png` (현재 미사용) |
+| Pistol (Ultimate Guns Pack) | 3D 모델 (권총, 길이 0.2 m 로 줄이고 원점을 손잡이로) | https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F | Quaternius | CC0 (Public Domain) | 가능 | 불필요 | 2026-09-29 | `godot/assets/models/weapon_pistol.glb` |
 
 > **변경 사항 (CC BY 요구)**: 위 3D 모델은 모바일용으로 면 수 축소(Decimate)·텍스처 512px(폐허 1024px) 축소·실제 크기 배율·원점 이동을 했고, 일부는 색조를 바꿔 배치한다 (`art/blender/optimize_glb.py`). 제작자·라이선스는 원본 GLB 안의 정보(asset.extras)로 확인했다 (2026-09-29). 원본은 `art/source_assets/`(git 제외)에 보관.
 
@@ -74,6 +75,13 @@
 ## 사운드
 | 에셋명 | 종류 | 출처 URL | 제작자 | 라이선스 | 상업 이용 | 크레딧 표기 위치 | 다운로드일 | 사용 위치 (파일) |
 |---|---|---|---|---|---|---|---|---|
+| Impact Sounds (Kenney) | 효과음 모음 → `sfx_step`(footstep_grass_000), `sfx_hit_obstacle`(impactMetal_heavy_000), `sfx_bite` 일부(impactSoft_heavy_000) | https://kenney.nl/assets/impact-sounds | Kenney | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/sfx_step.ogg`, `sfx_hit_obstacle.ogg`, `sfx_bite.ogg` |
+| RPG Audio (Kenney) | 효과음 모음 → `sfx_knife`(knifeSlice), `sfx_empty_click`(metalClick), `sfx_supply_pickup`(handleCoins) | https://kenney.nl/assets/rpg-audio | Kenney | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/sfx_knife.ogg`, `sfx_empty_click.ogg`, `sfx_supply_pickup.ogg` |
+| Interface Sounds (Kenney) | 효과음 모음 → `sfx_ui_click`(click_001), `sfx_ui_purchase`(confirmation_001), `sfx_mission_done`(confirmation_004) | https://kenney.nl/assets/interface-sounds | Kenney | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/sfx_ui_click.ogg`, `sfx_ui_purchase.ogg`, `sfx_mission_done.ogg` |
+| Zombies Sound Pack | 효과음 모음 → `sfx_zombie_groan`(zombie-16), `sfx_zombie_scream`(zombie-10), `sfx_bite` 일부(zombie-24) | https://opengameart.org/content/zombies-sound-pack | artisticdude | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/sfx_zombie_groan.ogg`, `sfx_zombie_scream.ogg`, `sfx_bite.ogg` |
+| Breathing Tired | 효과음 → `sfx_breath` (소리가 작아 크게 키움) | https://opengameart.org/content/breathing-tired | mikeask | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/sfx_breath.ogg` |
+| Oldschool Horror Theme | 배경음 (3분 18초 → 180초 반복으로 자름, 96 kbps) | https://opengameart.org/content/oldschool-horror-theme | EmoPreben | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/bgm_title.ogg` |
+| Post Apocalyptic Wastelands [Loop Ready] ("Horror Atmosphere") | 배경음 (5분 23초 → 150초 반복으로 자름, 96 kbps) | https://opengameart.org/content/horror-atmosphere | Juhani Junkala (SubspaceAudio) | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/audio/bgm_field.ogg` |
 
 ## AI 생성물
 | 결과물 | 도구 | 요금제 | 이용 약관 확인일 | 상업 이용 | 사용 위치 (파일) |
