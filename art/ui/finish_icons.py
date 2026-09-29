@@ -7,8 +7,8 @@
 
 결과: art/ui/icons/
   icon_pistol.png  icon_ammo.png  icon_knife.png  icon_supply.png   256×256, 투명 배경
-  icon_knife_used.png   칼을 쓴 뒤 (PRD F-35 "칼을 쓰면 아이콘이 사라진다") — 흐린 회색 판.
-                        바로 지우는 대신 잠깐 이 그림으로 바꿨다가 사라지게 하는 데 쓸 수 있다 (C 가 고름)
+  icon_pistol_empty.png 탄약 0발일 때 흐린 권총 (PRD F-78 "탄약이 0발이면 권총 아이콘을 흐리게")
+  칼은 1회 사용하면 아이콘이 없어지므로(F-78, F-35) 흐린 판을 따로 만들지 않는다
 """
 import os
 
@@ -54,8 +54,8 @@ def fit(im):
     return canvas
 
 
-def used(im):
-    """흐린 회색 판 — 색을 빼고 반투명하게."""
+def faded(im):
+    """흐린 판 — 색을 빼고 반투명하게."""
     gray = ImageOps.grayscale(im.convert("RGB")).point(lambda v: 60 + v * 0.35)
     g = Image.merge("RGBA", (gray, gray, gray, im.getchannel("A").point(lambda v: v * 0.45)))
     return g
@@ -68,10 +68,9 @@ def main():
         done = outline(fit(raw)).resize((SIZE, SIZE), Image.LANCZOS)
         done.save(os.path.join(OUT, n + ".png"), optimize=True)
         print("ICON %-16s %dx%d %5.1f KB" % (n, SIZE, SIZE, os.path.getsize(os.path.join(OUT, n + ".png")) / 1024))
-        if n == "icon_knife":
-            u = used(done)
-            u.save(os.path.join(OUT, "icon_knife_used.png"), optimize=True)
-            print("ICON %-16s %dx%d" % ("icon_knife_used", SIZE, SIZE))
+        if n == "icon_pistol":
+            faded(done).save(os.path.join(OUT, "icon_pistol_empty.png"), optimize=True)
+            print("ICON %-16s %dx%d" % ("icon_pistol_empty", SIZE, SIZE))
 
 
 main()

@@ -5,7 +5,8 @@ HUD 구현은 C 의 일(WU-31). 여기 적힌 위치·크기는 제안일 뿐이
   blender -b --factory-startup --python art/blender/render_icons.py
   python art/ui/finish_icons.py
   python art/ui/make_hud_mock.py
-  → art/ui/hud_mock_1_top_center.png, art/ui/hud_mock_2_top_left.png (1920×1080, TECH_SPEC 6.1 기준 해상도)
+  → art/ui/hud_mock_full.png   게임 화면 전체 (1920×1080, TECH_SPEC 6.1 기준 해상도)
+    art/ui/hud_mock_states.png 무기 표시 세 상태 (PRD F-78): 탄약 있음 / 0발 / 칼 사용 뒤
 
 그림에 쓰는 글꼴은 윈도우 기본 '맑은 고딕' — 시안 그림에만 쓰고 게임에는 넣지 않는다.
 """
@@ -85,24 +86,18 @@ def progress_bar(img, d, cx, y, width=720):
     text(d, (cx, y + 2), "320 m / 1,000 m", 26, anchor="mm")
 
 
-def weapon_group(img, d, x, y):
-    """권총 + 탄약 수 + 칼. 폭 약 440px, 높이 약 110px."""
-    panel(img, (x, y, x + 440, y + 112))
-    img.alpha_composite(icon("icon_pistol", 104), (x + 8, y + 4))
-    img.alpha_composite(icon("icon_ammo", 72), (x + 110, y + 20))
-    text(d, (x + 180, y + 56), "8", 60, anchor="lm")
-    text(d, (x + 222, y + 64), "/ 12", 30, fill=(200, 198, 188), bold=False, anchor="lm", stroke=2)
-    d.line([(x + 312, y + 18), (x + 312, y + 94)], fill=(200, 200, 190, 120), width=2)
-    img.alpha_composite(icon("icon_knife", 104), (x + 326, y + 4))
-    return (x, y, x + 440, y + 112)
-
-
-def supply_toast(img, d, x, y):
-    """보급 획득 알림 (+6발, PRD F-23). PRD HUD 목록(F-72)에는 없는 '제안' — 잠깐 떴다 사라지는 용도."""
-    panel(img, (x, y, x + 250, y + 84), alpha=130)
-    img.alpha_composite(icon("icon_supply", 80), (x + 6, y + 2))
-    text(d, (x + 96, y + 42), "+6발", 40, fill=(255, 214, 120), anchor="lm")
-    return (x, y, x + 250, y + 84)
+def weapon_group(img, d, cx, y, ammo, knife):
+    """무기 표시 (PRD F-78) — 화면 최상단 중앙, 진행 막대보다 위.
+    권총 + 남은 탄약 수. 0발이면 권총을 흐리게, 숫자는 0 (빨갛게). 칼은 있으면 보이고 쓰면 없어진다."""
+    w = 300 + (130 if knife else 0)
+    x = cx - w // 2
+    panel(img, (x, y, x + w, y + 112))
+    img.alpha_composite(icon("icon_pistol" if ammo > 0 else "icon_pistol_empty", 120), (x + 10, y - 4))
+    text(d, (x + 150, y + 56), str(ammo), 68, fill=(240, 238, 228) if ammo > 0 else (225, 70, 60), anchor="lm")
+    if knife:
+        d.line([(x + 290, y + 18), (x + 290, y + 94)], fill=(200, 200, 190, 120), width=2)
+        img.alpha_composite(icon("icon_knife", 110), (x + 306, y + 1))
+    return (x, y, x + w, y + 112)
 
 
 def pause_button(img, d):
@@ -114,77 +109,53 @@ def pause_button(img, d):
     return (cx - r, cy - r, cx + r, cy + r)
 
 
-def fire_button(img, d):
-    """사격 버튼 (PRD F-11 "화면 오른쪽") — 오른손 엄지 자리."""
+def fire_button(img, d, ammo):
+    """사격 버튼 (PRD F-11 "화면 오른쪽") — 오른손 엄지 자리. 0발이면 비활성으로 흐리게 (F-13)."""
     cx, cy, r = W - SAFE - 170, H - SAFE - 170, 130
     layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
     ld = ImageDraw.Draw(layer)
-    ld.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(150, 36, 28, 170), outline=(250, 240, 230, 200), width=6)
+    on = ammo > 0
+    ld.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(150, 36, 28, 170) if on else (60, 60, 58, 120),
+               outline=(250, 240, 230, 200 if on else 90), width=6)
     img.alpha_composite(layer)
-    img.alpha_composite(icon("icon_pistol", 170), (cx - 85, cy - 95))
-    text(d, (cx, cy + 78), "사격", 30, anchor="mm")
+    img.alpha_composite(icon("icon_pistol" if on else "icon_pistol_empty", 170), (cx - 85, cy - 95))
+    text(d, (cx, cy + 78), "사격", 30, fill=(240, 238, 228) if on else (150, 150, 145), anchor="mm")
     return (cx - r, cy - r, cx + r, cy + r)
 
 
-def safe_guide(d):
-    """안전 영역 점선 (F-69) — 이 안에 UI 를 둔다. 펀치홀 카메라가 왼쪽이나 오른쪽 가장자리에 온다."""
-    x0, y0, x1, y1 = SAFE, SAFE, W - SAFE, H - SAFE
-    for x in range(x0, x1, 28):
-        d.line([(x, y0), (min(x + 14, x1), y0)], fill=(255, 255, 255, 160), width=2)
-        d.line([(x, y1), (min(x + 14, x1), y1)], fill=(255, 255, 255, 160), width=2)
-    for y in range(y0, y1, 28):
-        d.line([(x0, y), (x0, min(y + 14, y1))], fill=(255, 255, 255, 160), width=2)
-        d.line([(x1, y), (x1, min(y + 14, y1))], fill=(255, 255, 255, 160), width=2)
-
-
-def note(d, box, label, where="below"):
-    """노란 설명 딱지 — 시안 설명용. 실제 화면에는 없다."""
-    x0, y0, x1, y1 = box
-    d.rectangle(box, outline=(255, 220, 60), width=3)
-    f = font(22, True)
-    tw = d.textlength(label, font=f)
-    tx = max(12, min(W - tw - 22, x0))
-    ty = y1 + 10 if where == "below" else y0 - 44
-    d.rectangle((tx, ty, tx + tw + 16, ty + 34), fill=(255, 220, 60))
-    d.text((tx + 8, ty + 3), label, font=f, fill=(20, 20, 20))
-
-
-def title(d, s):
-    d.rectangle((0, H - 44, W, H), fill=(20, 20, 20))
-    d.text((20, H - 38), s, font=font(24, True), fill=(255, 220, 60))
-
-
-def mock(variant):
+def screen(ammo, knife):
+    """설명 딱지 없는 실제 게임 화면 모습."""
     img = background()
     d = ImageDraw.Draw(img, "RGBA")
-    safe_guide(d)
-    progress_bar(img, d, W // 2, SAFE + 16)
-    notes = [((W // 2 - 384, SAFE - 10, W // 2 + 384, SAFE + 78), "진행 막대 F-54 (WU-15, 이미 상단 중앙)", "below")]
-    if variant == 1:
-        g = weapon_group(img, d, W // 2 - 220, SAFE + 140)
-        t = supply_toast(img, d, W // 2 + 240, SAFE + 154)
-        notes += [(g, "권총·탄약 수 8/12 (F-15)·칼 (F-35)", "below"),
-                  (t, "보급 +6발 알림 — 제안 (F-72 목록에 없음)", "below")]
-        cap = "시안 1  상단 중앙: 진행 막대 바로 아래에 권총·탄약·칼을 묶는다 — 한눈에 보이지만 화면 가운데(좀비가 오는 곳)를 조금 가린다"
-    else:
-        g = weapon_group(img, d, SAFE + 20, SAFE + 20)
-        t = supply_toast(img, d, SAFE + 20, SAFE + 190)
-        notes += [(g, "권총·탄약 수 8/12 (F-15)·칼 (F-35)", "below"),
-                  (t, "보급 +6발 알림 — 제안 (F-72 목록에 없음)", "below")]
-        cap = "시안 2  왼쪽 위: 가운데는 진행 막대만 — 앞이 트이지만 눈을 옆으로 돌려야 탄약 수가 보인다"
-    notes += [(pause_button(img, d), "일시정지 F-72", "below"),
-              (fire_button(img, d), "사격 버튼 F-11 (오른쪽)", "above")]
-    for box, label, where in notes:
-        note(d, box, label, where)
-    title(d, cap)
-    path = os.path.join(OUT, "hud_mock_%d_%s.png" % (variant, "top_center" if variant == 1 else "top_left"))
-    img.convert("RGB").save(path, optimize=True)
-    print("MOCK", path, "%.0f KB" % (os.path.getsize(path) / 1024))
+    weapon_group(img, d, W // 2, SAFE, ammo, knife)          # 최상단 중앙 (F-78)
+    progress_bar(img, d, W // 2, SAFE + 160)                   # 그 아래 진행 막대 (F-54 "화면 상단")
+    pause_button(img, d)
+    fire_button(img, d, ammo)
+    return img
+
+
+# 상태 세 가지 (F-78): (탄약, 칼, 설명)
+STATES = [(8, True, "① 탄약 8발 · 칼 있음"),
+          (0, True, "② 탄약 0발 — 권총이 흐려지고 0 (사격 버튼도 흐림, F-13)"),
+          (5, False, "③ 칼을 한 번 쓴 뒤 — 칼 아이콘이 없어짐")]
 
 
 def main():
-    mock(1)
-    mock(2)
+    full = screen(8, True)
+    full.convert("RGB").save(os.path.join(OUT, "hud_mock_full.png"), optimize=True)
+
+    # 세 상태를 위아래로: 각 줄은 화면 윗부분(진행 막대 + 무기 표시)만 잘라 붙인다
+    crop = (W // 2 - 520, 0, W // 2 + 520, 280)
+    cw, ch, cap = crop[2] - crop[0], crop[3] - crop[1], 48
+    sheet = Image.new("RGB", (cw, (ch + cap) * len(STATES)), (20, 20, 20))
+    sd = ImageDraw.Draw(sheet)
+    for i, (ammo, knife, label) in enumerate(STATES):
+        y = i * (ch + cap)
+        sd.text((16, y + 8), label, font=font(26, True), fill=(255, 220, 60))
+        sheet.paste(screen(ammo, knife).crop(crop).convert("RGB"), (0, y + cap))
+    sheet.save(os.path.join(OUT, "hud_mock_states.png"), optimize=True)
+    for n in ("hud_mock_full.png", "hud_mock_states.png"):
+        print("MOCK", n, "%.0f KB" % (os.path.getsize(os.path.join(OUT, n)) / 1024))
 
 
 main()
