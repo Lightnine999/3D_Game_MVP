@@ -1,0 +1,29 @@
+[gd_resource type="AudioBusLayout" format=3]
+
+; 소리 통로(버스) — TECH_SPEC 13.3.1 "Master / BGM / SFX / UI (default_bus_layout.tres, 주인 A)"
+; Godot 는 프로젝트 맨 위의 이 파일을 저절로 읽는다 (project.godot 수정 불필요).
+;   BGM : 배경음 2곡 (C 가 재생)            시작 -3 dB — 효과음보다 조금 낮게 (WU-32 근거 bgm_field.md)
+;   SFX : 게임 효과음 10종 (B 가 재생)       0 dB
+;   UI  : UI 효과음 3종 (C 가 재생)          0 dB
+; 재생할 때 player.bus = &"SFX" 처럼 이름만 적는다. 설정 화면(F-74) 볼륨은
+; AudioServer.set_bus_volume_db(AudioServer.get_bus_index(&"BGM"), db) 로 바꾼다 (C).
+
+[resource]
+bus/1/name = &"BGM"
+bus/1/solo = false
+bus/1/mute = false
+bus/1/bypass_fx = false
+bus/1/volume_db = -3.0
+bus/1/send = &"Master"
+bus/2/name = &"SFX"
+bus/2/solo = false
+bus/2/mute = false
+bus/2/bypass_fx = false
+bus/2/volume_db = 0.0
+bus/2/send = &"Master"
+bus/3/name = &"UI"
+bus/3/solo = false
+bus/3/mute = false
+bus/3/bypass_fx = false
+bus/3/volume_db = 0.0
+bus/3/send = &"Master"
