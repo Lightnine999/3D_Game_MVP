@@ -316,6 +316,22 @@ func _build_zone_bridge() -> void:
 	_spawn("v2_car_sedan", Vector3(9.0, -1.2, -(RIVER_Z0 + 15.0)), 30.0, 1.0, false)
 	_burning_drums(Vector3(-7.0, 0, -(RIVER_Z0 - 8.0)), 3)
 	_ruin("v2_house_c", 640.0, 22.0, 32.0)
+	_mission_zone("ZoneBridge", "bridge", Vector3(0, 1.5, -(RIVER_Z0 + RIVER_Z1 - 10.0) / 2.0), Vector3(7.0, 3.0, RIVER_Z1 - RIVER_Z0 + 10.0))
+
+
+# 미션 구역 (TECH_SPEC 13.3.1 ①-3): B의 mission_system 이 그룹·메타로 찾는다
+func _mission_zone(node_name: String, zone_id: String, center: Vector3, size: Vector3) -> void:
+	var area := Area3D.new()
+	area.name = node_name
+	area.position = center
+	area.add_to_group("mission_zone")
+	area.set_meta("zone_id", zone_id)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	area.add_child(shape)
+	add_child(area)
 
 
 func _build_zone_objective() -> void:
