@@ -207,6 +207,23 @@ def horizontal_move(arm, action):
     return max(math.hypot(p.x - pts[0].x, p.y - pts[0].y) for p in pts)
 
 
+
+def zero_metallic() -> int:
+    """좀비는 금속이 아니다: Mixamo 재질의 Metallic 을 0 으로 (연결된 그림도 끊는다).
+    그대로 두면 금속 값이 없는 재질은 glTF 기본값 1.0(완전 금속)이 되어, 어두운 맵에서 새까맣게 보였다 (2026-09-29)"""
+    count = 0
+    for mat in bpy.data.materials:
+        if not mat.use_nodes:
+            continue
+        for node in mat.node_tree.nodes:
+            if node.type == "BSDF_PRINCIPLED":
+                sock = node.inputs["Metallic"]
+                for link in list(sock.links):
+                    mat.node_tree.links.remove(link)
+                sock.default_value = 0.0
+                count += 1
+    return count
+
 def main():
     args = parse_args()
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -275,6 +292,7 @@ def main():
 
     shrunk = shrink_textures(args.max_texture)
     brightened = brighten_base_color(args.brightness) if args.brightness != 1.0 else []
+    non_metal = zero_metallic()
 
     bpy.ops.export_scene.gltf(
         filepath=args.out,
@@ -288,6 +306,7 @@ def main():
         print("IMPORT_MIXAMO texture " + s)
     for s in brightened:
         print("IMPORT_MIXAMO brightness " + s)
+    print("IMPORT_MIXAMO metallic -> 0: %d materials" % non_metal)
     print("IMPORT_MIXAMO tris %d -> %d (max %d)" % (tris_before, tris_after, args.max_tris))
     for name, (b, a) in report.items():
         print("IMPORT_MIXAMO in_place %s: %.3f m -> %.3f m" % (name, b, a))
