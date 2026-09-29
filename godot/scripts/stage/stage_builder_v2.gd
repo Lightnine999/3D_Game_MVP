@@ -180,9 +180,8 @@ const GRASS_TUFTS := [
 
 
 # 구해 온 3D 에셋 (art/blender/optimize_glb.py 로 줄인 것) — 가까운 곳(7-22m)은 3D, 그 너머는 카드가 채운다
-# tree_dead_04 는 2.5만 면 아래로 줄이면 가지가 조각나서 3D 목록에서 뺐다 (파일은 남김)
-const TREES_3D := ["tree_dead_01", "tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01",
-	"tree_fantasy_dead", "tree_old_01", "tree_old_02", "tree_dead_real"]
+# 가지가 조각나거나 삼각형 판자처럼 깎인 모델(tree_dead_01·04, tree_old_02, tree_dead_real)은 뺐다 (2026-09-29 확대 점검)
+const TREES_3D := ["tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01", "tree_fantasy_dead", "tree_old_01"]
 const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "car_scan_01", "car_scan_02", "car_scan_03",
 	"car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]
 const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)

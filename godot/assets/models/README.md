@@ -17,16 +17,12 @@
 
 | 최적화본 | 원본 파일 | 면 수 (원본 → 최적화) | 크기 | 라이선스 |
 |---|---|---|---|---|
-| trees/tree_dead_01 | dead_tree (1).glb | 232k → 12k | 키 10m | ⚠️ 확인 필요 |
 | trees/tree_dead_02 | dead_tree (2).glb | 137k → 12k | 키 12m | ⚠️ 확인 필요 |
 | trees/tree_dead_03 | dead_tree (3).glb | 78k → 12k | 키 14m | ⚠️ 확인 필요 |
-| trees/tree_dead_04 | dead_tree (4).glb | 120k → 25k | 키 11m | ⚠️ 확인 필요 |
 | trees/tree_dead_small | dead_tree.glb | 3k | 키 6m | ⚠️ 확인 필요 |
 | trees/tree_dry_01 | dry_tree_vurvur_house_5.glb | 2k | 키 6.5m | ⚠️ 확인 필요 |
 | trees/tree_fantasy_dead | old_fantasy_dead_tree.glb | 720k → 14k | 키 12m | ⚠️ 확인 필요 |
 | trees/tree_old_01 | old_tree.glb | 8k | 키 9m | ⚠️ 확인 필요 |
-| trees/tree_old_02 | old_tree_3d_model_free.glb | 603k → 30k | 키 8m | ⚠️ 확인 필요 |
-| trees/tree_dead_real | realistic_dead_tree.glb | 998k → 12k | 키 9m | ⚠️ 확인 필요 |
 | trees/stump_old_01 | ga_free_201_old_tree_stump.glb | 1.33M → 15k | 높이 0.9m | ⚠️ 확인 필요 |
 | vehicles/car_junk_01 | abandoned__junk_car.glb | 29k → 8k | 길이 4.5m | ⚠️ 확인 필요 |
 | vehicles/car_abandoned_01 | abandoned_car.glb | 5k | 길이 4.6m | ⚠️ 확인 필요 |
@@ -49,6 +45,6 @@
 | props/barrel_pack_01 - 05 | barrel_pack_-_low_poly_props.glb (5개를 하나씩 분리) | 0.4k씩 | 높이 1m | ⚠️ 확인 필요 |
 | props/drum_pile_01 | oil_drums.glb (드럼통 무더기) | 7k → 6k | 높이 1m | ⚠️ 확인 필요 |
 
-빠진 원본: `a_forest_3_with_a_road_at_night_for_game.glb`(작은 숲 한 판이라 배치용 아님), `zoo-park_dead_tree.glb`(하늘 돔이 함께 들어 있음)
+빠진 원본: `dead_tree (1)`·`dead_tree (4)`·`old_tree_3d_model_free`·`realistic_dead_tree`(모바일용으로 줄이면 가지가 조각나서 제외), `a_forest_3_with_a_road_at_night_for_game.glb`(작은 숲 한 판이라 배치용 아님), `zoo-park_dead_tree.glb`(하늘 돔이 함께 들어 있음)
 
 ⚠️ **이 저장소는 공개**다. 위 에셋을 푸시하기 전에 각 출처의 라이선스(재배포 허용·출처 표기 의무)를 확인해 이 표를 채운다.

@@ -57,7 +57,7 @@ def _fast_std(gray: np.ndarray) -> np.ndarray:
 def green_mask(rgb: np.ndarray) -> np.ndarray:
     """그린스크린: 초록이 빨강·파랑보다 확연히 강하면 배경"""
     excess = rgb[:, :, 1] - np.maximum(rgb[:, :, 0], rgb[:, :, 2])
-    return excess > 60
+    return excess > 35                       # 60 → 35: 잔가지 사이 틈에 가지 색과 섞인 초록까지 뺀다
 
 
 def soft_alpha(rgb: np.ndarray, solid: np.ndarray, green: bool) -> tuple[np.ndarray, np.ndarray]:
@@ -68,9 +68,9 @@ def soft_alpha(rgb: np.ndarray, solid: np.ndarray, green: bool) -> tuple[np.ndar
     band = (dist_out <= 3) | ((dist_in <= 2) & solid)
     if green:
         excess = rgb[:, :, 1] - np.maximum(rgb[:, :, 0], rgb[:, :, 2])
-        a_band = np.clip((110 - excess) / 90, 0, 1)
+        a_band = np.clip((60 - excess) / 45, 0, 1)            # 초록이 조금만 섞여도 반투명 → 초록 테두리 제거
         color = rgb.copy()
-        cap = np.maximum(rgb[:, :, 0], rgb[:, :, 2]) * 1.05     # 초록 번짐 제거 (despill)
+        cap = np.maximum(rgb[:, :, 0], rgb[:, :, 2])            # 초록 번짐 제거 (despill): 모든 픽셀에서 G ≤ max(R, B)
         color[:, :, 1] = np.minimum(rgb[:, :, 1], cap)
     else:
         bg = ~ndimage.binary_dilation(solid, iterations=1)        # 확실한 배경
@@ -84,7 +84,11 @@ def soft_alpha(rgb: np.ndarray, solid: np.ndarray, green: bool) -> tuple[np.ndar
         color = np.clip(bg_local + (rgb - bg_local) / safe, 0, 255)  # 섞인 배경색 빼기
         color = np.where((a_band >= 0.98)[..., None], rgb, color)
     alpha = np.where(solid & (dist_in > 2), 1.0, np.where(band, a_band, 0.0)).astype(np.float32)
-    color = np.where((alpha >= 0.999)[..., None], rgb, color)
+    if green:                                # 그린스크린은 가장자리를 1px 깎아(choke) 남은 초록 테두리를 없앤다
+        alpha = np.minimum(alpha, ndimage.grey_erosion(alpha, size=(3, 3)) * 0.5 + alpha * 0.5)
+        alpha = np.where(green_mask(rgb), 0.0, alpha)
+    if not green:
+        color = np.where((alpha >= 0.999)[..., None], rgb, color)
     return alpha, color
 
 
