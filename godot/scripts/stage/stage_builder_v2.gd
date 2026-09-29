@@ -235,11 +235,15 @@ func _tree(pos: Vector3) -> Node3D:
 
 # 나무를 땅에 박는다: 원점(가장 낮은 점)이 늘어진 가지·퍼진 뿌리 끝이라 줄기 밑동이 떠 보이는 모델이 있다
 # 비율 = 모델 높이 대비 줄기 밑동 높이 (Blender 로 줄기 가운데 점이 촘촘해지는 높이를 잰 값, 2026-09-29)
-const TREE_SINK := {"tree_fantasy_dead": 0.30, "tree_old_01": 0.12, "tree_dry_01": 0.08, "tree_dead_02": 0.05,
+# 라이선스 교체 (2026-09-29): 비상업(CC BY-NC) 모델은 파일을 지우고, 놓는 순간 허용 모델로 바꿔 끼운다.
+# 목록 이름은 그대로 둬서 난수 흐름(=나무·폐차 위치)이 이전과 똑같이 유지된다. 출처: ASSETS_LICENSE.md
+const LICENSE_SWAP := {"tree_dry_01": "tree_dead_03", "car_scan_barricade": "car_scan_02"}
+const TREE_SINK := {"tree_old_01": 0.12, "tree_dead_02": 0.05,
 	"tree_dead_03": 0.05, "tree_dead_04": 0.05, "tree_dead_small": 0.04}
 
 
 func _plant(node: Node3D, model: String) -> void:
+	model = LICENSE_SWAP.get(model, model)
 	var height := _local_aabb(node).size.y * node.scale.y
 	node.position.y -= height * float(TREE_SINK.get(model, 0.0)) + 0.15
 	_no_shadow(node)                                          # 나무 그림자는 역광·약한 빛이라 거의 안 보이는데 가장 비싸다 (면 수 -60%)
@@ -937,6 +941,7 @@ func _floodlight(pos: Vector3) -> void:
 
 # ── 공통 도우미 ──────────────────────────────────────────────────
 func _spawn(model: String, pos: Vector3, yaw_deg: float = 0.0, scale_f: float = 1.0, cull := true, range_end := DRAW_RANGE) -> Node3D:
+	model = LICENSE_SWAP.get(model, model)
 	if not _scenes.has(model):
 		_scenes[model] = load(ModelLibrary.path(model))   # 카테고리 폴더에서 이름으로 찾는다
 	var node: Node3D = _scenes[model].instantiate()
