@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 문서 버전 | v0.4 |
+| 문서 버전 | v0.5 |
 | 작성일 | 2026-09-28 |
 | 상태 | DRAFT (검토 중) |
 | 가칭 | 3D_Game_MVP (정식 게임명 미정) |
@@ -17,7 +17,7 @@
 ## 1. 개요
 
 ### 1.1 한 줄 요약
-안개 낀 밤 들판을 1인칭으로 자동 질주하며 좀비를 피하고 쏘는 모바일 3D 생존 게임. Godot 4로 만들고 Google Play에 출시한다.
+안개 낀 노을 들판을 1인칭으로 자동 질주하며 좀비를 피하고 쏘는 모바일 3D 생존 게임. Godot 4로 만들고 Google Play에 출시한다.
 
 ### 1.2 목표 플랫폼
 | 구분 | 내용 |
@@ -165,7 +165,7 @@
 | 좀비 키 | 1.7 - 1.9 m |
 | 텍스처 | 최대 1024×1024, Godot에서 VRAM 압축(ETC2/ASTC) |
 | 재질 | 로우폴리 단색/팔레트 텍스처 우선, 재질 수 최소화 |
-| 파일 이름 | `소문자_스네이크케이스` — 예: `zombie_walker.glb`, `prop_barn.glb`, `weapon_pistol.glb` |
+| 파일 이름 | `소문자_스네이크케이스` — 예: `zombie_walker.glb`, `prop_crate.glb`, `weapon_pistol.glb` |
 | 접두사 | `zombie_` 좀비 / `prop_` 소품 / `obs_` 장애물 / `env_` 지형 타일 / `weapon_` 무기 / `fx_` 이펙트 (전체 목록: 13.3.1) |
 
 ### 5.3 폴리곤·성능 예산 (자동 검사 기준)
@@ -219,11 +219,11 @@
 |---|---|---|---|
 | 근경 | 0-10m | 풀, 소품, 장애물 | 선명, 빠르게 스쳐 지나감 |
 | 중경 | 10-40m | 좀비, 장애물, 보급 상자 | 안개로 점점 흐려짐 (플레이 영역) |
-| 원경 | 40-150m | 나무 줄, 헛간 불빛, 송전탑 실루엣 | 단순한 저폴리 판(카드)으로 그리고 안개 색에 거의 묻힘 |
-| 배경 | 무한 | 밤하늘, 달, 구름 | 하늘 셰이더 (카메라와 함께 이동) |
+| 원경 | 40-70m | 숲, 폐가, 송전탑·요새 실루엣 | 실제 모델을 두되 `visibility_range`로 68m 밖은 그리지 않고 안개 색에 묻힘 |
+| 배경 | 무한 | 노을 하늘, 구름, 안개 낀 산 능선 | 파노라마 하늘 (Poly Haven HDRI를 색보정 + 산 능선 합성, `tools/assets/make_sky_from_hdri.py`) |
 
-- 원경 실루엣은 플레이어와 함께 천천히 따라와 **달려도 멀리 있는 것은 느리게 움직이는** 시차(패럴랙스)를 만든다.
-- 이동 가능 폭 바깥에도 저폴리 들판·나무 줄을 배치해 화면 끝에서 세계가 끊기지 않게 한다. 바깥 영역은 충돌·AI 계산을 하지 않는다.
+- 먼 산은 하늘 그림에 들어 있어 **달려도 움직이지 않고**, 가까운 숲·폐가는 실제 위치에 있어 자연스러운 시차가 생긴다 (별도 시차 스크립트 불필요).
+- 이동 가능 폭(±6m) 바깥 ±48m까지 들판·숲을 배치해 화면 끝에서 세계가 끊기지 않게 한다. 바깥 영역은 충돌·AI 계산을 하지 않는다.
 
 ### 6.2 폴더 구조 (Godot 프로젝트) — 괄호는 소유자 (13.1)
 장면(.tscn)과 그 스크립트(.gd)는 **같은 소유자**가 맡는다.
@@ -237,15 +237,15 @@ godot/
 │   └── ui/                    (C) 아이콘·폰트·UI 테마
 ├── scenes/
 │   ├── main.tscn              (C) 진입점·화면 전환 (GameLayer + UILayer, 13.3.4)
-│   ├── game/                  (B) game.tscn — 한 판 조립 (A의 환경·타일 + 플레이어 + 스포너)
-│   ├── stage/                 (A) 지형 타일, 환경(안개·조명), 원경, 헛간·탈출 트럭 배치물
+│   ├── game/                  (B) game.tscn — 한 판 조립 (A의 스테이지 빌더 + 플레이어 + 스포너)
+│   ├── stage/                 (A) stage_preview.tscn (스테이지 미리보기·영상 캡처)
 │   ├── fx/                    (A) 총구 섬광, 피격, 연막, 먼지
 │   ├── actors/                (B) player, zombie
 │   ├── weapons/               (B) pistol, supply_drop
 │   ├── debug/                 (B) 테스트 패널
 │   └── ui/                    (C) hud, stage_card, result, shop, account, support_chat, settings
 ├── scripts/                   ← scenes/와 같은 구조, 같은 소유자
-│   ├── stage/                 (A) far_layers(원경 시차) 등 연출 스크립트
+│   ├── stage/                 (A) stage_builder_v2(1,000m 스테이지 생성), stage_materials(질감), 바닥·물 셰이더
 │   ├── core/                  (B) game_state(연결 규칙 13.3.2), run_controller, stage_stream, spawner, mission_system, difficulty_config
 │   ├── actors/  weapons/  debug/   (B)
 │   ├── services/              (C) backend_client, auth_client, payment_client, support_chat, session(연결 규칙 13.3.3)
@@ -274,7 +274,7 @@ godot/
 | `billing_client` | (마감 이후) Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
 | `session` | 로그인 상태·구매 효과 등 서비스 → 게임 전달값 (`is_logged_in`, `is_admin`, `start_ammo_bonus`) — 13.3.3 | auth_client, payment_client |
 | `test_panel` | 테스트 모드 패널 (무적, 거리 건너뛰기, 탄약·칼 지급, 좀비 소환, FPS 표시). 디버그 빌드 또는 `session.is_admin`일 때만 활성 (PRD 4.15) | game_state, session |
-| `far_layers` (A) | 원경 실루엣의 시차 이동 (6.1.1) | camera_rig 위치 읽기만 |
+| `stage_builder_v2` (A) | 1,000m 스테이지 생성(하늘·안개·바닥·강·수풀·나무·폐허·장애물 묶음·미션 구역), 거리별 안개 변화, 남은 거리 계산 (13.3.1 ①-3) | 없음 |
 
 게임 로직 모듈은 `backend_client`·`billing_client` 없이도 동작해야 한다 (오프라인 플레이 가능, 테스트 용이).
 
@@ -283,16 +283,19 @@ godot/
 game_state ── 이벤트 발행 ──→ mission_system
   zombie_killed(type)          미션마다 조건 검사
   zone_entered(zone_id)        예: {type: "kill_count", target: 15}
-  stage_cleared()                  {type: "pass_zone", zone: "barn_inside"}
-  knife_used()                     {type: "survive"}
+  zone_exited(zone_id)             {type: "pass_zone_clean", zone: "bridge"}
+  obstacle_hit()                   {type: "survive"}
+  grabbed()
+  stage_cleared()
+  knife_used()
                                  → 달성 시 mission_completed 알림 → HUD 토스트
                                  → 결과 화면에 ★ 표시, user://에 달성 기록 저장
 ```
-- 미션 종류(`survive`, `kill_count`, `pass_zone`, `no_knife` 등)는 코드에 구현하고, **어떤 스테이지에 어떤 미션을 몇으로** 줄지는 `stage_data`에서만 정한다.
-- 헛간 통과(`pass_zone`)는 헛간 내부에 Area3D 구역을 두어 판정한다. 헛간 모델에는 통과 가능한 내부 통로가 있어야 한다.
+- 미션 종류(`survive`, `kill_count`, `pass_zone`, `pass_zone_clean`, `no_knife` 등)는 코드에 구현하고, **어떤 스테이지에 어떤 미션을 몇으로** 줄지는 `stage_data`에서만 정한다.
+- 다리 무사히 건너기(`pass_zone_clean`, 미션 M3)는 A의 빌더가 다리 위에 두는 Area3D `ZoneBridge`(`zone_id = "bridge"`)로 판정한다. 구역에 들어간 뒤 나올 때까지 `obstacle_hit`·`grabbed`가 한 번도 없으면 달성이다.
 
 ### 6.4 성능 기법
-- 스테이지는 **지형 타일 재사용**: 플레이어 앞에 타일을 붙이고 뒤로 지나간 타일은 재활용(오브젝트 풀).
+- 스테이지는 **한 번에 생성 + 거리 컬링**: `StageBuilderV2`가 1,000m를 한 번에 만들고, 수풀은 50m 조각별 MultiMesh, 모든 모델에 `visibility_range_end`(68m)를 걸어 멀리 있는 것은 그리지 않는다. Galaxy S24 Ultra 60fps 확인 (2026-09-29).
 - 좀비도 오브젝트 풀로 재사용하고, 멀리 있는 좀비는 애니메이션 갱신 빈도를 낮춘다.
 - 시야 거리를 안개로 제한해 멀리 있는 물체를 그리지 않는다 (카메라 far 거리 = 안개 끝 거리).
 - 동시 표시 좀비 수 상한을 `difficulty_config`에서 관리한다.
@@ -720,11 +723,25 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 ##### ①-3 스테이지 장면 (A 소유, B가 불러온다)
 | 경로 | 내용 | B와의 연결 |
 |---|---|---|
-| `scenes/stage/environment.tscn` | 안개·조명·하늘 (WorldEnvironment + 달빛) | B의 `game.tscn`이 한 번 불러온다 |
-| `scenes/stage/tiles/tile_*.tscn` | 지형 타일 (**폭 20m × 길이 40m**, 앞쪽 끝 = z -40), 풀·나무·울타리 장식, 이동 가능 폭 밖 원경 | B의 `stage_stream`이 이어 붙인다. 타일 안에는 좀비·장애물을 넣지 않는다 (B가 배치) |
-| `scenes/stage/barn.tscn` | 헛간 (내부 통로 있음) | 안에 `Area3D` 노드 이름 **`ZoneBarnInside`**, 그룹 `mission_zone`, 메타 `zone_id = "barn_inside"` → B의 미션이 감지 |
-| `scenes/stage/escape_truck.tscn` | 탈출 트럭 | B가 1,000m 지점에 둔다 |
-| `scenes/stage/far_layers.tscn` | 원경 실루엣 + 시차 스크립트 | 카메라 위치를 **읽기만** 한다 |
+스테이지는 **타일이 아니라 빌더 한 개**로 넘긴다 (v0.5 변경). B는 빌더를 만들어 붙이고 아래 사용법으로만 연결한다.
+
+```gdscript
+var stage := StageBuilderV2.new()        # scripts/stage/stage_builder_v2.gd
+add_child(stage)
+stage.build(seed)                         # 하늘·안개·조명·바닥·강·수풀·나무·폐허·장애물·미션 구역 전부 생성
+# 매 프레임 (또는 1m마다)
+stage.update_atmosphere(distance_m)       # 남은 400m부터 안개를 회색으로
+# HUD (C): 남은 거리 = StageBuilderV2.remaining(distance_m)   # 1000 → 0
+```
+
+| 항목 | 약속 | B·C와의 연결 |
+|---|---|---|
+| 좌표 | 달리는 방향 -Z, 달린 거리 d → `z = -d`. 이동 가능 폭 `StageBuilderV2.LANE_HALF` (±6m) | B의 `run_controller` |
+| 목표 거리 | `StageBuilderV2.STAGE_LENGTH` (1,000m). 요새 정문은 d = 1,018m에 보이고, **d = 1,000m 도착 = 클리어** | B가 `stage_cleared` 판정 |
+| 장애물 | 빌더가 모델을 배치하고 `stage.obstacles`에 `{z: 달린 거리, x, half_width}` 목록을 남긴다 | B는 이 목록으로 충돌 상자(폭 `half_width × 2`, 깊이 2m, 높이 1.5m)를 만든다. 좀비·보급은 B가 배치 |
+| 미션 구역 | Area3D **`ZoneBridge`**, 그룹 `mission_zone`, 메타 `zone_id = "bridge"` (다리 상판 전체, 달린 거리 670-700m) | B의 `mission_system`이 그룹으로 찾는다 (M3) |
+| 분위기 | 하늘·안개·해·불빛이 빌더 안에 있다 (`WorldEnvironment` 포함) | B는 환경 장면을 따로 불러오지 않는다 |
+| 미리보기 | `scenes/stage/stage_preview.tscn` — 자동 주행·장애물 회피·스크린샷·영상 프레임 캡처 (`--shots=`, `--frames=`) | A 전용 |
 
 ##### ①-4 이펙트 (A 소유, B가 호출)
 | 경로 (`scenes/fx/`) | 쓰는 때 |
@@ -851,7 +868,7 @@ main.tscn (C)
 |---|---|---|---|---|
 | 좀비 모델 4종 | ①-2 | ⬜ | ⬜ (WU-20) | A |
 | 무기·보급·장애물 모델 | ①-2 | ⬜ | ⬜ | A |
-| 환경·타일·헛간·트럭·원경 | ①-3 | ⬜ | ⬜ (WU-12, WU-13) | A |
+| 스테이지 빌더 (환경·지형·소품·장애물·미션 구역) | ①-3 | ➖ (가짜 없이 진짜 먼저 완성) | ✅ `StageBuilderV2` (WU-12, WU-13) | A |
 | 이펙트 4종 | ①-4 | ⬜ | ⬜ | A |
 | 사운드 | ①-5 | ⬜ | ⬜ (WU-32) | A |
 | 게임 신호 (`mock_run`) | ② | ⬜ | ⬜ (WU-14 이후) | B |
@@ -867,7 +884,7 @@ main.tscn (C)
 | Blender 5.x `bpy` API 변경 | 스크립트 오류 | 문서 조회 후 작은 스크립트부터 검증. **WU-04 확인**: 렌더 엔진은 `BLENDER_EEVEE`(4.x의 `_NEXT` 아님), glTF는 `export_scene.gltf(export_format="GLB")` 동작, 연산자 enum은 동적이라 `bl_rna`로 목록이 안 보이므로 실행해서 확인 (`docs/evidence/WU-04/`) |
 | 저가형 폰 성능 부족 | 버벅임, 이탈 | 폴리곤 예산 자동 검사, 오브젝트 풀, 좀비 수 상한, 품질 옵션 |
 | adb 연결 끊김·권한 | 설치·로그 확인 불가 | 폰에서 "이 컴퓨터에서 항상 허용" 체크. 삼성 보안 폴더 때문에 `pm` 명령은 `--user 0` 사용. 실행은 `am start -n <패키지>/com.godot.game.GodotAppLauncher` (WU-04) |
-| 조명·안개가 소품 색을 바꿈 | 의도한 색이 안 보임 (WU-04에서 갈색 상자가 회색으로 보임) | STYLE.md에서 달빛·안개 색과 팔레트를 함께 정하고 폰 화면으로 확인 (WU-10, WU-13) |
+| 조명·안개가 소품 색을 바꿈 | 의도한 색이 안 보임 (WU-04에서 갈색 상자가 회색으로 보임) | STYLE.md에서 노을빛·안개 색과 팔레트를 함께 정하고 폰 화면으로 확인 (WU-10, WU-13) |
 | Mixamo 모델이 다른 게임과 비슷함 | 차별성 부족 | MVP 이후 콘셉트 → AI 3D 생성 → Mixamo 리깅으로 교체 |
 | 테스터 12명 × 14일 미달 | 정식 출시 지연 | 15-20명 사전 모집, 참여 유지 안내 |
 | 배경음 AI 도구 라이선스 | 출시 후 분쟁 | 출시 전 약관 확인, 필요 시 CC0 음원으로 교체 |
@@ -906,6 +923,7 @@ main.tscn (C)
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.5 | 2026-09-29 | **스테이지 전달 방식 변경** — 13.3.1 ①-3 지형 타일(20×40m)·헛간·탈출 트럭 → `StageBuilderV2` 빌더 1개(사용법·장애물 목록·미션 구역 `ZoneBridge`). 6.1.1 깊이감(노을 하늘·산 능선, 원경 68m 컬링), 6.2 폴더·6.3 모듈(far_layers → stage_builder_v2), 6.3.1 미션 M3 → `pass_zone_clean`(다리), 6.4 성능 기법(한 번에 생성 + 거리 컬링, S24 Ultra 60fps) |
 | v0.4.2 | 2026-09-29 | 별도 문서였던 CONTRACTS.md를 폐지하고 내용을 **13.3 담당 간 연결 규칙**으로 통합 (에셋 13.3.1, 게임 신호 13.3.2, 서비스 값 13.3.3, 공통 설정 13.3.4, 가짜 부품 현황 13.3.5) |
 | v0.4.1 | 2026-09-29 | 콘셉트 아트를 나노바나나(Gemini) → OpenAI 이미지 생성으로 변경 (D17), 키 이름 `OPENAI_API_KEY`, 콘셉트용·채팅용 키 분리 |
 | v0.4 | 2026-09-29 | PRD v0.4 반영 — D15 관리자 = Supabase Studio + 역할 + 보기, D16 기능 단위 소유·약속서·가짜 부품·하루 두 번 조립. 6.2·11.1 폴더에 소유자 표기(tools/assets·tools/build 분리, scenes/fx·debug 추가), 모듈 session·test_panel·far_layers, profiles.role·admin 보기·기능별 마이그레이션 파일, delete-account 함수, 7.6 관리자, 12.1 보안 점검표(S1 - S8), 13.1 파일 소유권·공동 파일 주인·협업 규칙, 리스크 갱신, Q10 |
