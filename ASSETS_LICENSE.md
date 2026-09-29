@@ -21,6 +21,12 @@
 ## 캐릭터·애니메이션 (Mixamo)
 | 캐릭터/모션명 | 종류 | 출처 URL | 제작자 | 라이선스 | 상업 이용 | 크레딧 표기 위치 | 다운로드일 | 사용 위치 (파일) |
 |---|---|---|---|---|---|---|---|---|
+| X Bot | 캐릭터 (Scary Zombie Pack 포함) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb` |
+| zombie idle | 애니메이션 → `idle` | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb` |
+| zombie walk | 애니메이션 → `walk` (제자리로 변환) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb` |
+| zombie run | 애니메이션 → `run` (제자리로 변환) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb` |
+| zombie attack | 애니메이션 → `attack` | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb` |
+| zombie death | 애니메이션 → `death` | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb` |
 
 ## 사운드
 | 에셋명 | 종류 | 출처 URL | 제작자 | 라이선스 | 상업 이용 | 크레딧 표기 위치 | 다운로드일 | 사용 위치 (파일) |
