@@ -69,6 +69,21 @@ WEAPON_LENGTH = {"weapon_pistol": 0.2, "weapon_knife": 0.25}
 WEAPON_LENGTH_TOL = 0.10            # 약속 길이의 ±10%
 
 
+def check_supply_crate(meshes, fails, notes):
+    """13.3.1 ①-2 "0.6m 정육면체 + 낙하산". B 가 착지 뒤 낙하산만 숨기도록 Crate·Parachute 두 부분이어야 한다."""
+    names = {o.name.split(".")[0]: o for o in meshes}
+    for need in ("Crate", "Parachute"):
+        if need not in names:
+            fails.append("보급 상자에 '%s' 부분이 없음 (B 가 이 이름으로 찾는다)" % need)
+    crate = names.get("Crate")
+    if crate:
+        vs = [crate.matrix_world @ v.co for v in crate.data.vertices]
+        dims = [max(v[i] for v in vs) - min(v[i] for v in vs) for i in range(3)]
+        notes.append("상자 크기 %.2f × %.2f × %.2f m" % tuple(dims))
+        if any(abs(d - 0.6) > 0.06 for d in dims):
+            fails.append("상자가 0.6m 정육면체가 아님 (%.2f × %.2f × %.2f)" % tuple(dims))
+
+
 def check_weapon(stem, pts, fails, notes):
     """무기: 길이(앞뒤 = Blender Y), 원점이 손잡이(모델 안쪽, 뒤쪽 절반), 앞쪽(총구·칼끝)이 Godot -Z."""
     lo = [min(p[i] for p in pts) for i in range(3)]
@@ -137,6 +152,8 @@ def check(path):
         if prefix == "weapon_":
             check_weapon(stem, pts, fails, notes)
             return name, fails, notes
+        if stem == "prop_supply_crate":
+            check_supply_crate(meshes, fails, notes)
         notes.append("키 %.3f m, 발밑 z %.3f, 중심 (%.2f, %.2f)" % (height, lo_z, cx, cy))
         if abs(lo_z) > ORIGIN_TOL:
             fails.append("원점이 발밑이 아님 (최저점 z = %.3f)" % lo_z)
