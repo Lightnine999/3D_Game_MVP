@@ -9,6 +9,7 @@ class_name CardProps
 extends RefCounted
 
 const TEX := "res://assets/textures/cards/"
+const SHADER := preload("res://scripts/stage/card.gdshader")
 
 # 이름 → [크기(m), 기준] — "w" = 그림 폭(차 길이 방향), "h" = 그림 높이(나무 키)
 const CARDS := {
@@ -21,12 +22,15 @@ const CARDS := {
 	"card_tree_dead_a": [9.5, "h"], "card_tree_dead_b": [8.5, "h"], "card_tree_twist_a": [7.5, "h"],
 	"card_stump_roots": [2.2, "h"], "card_tree_white": [9.0, "h"], "card_tree_moss_b": [5.2, "h"],
 	"card_tree_twist_b": [6.5, "h"],
+	"card_stump_cut": [1.3, "h"], "card_twig_pile": [1.2, "h"], "card_stick_bundle": [1.5, "h"],   # 막대류는 풀에 반쯤 묻히게 작게
+	"card_roots_gnarled": [1.8, "h"], "card_roots_stump": [1.6, "h"],
 }
 const VEHICLES := ["card_excavator", "card_semi_truck", "card_jeep_wreck", "card_van_front", "card_van_rear",
 	"card_roadster", "card_sedan_green", "card_pickup_blue", "card_hatchback", "card_jeep", "card_bus"]
 const TREES := ["card_tree_burnt", "card_tree_rock_a", "card_tree_moss_a", "card_tree_rock_b", "card_tree_dead_a",
 	"card_tree_dead_b", "card_tree_twist_a", "card_tree_white", "card_tree_moss_b", "card_tree_twist_b"]
-const GROUND := ["card_stump_mushroom", "card_stump_roots"]   # card_log_fallen(누운 통나무)은 쓰지 않는다
+const GROUND := ["card_stump_mushroom", "card_stump_roots", "card_stump_cut", "card_twig_pile", "card_stick_bundle",
+	"card_roots_gnarled", "card_roots_stump"]   # 누운 통나무(card_log_fallen)는 쓰지 않는다
 
 var _meshes := {}
 
@@ -49,19 +53,10 @@ func _mesh(card_name: String) -> QuadMesh:
 	var q := QuadMesh.new()
 	q.size = size
 	q.center_offset = Vector3(0, size.y * 0.5 - size.y * 0.06, 0)    # 밑동을 땅에 묻고 풀로 가려 떠 보이지 않게
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.normal_enabled = true
-	mat.normal_texture = load(TEX + card_name + "_n.png")
-	mat.normal_scale = 1.0
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-	mat.alpha_scissor_threshold = 0.5
-	mat.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
-	mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y          # 늘 카메라 쪽으로 (세로축만 회전)
-	mat.billboard_keep_scale = true
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.roughness = 1.0
-	mat.specular = 0.2
+	var mat := ShaderMaterial.new()                                 # Y축 빌보드 + 채도·색조 누르기 (card.gdshader)
+	mat.shader = SHADER
+	mat.set_shader_parameter("albedo_tex", tex)
+	mat.set_shader_parameter("normal_tex", load(TEX + card_name + "_n.png"))
 	q.material = mat
 	_meshes[card_name] = q
 	return q

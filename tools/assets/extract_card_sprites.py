@@ -54,38 +54,76 @@ def _fast_std(gray: np.ndarray) -> np.ndarray:
     return np.sqrt(np.maximum(m2 - m * m, 0))
 
 
+def green_mask(rgb: np.ndarray) -> np.ndarray:
+    """그린스크린: 초록이 빨강·파랑보다 확연히 강하면 배경"""
+    excess = rgb[:, :, 1] - np.maximum(rgb[:, :, 0], rgb[:, :, 2])
+    return excess > 60
+
+
+def soft_alpha(rgb: np.ndarray, solid: np.ndarray, green: bool) -> tuple[np.ndarray, np.ndarray]:
+    """가장자리 3px 안에서는 '그 자리 배경색과 얼마나 다른가'로 0~1 투명도를 정하고,
+    섞여 있던 배경색을 빼 회색·초록 테두리를 없앤다 (색 분리)."""
+    dist_in = ndimage.distance_transform_edt(solid)
+    dist_out = ndimage.distance_transform_edt(~solid)
+    band = (dist_out <= 3) | ((dist_in <= 2) & solid)
+    if green:
+        excess = rgb[:, :, 1] - np.maximum(rgb[:, :, 0], rgb[:, :, 2])
+        a_band = np.clip((110 - excess) / 90, 0, 1)
+        color = rgb.copy()
+        cap = np.maximum(rgb[:, :, 0], rgb[:, :, 2]) * 1.05     # 초록 번짐 제거 (despill)
+        color[:, :, 1] = np.minimum(rgb[:, :, 1], cap)
+    else:
+        bg = ~ndimage.binary_dilation(solid, iterations=1)        # 확실한 배경
+        # 기준 배경색 = 가장 가까운 배경 픽셀의 색 (체크 칸은 밝은·어두운 칸이 번갈아서 평균을 쓰면 틀린다.
+        # 가장자리 바로 옆 배경은 대부분 같은 칸이라 색이 정확히 맞는다)
+        _, (by, bx) = ndimage.distance_transform_edt(~bg, return_indices=True)
+        bg_local = rgb[by, bx]
+        diff = np.linalg.norm(rgb - bg_local, axis=2)
+        a_band = np.clip((diff - 12) / 40, 0, 1)
+        safe = np.maximum(a_band, 0.05)[..., None]
+        color = np.clip(bg_local + (rgb - bg_local) / safe, 0, 255)  # 섞인 배경색 빼기
+        color = np.where((a_band >= 0.98)[..., None], rgb, color)
+    alpha = np.where(solid & (dist_in > 2), 1.0, np.where(band, a_band, 0.0)).astype(np.float32)
+    color = np.where((alpha >= 0.999)[..., None], rgb, color)
+    return alpha, color
+
+
 def cut(path: Path) -> list[Path]:
     rgb = np.asarray(Image.open(path).convert("RGB")).astype(np.float32)
-    fg = ~background_mask(rgb)
-    # 물체 가장자리에 붙어 남은 체크 조각(회색 띠): 체크 두 색과 거의 같고 주변에도 체크 색이 많은 픽셀
-    gray = rgb.mean(axis=2)
-    sat = rgb.max(axis=2) - rgb.min(axis=2)
-    checker_px = ((np.abs(gray - 113) < 10) | (np.abs(gray - 56) < 10)) & (sat < 10)
-    near = ndimage.uniform_filter(checker_px.astype(np.float32), 9)
-    edge_band = ndimage.distance_transform_edt(fg) < 8             # 바깥 배경에서 8px 이내만 (물체 안쪽 회색 칠은 보존)
-    fg &= ~(checker_px & (near > 0.45) & edge_band)
+    green = "green" in path.stem
+    if green:
+        fg = ~green_mask(rgb)
+    else:
+        fg = ~background_mask(rgb)
+        # 물체 가장자리에 붙어 남은 체크 조각(회색 띠): 체크 두 색과 거의 같고 주변에도 체크 색이 많은 픽셀
+        gray = rgb.mean(axis=2)
+        sat = rgb.max(axis=2) - rgb.min(axis=2)
+        checker_px = ((np.abs(gray - 113) < 10) | (np.abs(gray - 56) < 10)) & (sat < 10)
+        near = ndimage.uniform_filter(checker_px.astype(np.float32), 9)
+        edge_band = ndimage.distance_transform_edt(fg) < 8         # 바깥 배경에서 8px 이내만 (물체 안쪽 회색 칠은 보존)
+        fg &= ~(checker_px & (near > 0.45) & edge_band)
     fg = ndimage.binary_opening(fg, iterations=1)                 # 가는 잡티 제거
     labels, n = ndimage.label(fg, structure=np.ones((3, 3)))
     sizes = ndimage.sum(fg, labels, range(1, n + 1))
     solid = np.isin(labels, [i + 1 for i, s in enumerate(sizes) if s >= 150])   # 작은 파편 제거
     # 물건 나누기: 가는 연결(잔가지·바닥 잔여물)을 끊은 모양으로 덩어리를 찾고,
-    # 잔가지는 가장 가까운 덩어리에 다시 붙인다 (25px보다 멀면 버림)
+    # 잔가지·부드러운 가장자리는 가장 가까운 덩어리에 다시 붙인다 (25px보다 멀면 버림)
     core = ndimage.binary_opening(solid, iterations=3)
     groups, g = ndimage.label(core, structure=np.ones((3, 3)))
     gsizes = ndimage.sum(core, groups, range(1, g + 1))
     for i, s in enumerate(gsizes, start=1):
         if s < MIN_AREA:
             groups[groups == i] = 0
+    alpha, color = soft_alpha(rgb, solid, green)
     dist, (iy, ix) = ndimage.distance_transform_edt(groups == 0, return_indices=True)
-    owner = np.where(solid & (dist < 25), groups[iy, ix], 0)
-    alpha = ndimage.gaussian_filter(ndimage.binary_erosion(solid, iterations=1).astype(np.float32), 0.6)
+    owner = np.where((alpha > 0.01) & (dist < 25), groups[iy, ix], 0)
     out = []
     for k in sorted(set(np.unique(owner)) - {0}):
         part = owner == k
         ys, xs = np.nonzero(part)
         y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
         a = alpha[y0:y1, x0:x1] * part[y0:y1, x0:x1]
-        rgba = np.dstack([rgb[y0:y1, x0:x1], a * 255]).clip(0, 255).astype(np.uint8)
+        rgba = np.dstack([color[y0:y1, x0:x1], a * 255]).clip(0, 255).astype(np.uint8)
         im = Image.fromarray(rgba, "RGBA")
         pad = Image.new("RGBA", (im.width + 8, im.height + 8), (0, 0, 0, 0))
         pad.paste(im, (4, 4))
@@ -114,7 +152,7 @@ def contact(files: list[Path]) -> None:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     files = []
-    for p in sorted(SRC.glob("*.webp")):
+    for p in sorted(SRC.glob("*.webp")):                   # sheet_*_green 은 그린스크린 방식
         got = cut(p)
         print(p.name, "->", len(got))
         files += got

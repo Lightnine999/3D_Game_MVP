@@ -198,3 +198,6 @@ desktop.ini
 *.code-workspace
 .omc/
 .claude/settings.local.json
+
+# 구해 온 원본 3D 에셋 (수백 MB, 라이선스 확인 전) — 최적화본만 godot/assets/models 에 커밋
+art/source_assets/

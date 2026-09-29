@@ -23,7 +23,6 @@ const FOG_END := 42.0                 # 시야 약 30-40m (PRD F-60)
 const DRAW_RANGE := 48.0              # 이보다 먼 조각은 그리지 않음 (안개에 이미 가려짐)
 
 const GRASS_PER_CHUNK := 5200
-const M := "res://assets/models/"
 
 var obstacles: Array[Dictionary] = []   # 미리보기 카메라 회피용: {z, x, half_width} (z는 양수 거리)
 var _rng := RandomNumberGenerator.new()
@@ -168,7 +167,7 @@ func _grass_scale(ax: float) -> float:
 # ── 배치 도우미 ───────────────────────────────────────────────────
 func _spawn(model: String, pos: Vector3, yaw_deg: float = 0.0, scale: float = 1.0) -> Node3D:
 	if not _scenes.has(model):
-		_scenes[model] = load(M + model + ".glb")
+		_scenes[model] = load(ModelLibrary.path(model))   # 카테고리 폴더에서 이름으로 찾는다
 	var node: Node3D = _scenes[model].instantiate()
 	node.position = pos
 	node.rotation_degrees.y = yaw_deg

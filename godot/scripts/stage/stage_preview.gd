@@ -28,6 +28,7 @@ var _time := 0.0
 var _x := 0.0
 var _frames_dir := ""
 var _frame_count := -1       # 테스트용: --count=N 이면 N장만
+var _frame_start := 0        # 이어 찍기: --start=N 이면 N번째 프레임부터 (앞부분은 그리지 않고 계산만)
 var _frame_vp: SubViewport   # 영상 모드: 창 크기와 상관없이 이 캔버스에 그린다
 var _shots_dir := ""
 var _shot_dists: Array[float] = [0.0, 250.0, 500.0, 750.0, 990.0]
@@ -65,6 +66,8 @@ func _parse_args() -> void:
 			_frames_dir = arg.trim_prefix("--frames=")
 		elif arg.begins_with("--count="):
 			_frame_count = int(arg.trim_prefix("--count="))
+		elif arg.begins_with("--start="):
+			_frame_start = int(arg.trim_prefix("--start="))
 		elif arg.begins_with("--shots="):
 			_shots_dir = arg.trim_prefix("--shots=")
 		elif arg.begins_with("--dist="):
@@ -145,9 +148,11 @@ func _capture_frames() -> void:
 	var total := int(StageBuilderV2.STAGE_LENGTH / RUN_SPEED * FRAME_FPS)
 	if _frame_count > 0:
 		total = _frame_count
+	for i in _frame_start:                               # 이어 찍기: 앞부분은 이동만 계산 (같은 경로가 되도록)
+		_step(1.0 / FRAME_FPS)
 	for i in 3:                                          # 첫 프레임 전에 그림자·가시 범위 준비
 		await get_tree().process_frame
-	for i in total:
+	for i in range(_frame_start, total):
 		_step(1.0 / FRAME_FPS)
 		# 카메라 이동은 다음 엔진 프레임에 렌더러로 전달된다 → 그 프레임이 다 그려질 때까지 기다린 뒤 저장
 		# (강제 그리기 force_draw는 옮기기 전 장면을 그려서 같은 장면이 반복 저장됐다)
