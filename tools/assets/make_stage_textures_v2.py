@@ -113,10 +113,13 @@ def grass_card(size=512, seed=7):
     rnd = random.Random(seed)
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    for _ in range(140):
-        x0 = rnd.uniform(0.04, 0.96) * size
-        h = rnd.uniform(0.35, 0.97) * size
-        lean = rnd.uniform(-0.3, 0.3) * size
+    # 풀잎 뿌리는 가운데 좁은 곳에 모으고 끝은 바깥으로 퍼지게 (부채꼴 포기) → 카드가 사각형으로 보이지 않는다
+    for _ in range(110):
+        x0 = rnd.gauss(0.5, 0.07) * size
+        h = rnd.uniform(0.3, 0.97) * size
+        spread = (x0 / size - 0.5) * rnd.uniform(2.5, 5.0) + rnd.uniform(-0.18, 0.18)
+        tip_x = min(0.96, max(0.04, x0 / size + spread))
+        lean = (tip_x - x0 / size) * size
         w = rnd.uniform(2.5, 6)
         t = rnd.random()
         if t < 0.65:   # 어두운 올리브·회녹색

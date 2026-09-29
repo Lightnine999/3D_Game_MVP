@@ -93,7 +93,7 @@ func _process(delta: float) -> void:
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		_dist = 0.0
 		_x = 0.0
-	_label.text = "%dm   %d fps" % [int(_dist), Engine.get_frames_per_second()]   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
+	_label.text = "%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()]   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
 
 # 한 걸음 진행: 앞으로 달리고, 장애물을 보고 좌우로 비키고, 카메라를 흔든다
@@ -103,7 +103,7 @@ func _step(delta: float) -> void:
 	_x = move_toward(_x, _target_x(), STEER_SPEED * delta)
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
-	_label.text = "%dm" % int(_dist)
+	_label.text = "%dm" % StageBuilderV2.remaining(_dist)
 
 
 # 앞에 있는 가장 가까운 장애물을 보고, 그 옆으로 비켜설 x를 정한다
@@ -167,7 +167,7 @@ func _capture_shots() -> void:
 		_x = 0.0
 		_builder.update_atmosphere(d)
 		_apply_camera(0.3)
-		_label.text = "%dm" % int(d)
+		_label.text = "%dm" % StageBuilderV2.remaining(d)
 		for i in 12:                                     # 몇 프레임 기다려 그림자·가시 범위 갱신
 			await get_tree().process_frame
 		var img := get_viewport().get_texture().get_image()

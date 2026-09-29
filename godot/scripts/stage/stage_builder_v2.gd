@@ -1,33 +1,36 @@
-# 스테이지 v2 (1,000m) — 새 콘셉트: 분홍 노을 + 청회색 안개 + 앙상한 숲 + 폐허 마을 — 주인: A
+# 스테이지 v2 (1,000m) — 새 콘셉트: 분홍 노을 + 청회색 안개 + 앙상한 숲 + 듬성듬성한 폐허 — 주인: A
 #
 # 비유: 1km 세트장을 짓지 않고 부품(Blender 소품 34종) + 배치 규칙 + 하늘 그림으로 "눈앞 50m만 진짜처럼".
 #
-# 구간 (콘셉트 표지판 그대로)
-#   0m   START             폐차·불타는 드럼통·쓰레기, 외곽 주택
-#   200m DENSE WOODS       빽빽한 앙상한 숲, 스쿨버스, 여행가방
-#   400m VILLAGE CENTER    길 양옆 목조 주택가, 급수탑, 노점
-#   600m BROKEN BRIDGE     강 + 부서진 다리 (길은 다리 위로), 물에 잠긴 차
-#   800m PATH TO OBJECTIVE 철조망, 철탑, 모닥불 드럼통, 1,000m 요새 성벽·투광등
+# 길은 없다. 광활한 대지에 수풀 덩어리·숲·폐허가 흩어져 있고, 달리는 폭(±6m) 안에 장애물 "장면"이 놓인다.
+# 거리는 "남은 거리"로 표시한다: 1000m에서 출발 → 목표(요새 정문)에서 0m.
 #
-# 좌표: 카메라는 -Z 방향으로 달린다. x = 0 이 길 가운데. 거리 d(양수) → z = -d
+# 구간 (표지판 = 남은 거리)
+#   1000m START             출발 모닥불, 외곽 폐가 몇 채, 사고 현장
+#   800m  DENSE WOODS       빽빽한 앙상한 숲, 쓰러진 나무, 스쿨버스
+#   600m  VILLAGE CENTER    폐가 몇 채가 모인 공터, 급수탑, 노점
+#   400m  BROKEN BRIDGE     강 20m + 짧은 부서진 다리, 물에 잠긴 차
+#   200m  PATH TO OBJECTIVE 철조망, 철탑, 방어벽, 0m 요새 성벽·투광등
+#
+# 좌표: 카메라는 -Z 방향으로 달린다. x = 0 이 달리는 폭 가운데. 달린 거리 d(양수) → z = -d
 class_name StageBuilderV2
 extends Node3D
 
 const STAGE_LENGTH := 1000.0
 const LANE_HALF := 6.0                # 이동 가능 폭 ±6m (PRD F-07)
-const ROAD_HALF := 2.2
 const WORLD_HALF := 48.0
 const CHUNK := 50.0
 const DRAW_RANGE := 68.0              # 이보다 먼 것은 그리지 않음 (안개가 이미 가림)
-const RIVER_Z0 := 680.0               # 강 (거리 기준)
-const RIVER_Z1 := 720.0
+const RIVER_Z0 := 680.0               # 강 (달린 거리 기준 → 남은 거리 320-300m)
+const RIVER_Z1 := 700.0               # 강 폭 20m (다리가 짧아야 긴장감)
 
 # 안개·하늘: 앞쪽(분홍 노을) → 뒤쪽(무거운 회색)으로 점점 바뀐다
 const FOG_NEAR := Color8(88, 96, 110)     # tools/assets/make_stage_textures_v2.py FOG 와 같은 값
 const FOG_FAR := Color8(98, 102, 110)
 const M := "res://assets/models/v2/"
-const SIGNS := [[0.0, "0m ->\nSTART"], [200.0, "200m ->\nDENSE\nWOODS"], [400.0, "400m ->\nVILLAGE\nCENTER"],
-	[600.0, "600m ->\nBROKEN\nBRIDGE"], [800.0, "800m ->\nPATH TO\nOBJECTIVE"]]
+# [달린 거리, 표지판 글자(남은 거리)]
+const SIGNS := [[0.0, "1000m\nSTART"], [200.0, "800m ->\nDENSE\nWOODS"], [400.0, "600m ->\nVILLAGE\nCENTER"],
+	[600.0, "400m ->\nBROKEN\nBRIDGE"], [800.0, "200m ->\nPATH TO\nOBJECTIVE"]]
 
 var obstacles: Array[Dictionary] = []   # 미리보기 카메라 회피용: {z(양수 거리), x, half_width}
 var _rng := RandomNumberGenerator.new()
@@ -54,13 +57,18 @@ func build(seed_value: int = 20260929) -> void:
 	print("[stage v2] obstacles=%d fires=%d" % [obstacles.size(), _fires.size()])
 
 
+# 달린 거리 → 화면에 보일 남은 거리 (1000 → 0)
+static func remaining(dist: float) -> int:
+	return int(ceil(maxf(STAGE_LENGTH - dist, 0.0)))
+
+
 func _process(delta: float) -> void:
 	_t += delta
 	for i in _fires.size():            # 불빛 깜빡임
 		_fires[i].light_energy = 2.0 + sin(_t * 13.0 + i) * 0.35 + sin(_t * 23.0 + i * 2.0) * 0.25
 
 
-# 달린 거리에 따라 안개·하늘을 바꾼다 (600m 이후 회색으로 무거워짐 — 콘셉트 4·5번째 장면)
+# 달린 거리에 따라 안개·하늘을 바꾼다 (남은 400m부터 회색으로 무거워짐 — 콘셉트 4·5번째 장면)
 func update_atmosphere(dist: float) -> void:
 	var t := smoothstep(480.0, 760.0, dist)
 	_env.fog_light_color = FOG_NEAR.lerp(FOG_FAR, t)
@@ -114,7 +122,6 @@ func _build_environment() -> void:
 func _build_ground_and_river() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://scripts/stage/ground_v2.gdshader")
-	mat.set_shader_parameter("road_half", ROAD_HALF)
 	mat.set_shader_parameter("river_z0", RIVER_Z0)
 	mat.set_shader_parameter("river_z1", RIVER_Z1)
 	var ph := "res://assets/textures/polyhaven/brown_mud_leaves_01_"   # Poly Haven CC0 진흙 질감
@@ -142,38 +149,84 @@ func _build_ground_and_river() -> void:
 
 
 # ── 풀·덤불·나무 (50m 조각마다) ──────────────────────────────────────
+# 비유: 씨앗을 고르게 뿌리지 않고 "한 줌씩" 던진다 → 수풀 덩어리와 빈터가 자연스럽게 생긴다.
 func _build_vegetation_chunk(d0: float) -> void:
 	var zone := _zone(d0 + CHUNK * 0.5)
-	_grass_multimesh(d0, 4200, "grass_v2.png", Vector2(1.1, 1.0))
-	_grass_multimesh(d0, [260, 700, 120, 220, 160][zone], "bush_v2.png", Vector2(1.8, 1.6))
-	var trees_per_side: int = [5, 16, 2, 5, 3][zone]
-	var near: float = [14.0, 8.0, 20.0, 12.0, 16.0][zone]
-	for side in [-1.0, 1.0]:
-		for i in trees_per_side:
-			var d := d0 + _rng.randf() * CHUNK
-			if d > RIVER_Z0 - 4.0 and d < RIVER_Z1 + 4.0:
-				continue
-			var x: float = side * _rng.randf_range(near, WORLD_HALF)
-			var tree: String = ["v2_tree_a", "v2_tree_b", "v2_tree_c", "v2_tree_d"][_rng.randi() % 4]
-			_spawn(tree, Vector3(x, 0, -d), _rng.randf() * 360.0, _rng.randf_range(0.55, 0.95))
+	_grass_multimesh(d0, 8000, "grass_v2.png", Vector2(1.5, 1.25), 46, false)
+	_grass_multimesh(d0, [520, 700, 420, 380, 360][zone], "bush_v2.png", Vector2(1.8, 1.6), 14, true)
+	_trees_chunk(d0, zone)
 
 
-func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2) -> void:
+# 나무: 숲 덩어리(grove) + 홀로 선 나무 + 쓰러진 나무. 달리는 폭 안의 나무는 장애물에서 따로 둔다.
+func _trees_chunk(d0: float, zone: int) -> void:
+	var groves: int = [3, 7, 3, 3, 2][zone]
+	var singles: int = [6, 8, 5, 5, 4][zone]
+	for g in groves:
+		var cx := _side() * _rng.randf_range(LANE_HALF + 3.0, WORLD_HALF)
+		var cd := d0 + _rng.randf() * CHUNK
+		var radius := _rng.randf_range(5.0, 14.0)
+		for i in _rng.randi_range(4, 11):
+			var a := _rng.randf() * TAU
+			var r := sqrt(_rng.randf()) * radius
+			_tree(Vector3(cx + cos(a) * r, 0, -(cd + sin(a) * r)))
+	for i in singles:
+		_tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 1.5, WORLD_HALF), 0, -(d0 + _rng.randf() * CHUNK)))
+	if _rng.randf() < 0.6:                                # 쓰러진 나무 (달리는 폭 밖)
+		var fallen := _tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 2.0, 30.0), 0.25, -(d0 + _rng.randf() * CHUNK)))
+		if fallen:
+			fallen.rotation_degrees.x = _rng.randf_range(78.0, 86.0)
+
+
+func _tree(pos: Vector3) -> Node3D:
+	var d := -pos.z
+	if d > RIVER_Z0 - 4.0 and d < RIVER_Z1 + 4.0:
+		return null
+	if absf(pos.x) < LANE_HALF + 1.0:                      # 달리는 폭은 장애물 배치가 맡는다
+		pos.x = signf(pos.x if pos.x != 0.0 else 1.0) * (LANE_HALF + 1.0 + _rng.randf() * 2.0)
+	var tree: String = ["v2_tree_a", "v2_tree_b", "v2_tree_c", "v2_tree_d"][_rng.randi() % 4]
+	var node := _spawn(tree, pos, _rng.randf() * 360.0, _rng.randf_range(0.45, 1.15))
+	node.rotation_degrees.x = _rng.randf_range(-6.0, 6.0)    # 살짝 기운 나무
+	node.rotation_degrees.z = _rng.randf_range(-6.0, 6.0)
+	return node
+
+
+# 수풀: clusters 개의 "한 줌" 중심 주변에 70%, 나머지 30%는 아무 데나. 한 줌마다 색(마른 풀·짙은 풀·잿빛)이 다르다.
+func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, clusters: int, is_bush: bool) -> void:
+	var tints := [Color(1.08, 0.94, 0.72), Color(0.66, 0.74, 0.56), Color(0.86, 0.84, 0.82), Color(0.95, 0.8, 0.62)]
+	var centers: Array = []
+	for c in clusters:
+		centers.append([_rng.randf_range(-WORLD_HALF, WORLD_HALF), d0 + _rng.randf() * CHUNK,
+			_rng.randf_range(2.0, 8.0), tints[_rng.randi() % tints.size()], _rng.randf_range(0.8, 1.35)])
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
 	mm.mesh = _card_mesh(tex, size)
 	mm.instance_count = count
 	for i in count:
-		var x := _rng.randf_range(-WORLD_HALF, WORLD_HALF)
-		var d := d0 + _rng.randf() * CHUNK
-		var s := _grass_scale(absf(x))
+		var x: float
+		var d: float
+		var tint := Color(0.9, 0.86, 0.8)
+		var boost := 1.0
+		if _rng.randf() < 0.7:
+			var c: Array = centers[_rng.randi() % centers.size()]
+			var a := _rng.randf() * TAU
+			var r := sqrt(_rng.randf()) * float(c[2])
+			x = c[0] + cos(a) * r
+			d = c[1] + sin(a) * r
+			tint = c[3]
+			boost = c[4]
+		else:
+			x = _rng.randf_range(-WORLD_HALF, WORLD_HALF)
+			d = d0 + _rng.randf() * CHUNK
+		var s := _veg_scale(absf(x), is_bush) * boost
 		if d > RIVER_Z0 - 1.0 and d < RIVER_Z1 + 1.0:
 			s = 0.0001                                             # 강 위에는 풀 없음
-		var basis := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(s, s * _rng.randf_range(0.8, 1.25), s))
+		elif d > RIVER_Z0 - 11.0 and d < RIVER_Z1 + 1.0 and absf(x) < 3.6:
+			s = 0.0001                                             # 다리 상판 위에도 없음
+		var basis := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(s, s * _rng.randf_range(0.75, 1.3), s))
 		mm.set_instance_transform(i, Transform3D(basis, Vector3(x, 0, -d)))
-		var shade := _rng.randf_range(0.55, 1.0)
-		mm.set_instance_color(i, Color(shade, shade, shade * 1.05))
+		var shade := _rng.randf_range(0.6, 1.0)
+		mm.set_instance_color(i, Color(tint.r * shade, tint.g * shade, tint.b * shade))
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.visibility_range_end = DRAW_RANGE + CHUNK
@@ -181,14 +234,13 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2) -> void
 	add_child(mmi)
 
 
-func _grass_scale(ax: float) -> float:
-	if ax < ROAD_HALF:
-		return 0.0001 if _rng.randf() < 0.9 else _rng.randf_range(0.25, 0.4)
+# 길은 없다: 달리는 폭 안에도 수풀이 있지만 시야를 가리지 않게 조금 낮게
+func _veg_scale(ax: float, is_bush: bool) -> float:
 	if ax < LANE_HALF:
-		return _rng.randf_range(0.3, 0.6) if _rng.randf() < 0.7 else 0.0001
-	if ax < LANE_HALF + 6.0:
-		return _rng.randf_range(0.55, 1.0)
-	return _rng.randf_range(0.75, 1.3)
+		if is_bush:
+			return _rng.randf_range(0.4, 0.7) if _rng.randf() < 0.35 else 0.0001
+		return _rng.randf_range(0.4, 0.85)
+	return _rng.randf_range(0.7, 1.45)
 
 
 var _cards := {}
@@ -219,78 +271,65 @@ func _card_mesh(tex: String, size: Vector2) -> ArrayMesh:
 	return _cards[tex]
 
 
-# ── 구간별 큰 배치 ────────────────────────────────────────────────
+# ── 구간별 큰 배치 (폐허는 듬성듬성, 대지는 수풀·나무가 주인공) ──────────
+func _ruin(model: String, d: float, x_min: float, x_max: float) -> void:
+	_spawn(model, Vector3(_side() * _rng.randf_range(x_min, x_max), 0, -d), _rng.randf() * 360.0)
+
+
 func _build_zone_start() -> void:
-	var d := 12.0
-	while d < 200.0:
-		var side := -1.0 if int(d / 30.0) % 2 == 0 else 1.0
-		var house: String = ["v2_house_a", "v2_house_c", "v2_shack", "v2_house_b"][_rng.randi() % 4]
-		_spawn(house, Vector3(side * _rng.randf_range(14.0, 24.0), 0, -d), 90.0 * side * -1.0 + _rng.randf_range(-20, 20))
-		d += _rng.randf_range(24.0, 40.0)
-	for d2 in [6.0, 40.0, 95.0, 150.0]:               # 길가 쓰레기 더미와 불타는 드럼통
-		_burning_drums(Vector3(_side() * _rng.randf_range(6.5, 9.0), 0, -d2), _rng.randi_range(2, 3))
+	_ruin("v2_house_a", 70.0, 22.0, 34.0)
+	_ruin("v2_shack", 125.0, 16.0, 26.0)
+	_ruin("v2_house_c", 180.0, 24.0, 36.0)
+	_burning_drums(Vector3(-7.5, 0, -10.0), 3)           # 출발 지점의 모닥불
 
 
 func _build_zone_woods() -> void:
-	_spawn("v2_bus", Vector3(-10.5, 0, -305), 72.0)
-	_spawn("v2_shack", Vector3(17.0, 0, -360), -110.0)
-	_burning_drums(Vector3(7.5, 0, -312), 3)
-	_burning_drums(Vector3(-7.0, 0, -250), 2)
-	for i in 10:                                          # 부서진 나무 울타리 (길 왼쪽)
-		if _rng.randf() < 0.65:
-			_spawn("v2_fence", Vector3(-7.6, 0, -(215.0 + i * 3.1)), 90.0 + _rng.randf_range(-12, 12))
+	_ruin("v2_shack", 330.0, 18.0, 30.0)
+	for i in 8:                                           # 숲 속에 쓰러져 가는 나무 울타리
+		if _rng.randf() < 0.6:
+			_spawn("v2_fence", Vector3(-9.5, 0, -(232.0 + i * 3.1)), 90.0 + _rng.randf_range(-15, 15))
 
 
 func _build_zone_village() -> void:
-	for side in [-1.0, 1.0]:
-		var d := 405.0 + _rng.randf_range(0, 6)
-		while d < 595.0:
-			var house: String = ["v2_house_a", "v2_house_b", "v2_house_c", "v2_house_b"][_rng.randi() % 4]
-			# 정면(+Z)이 길을 보도록: 왼쪽 집은 +90°, 오른쪽 집은 -90°
-			_spawn(house, Vector3(side * _rng.randf_range(11.0, 13.5), 0, -d), -90.0 * side + _rng.randf_range(-6, 6))
-			d += _rng.randf_range(11.0, 15.0)
-	_spawn("v2_water_tower", Vector3(22.0, 0, -470), 15.0)
-	_spawn("v2_water_tower", Vector3(-26.0, 0, -575), 50.0)
-	for d2 in [430.0, 470.0, 515.0, 560.0]:
-		_spawn("v2_stall", Vector3(_side() * _rng.randf_range(6.8, 8.0), 0, -d2), _rng.randf_range(-30, 30) + 90.0)
-		_spawn("v2_rubble_wood", Vector3(_side() * _rng.randf_range(7.0, 9.0), 0, -d2 - 12.0), _rng.randf() * 360.0)
-	_burning_drums(Vector3(-6.8, 0, -500), 2)
+	# "마을 중심"도 거리가 아니라 폐가 몇 채가 모인 공터 (콘셉트 3번째 장면)
+	var houses := [["v2_house_b", 468.0, -16.0], ["v2_house_a", 486.0, 21.0], ["v2_house_c", 507.0, -24.0], ["v2_house_b", 530.0, 17.0]]
+	for h in houses:
+		_spawn(h[0], Vector3(h[2] + _rng.randf_range(-3, 3), 0, -h[1]), _rng.randf_range(0, 360))
+	_spawn("v2_water_tower", Vector3(30.0, 0, -500), 15.0)
+	_spawn("v2_stall", Vector3(-9.0, 0, -480), 100.0)
+	_spawn("v2_stall", Vector3(8.5, 0, -522), -70.0)
+	_ruin("v2_shack", 420.0, 20.0, 32.0)
+	_ruin("v2_shack", 585.0, 20.0, 32.0)
 
 
 func _build_zone_bridge() -> void:
-	# 길이 이어지는 다리 (상판 윗면 = 땅 높이). 강 위 5칸 중 2칸은 오른쪽이 부서짐
-	for k in 6:
-		var d := RIVER_Z0 - 5.0 + k * 10.0
-		var deck := "v2_bridge_deck_broken" if k == 2 or k == 3 else "v2_bridge_deck"
-		_spawn(deck, Vector3(0, 0, -d), 0.0, 1.0, false)
-	for k in 4:
-		_spawn("v2_bridge_pillar", Vector3(0, 0, -(RIVER_Z0 + 5.0 + k * 10.0)), 0.0, 1.0, false)
-	# 옆의 옛 다리: 무너져 강에 처박힌 상판 (콘셉트 4번째 장면)
+	# 다리: 상판 3칸(10m씩, 가운데 칸 오른쪽이 부서짐) — 강 폭 20m, 짧고 좁게
 	for k in 3:
-		_spawn("v2_bridge_pillar", Vector3(16.0, 0, -(RIVER_Z0 + 8.0 + k * 12.0)), 0.0, 1.0, false)
-	_spawn("v2_bridge_slab", Vector3(15.0, -1.6, -(RIVER_Z0 + 20.0)), 180.0, 1.0, false)
-	_spawn("v2_truck", Vector3(-12.0, -1.7, -(RIVER_Z0 + 16.0)), 70.0, 1.0, false)
-	_spawn("v2_car_sedan", Vector3(9.0, -1.2, -(RIVER_Z0 + 30.0)), 30.0, 1.0, false)
-	for d2 in [RIVER_Z0 - 12.0, RIVER_Z1 + 10.0]:
-		_burning_drums(Vector3(_side() * 7.0, 0, -d2), 3)
-	for d3 in [610.0, 640.0, 760.0]:
-		_spawn("v2_house_c", Vector3(_side() * _rng.randf_range(18.0, 26.0), 0, -d3), _rng.randf_range(0, 360))
+		var d := RIVER_Z0 - 5.0 + k * 10.0                  # 상판 가운데 위치
+		_spawn("v2_bridge_deck_broken" if k == 1 else "v2_bridge_deck", Vector3(0, 0, -d), 0.0, 1.0, false)
+	for k in 2:
+		_spawn("v2_bridge_pillar", Vector3(0, 0, -(RIVER_Z0 + 5.0 + k * 10.0)), 0.0, 1.0, false)
+	# 옆의 옛 다리: 무너져 강에 처박힌 상판 + 물에 잠긴 차 (콘셉트 4번째 장면)
+	_spawn("v2_bridge_pillar", Vector3(16.0, 0, -(RIVER_Z0 + 6.0)), 0.0, 1.0, false)
+	_spawn("v2_bridge_slab", Vector3(15.0, -1.6, -(RIVER_Z0 + 12.0)), 180.0, 1.0, false)
+	_spawn("v2_truck", Vector3(-12.0, -1.7, -(RIVER_Z0 + 8.0)), 70.0, 1.0, false)
+	_spawn("v2_car_sedan", Vector3(9.0, -1.2, -(RIVER_Z0 + 15.0)), 30.0, 1.0, false)
+	_burning_drums(Vector3(-7.0, 0, -(RIVER_Z0 - 8.0)), 3)
+	_ruin("v2_house_c", 640.0, 22.0, 32.0)
 
 
 func _build_zone_objective() -> void:
-	for side in [-1.0, 1.0]:                              # 철조망 (길 양옆, 일부 쓰러짐)
-		var d := 815.0
+	for side in [-1.0, 1.0]:                              # 철조망 (양옆, 일부 쓰러짐·끊김)
+		var d := 845.0
 		while d < 995.0:
-			if _rng.randf() < 0.8:
-				_chainlink_panel(Vector3(side * 8.0, 0, -d), _rng.randf_range(-8, 8) + (_rng.randf_range(-25, 25) if _rng.randf() < 0.2 else 0.0))
+			if _rng.randf() < 0.75:
+				_chainlink_panel(Vector3(side * _rng.randf_range(8.0, 9.5), 0, -d), _rng.randf_range(-8, 8) + (_rng.randf_range(-25, 25) if _rng.randf() < 0.2 else 0.0))
 			d += 3.2
 	var pylons := [[-24.0, 840.0, 0.0], [26.0, 900.0, 11.0], [-28.0, 960.0, 0.0]]
 	for p in pylons:
 		var node := _spawn("v2_pylon", Vector3(p[0], 0, -p[1]), 90.0, 1.0, true, 140.0)
 		node.rotation_degrees.z = p[2]
-	for d2 in [830.0, 880.0, 935.0, 975.0]:
-		_burning_drums(Vector3(_side() * _rng.randf_range(5.5, 7.0), 0, -d2), 3)
-	# 1,000m 목표: 요새 성벽 + 문 + 투광등 (문 너머가 탈출 지점)
+	# 목표(남은 거리 0m): 요새 성벽 + 문 + 투광등 (문 너머가 탈출 지점)
 	var wall_d := STAGE_LENGTH + 18.0
 	_spawn("v2_gate", Vector3(0, 0, -wall_d), 0.0, 1.0, true, 160.0)
 	for i in range(1, 6):
@@ -303,7 +342,7 @@ func _build_zone_objective() -> void:
 func _build_signs() -> void:
 	for s in SIGNS:
 		var d: float = s[0] + (8.0 if s[0] == 0.0 else 0.0)
-		var sign := _spawn("v2_sign", Vector3(3.4, 0, -d), -8.0)
+		var sign := _spawn("v2_sign", Vector3(LANE_HALF + 0.6, 0, -d), -8.0)
 		var label := Label3D.new()
 		label.text = s[1]
 		label.font_size = 64
@@ -315,33 +354,112 @@ func _build_signs() -> void:
 		sign.add_child(label)
 
 
-# ── 길 위 장애물 (한쪽은 항상 비움) ─────────────────────────────────
+# ── 달리는 폭 안의 장애물: "장면" 단위 (콘셉트 이미지의 사고 현장·캠프·잔해) ──
+# 규칙: 장면마다 한쪽(최소 3.5m)은 항상 비워 둔다. obstacles 에는 막는 부품마다 기록한다.
+const SCENES := [
+	["crash", "camp", "overturned", "rubble", "crash"],            # 1000-800m 출발
+	["fallen_tree", "tree", "camp", "tree", "crash", "fallen_tree"],   # 800-600m 숲
+	["rubble", "camp", "crash", "overturned", "rubble"],           # 600-400m 마을
+	["crash", "rubble", "camp"],                                   # 400-200m 다리
+	["barricade", "crash", "camp", "overturned", "barricade"],     # 200-0m 목표
+]
+
+
 func _build_obstacles() -> void:
-	var d := 22.0
-	while d < STAGE_LENGTH - 25.0:
-		d += _rng.randf_range(16.0, 28.0)
-		if d > RIVER_Z0 - 6.0 and d < RIVER_Z1 + 6.0:
-			if absf(d - (RIVER_Z0 + RIVER_Z1) / 2.0) < 6.0:     # 다리 위에는 버려진 차 한 대만
-				_obstacle("v2_car_sedan_b", -1.6, d, 8.0, 1.2)
+	_scene_bus(300.0)                                     # 숲 속 길을 가로막은 스쿨버스
+	_obstacle("v2_car_sedan_b", -1.6, RIVER_Z0 + 10.0, 8.0, 1.2)   # 다리 위에는 버려진 차 한 대
+	var d := 30.0
+	while d < STAGE_LENGTH - 30.0:
+		d += _rng.randf_range(24.0, 40.0)
+		if d > RIVER_Z0 - 10.0 and d < RIVER_Z1 + 8.0:
 			continue
-		var x := _rng.randf_range(-4.0, 4.0)
-		var zone := _zone(d)
-		var roll := _rng.randf()
-		if roll < [0.45, 0.2, 0.3, 0.35, 0.2][zone]:
-			var car: String = ["v2_car_sedan", "v2_car_sedan_b", "v2_car_pickup"][_rng.randi() % 3]
-			var yaw := _rng.randf_range(-60, 60) + (0.0 if _rng.randf() < 0.6 else 90.0)
-			var node := _spawn(car, Vector3(x, 0, -d), yaw)
-			if _rng.randf() < 0.2:                         # 옆으로 누운 차
-				node.rotation_degrees.x = 88.0
-				node.position.y = 0.9
-			obstacles.append({"z": d, "x": x, "half_width": lerpf(1.0, 2.3, absf(sin(deg_to_rad(yaw))))})
-		elif roll < 0.7:
-			_spawn(["v2_trash", "v2_rubble_stone", "v2_rubble_wood"][_rng.randi() % 3], Vector3(x, 0, -d), _rng.randf() * 360.0)
-			obstacles.append({"z": d, "x": x, "half_width": 1.6})
-		else:
-			_crate_pile(Vector3(x, 0, -d))
-			obstacles.append({"z": d, "x": x, "half_width": 1.2})
+		if absf(d - 300.0) < 14.0:
+			continue
+		var pool: Array = SCENES[_zone(d)]
+		var kind: String = pool[_rng.randi() % pool.size()]
+		var cx := _side() * _rng.randf_range(1.2, 3.2)       # 장면 중심 — 반대쪽이 빈 길
+		match kind:
+			"crash": _scene_crash(cx, d)
+			"camp": _scene_camp(cx, d)
+			"overturned": _scene_overturned(cx, d)
+			"rubble": _scene_rubble(cx, d)
+			"fallen_tree": _scene_fallen_tree(cx, d)
+			"tree": _scene_tree(cx, d)
+			"barricade": _scene_barricade(cx, d)
 		_roadside_litter(d)
+
+
+func _scene_crash(cx: float, d: float) -> void:
+	# 두 대가 비스듬히 부딪힌 사고 + 흩어진 여행가방
+	var car_a: String = ["v2_car_sedan", "v2_car_pickup"][_rng.randi() % 2]
+	var yaw := _rng.randf_range(20, 70) * signf(cx)
+	_obstacle(car_a, cx, d, yaw, 1.8)
+	_obstacle("v2_car_sedan_b", cx + signf(cx) * 1.8, d + 4.2, yaw + _rng.randf_range(60, 110), 1.6)
+	for k in _rng.randi_range(2, 3):
+		_spawn(["v2_suitcase_red", "v2_suitcase_blue", "v2_tire"][_rng.randi() % 3], Vector3(cx - signf(cx) * _rng.randf_range(0.5, 1.8), 0, -(d + _rng.randf_range(-2.5, 2.5))), _rng.randf() * 360.0)
+	if _rng.randf() < 0.4:
+		_burning_drums(Vector3(cx + signf(cx) * 2.6, 0, -(d - 2.0)), 2)
+
+
+func _scene_camp(cx: float, d: float) -> void:
+	# 버려진 피난민 캠프: 상자·가방 더미 + 불타는 드럼통
+	_crate_pile(Vector3(cx, 0, -d))
+	obstacles.append({"z": d, "x": cx, "half_width": 1.4})
+	_burning_drums(Vector3(cx + signf(cx) * 1.6, 0, -(d + 2.4)), _rng.randi_range(2, 3))
+	obstacles.append({"z": d + 2.4, "x": cx + signf(cx) * 1.6, "half_width": 1.1})
+	_spawn("v2_tire", Vector3(cx - signf(cx) * 1.2, 0, -(d - 1.8)), _rng.randf() * 360.0)
+
+
+func _scene_overturned(cx: float, d: float) -> void:
+	# 옆으로 누운 차 + 떨어져 나온 타이어·잔해
+	var car: String = ["v2_car_sedan", "v2_car_pickup", "v2_car_sedan_b"][_rng.randi() % 3]
+	var node := _spawn(car, Vector3(cx, 0.9, -d), _rng.randf_range(-40, 40) + 90.0)
+	node.rotation_degrees.x = 88.0
+	obstacles.append({"z": d, "x": cx, "half_width": 2.2})
+	_spawn("v2_tire", Vector3(cx - signf(cx) * 2.0, 0, -(d + 1.5)), _rng.randf() * 360.0)
+	_spawn("v2_rubble_wood", Vector3(cx + signf(cx) * 1.5, 0, -(d - 3.0)), _rng.randf() * 360.0)
+
+
+func _scene_rubble(cx: float, d: float) -> void:
+	# 무너진 잔해 더미 (돌·나무·쓰레기가 겹친 언덕)
+	_obstacle("v2_rubble_stone", cx, d, _rng.randf() * 360.0, 1.6)
+	_spawn("v2_rubble_wood", Vector3(cx + signf(cx) * 1.2, 0, -(d + 1.5)), _rng.randf() * 360.0)
+	_spawn("v2_trash", Vector3(cx - signf(cx) * 0.8, 0, -(d - 1.6)), _rng.randf() * 360.0)
+
+
+func _scene_fallen_tree(cx: float, d: float) -> void:
+	# 달리는 폭 절반을 가로질러 쓰러진 나무
+	var tree: String = ["v2_tree_a", "v2_tree_b", "v2_tree_c", "v2_tree_d"][_rng.randi() % 4]
+	var node := _spawn(tree, Vector3(cx + signf(cx) * 3.0, 0.3, -d), -90.0 * signf(cx) + _rng.randf_range(-15, 15), _rng.randf_range(0.6, 0.8))
+	node.rotation_degrees.x = 84.0
+	obstacles.append({"z": d, "x": cx, "half_width": 2.4})
+
+
+func _scene_tree(cx: float, d: float) -> void:
+	# 달리는 폭 안에 선 나무 1-2그루
+	var count := _rng.randi_range(1, 2)
+	for k in count:
+		var x := cx + (k * signf(cx) * 1.6)
+		var tree: String = ["v2_tree_a", "v2_tree_b", "v2_tree_c", "v2_tree_d"][_rng.randi() % 4]
+		_spawn(tree, Vector3(x, 0, -(d + k * 2.5)), _rng.randf() * 360.0, _rng.randf_range(0.6, 0.95))
+		obstacles.append({"z": d + k * 2.5, "x": x, "half_width": 0.8})
+
+
+func _scene_barricade(cx: float, d: float) -> void:
+	# 목표 근처 검문소 흔적: 방어벽 2-3개 + 철조망 한 장
+	for k in _rng.randi_range(2, 3):
+		var x := cx + signf(cx) * k * 1.3
+		_spawn("v2_barrier", Vector3(x, 0, -(d + _rng.randf_range(-0.4, 0.4))), _rng.randf_range(-15, 15))
+		obstacles.append({"z": d, "x": x, "half_width": 0.9})
+	_chainlink_panel(Vector3(cx + signf(cx) * 2.0, 0, -(d + 3.0)), 90.0 + _rng.randf_range(-20, 20))
+
+
+func _scene_bus(d: float) -> void:
+	# 스쿨버스가 비스듬히 누워 왼쪽 절반을 막는다 (콘셉트 2번째 장면)
+	_spawn("v2_bus", Vector3(-4.6, 0, -d), 72.0)
+	obstacles.append({"z": d, "x": -4.0, "half_width": 3.6})
+	_burning_drums(Vector3(1.8, 0, -(d - 6.0)), 2)
+	obstacles.append({"z": d - 6.0, "x": 1.8, "half_width": 1.0})
 
 
 func _obstacle(model: String, x: float, d: float, yaw: float, hw: float) -> void:
@@ -360,11 +478,11 @@ func _crate_pile(pos: Vector3) -> void:
 
 
 func _roadside_litter(d: float) -> void:
-	# 길가(달리는 폭 가장자리)의 작은 잡동사니 — 장애물은 아님
-	for k in 3:
-		var x := _side() * _rng.randf_range(5.8, 9.0)
+	# 달리는 폭 가장자리 바깥의 작은 잡동사니 — 장애물은 아님 (드문드문)
+	for k in _rng.randi_range(0, 2):
+		var x := _side() * _rng.randf_range(LANE_HALF + 0.5, LANE_HALF + 5.0)
 		var model: String = ["v2_tire", "v2_suitcase_red", "v2_suitcase_blue", "v2_crate", "v2_trash"][_rng.randi() % 5]
-		_spawn(model, Vector3(x, 0, -(d + _rng.randf_range(-8, 8))), _rng.randf() * 360.0, _rng.randf_range(0.8, 1.1))
+		_spawn(model, Vector3(x, 0, -(d + _rng.randf_range(-10, 10))), _rng.randf() * 360.0, _rng.randf_range(0.8, 1.1))
 
 
 # ── 불타는 드럼통 (불꽃·연기 입자 + 깜빡이는 주황 조명) ─────────────
