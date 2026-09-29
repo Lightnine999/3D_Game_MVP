@@ -26,7 +26,7 @@ const VEHICLES := ["card_excavator", "card_semi_truck", "card_jeep_wreck", "card
 	"card_roadster", "card_sedan_green", "card_pickup_blue", "card_hatchback", "card_jeep", "card_bus"]
 const TREES := ["card_tree_burnt", "card_tree_rock_a", "card_tree_moss_a", "card_tree_rock_b", "card_tree_dead_a",
 	"card_tree_dead_b", "card_tree_twist_a", "card_tree_white", "card_tree_moss_b", "card_tree_twist_b"]
-const GROUND := ["card_stump_mushroom", "card_log_fallen", "card_stump_roots"]
+const GROUND := ["card_stump_mushroom", "card_stump_roots"]   # card_log_fallen(누운 통나무)은 쓰지 않는다
 
 var _meshes := {}
 

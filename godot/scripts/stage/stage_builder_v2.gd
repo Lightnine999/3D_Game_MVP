@@ -154,13 +154,13 @@ func _build_ground_and_river() -> void:
 # 비유: 씨앗을 고르게 뿌리지 않고 "한 줌씩" 던진다 → 수풀 덩어리와 빈터가 자연스럽게 생긴다.
 func _build_vegetation_chunk(d0: float) -> void:
 	var zone := _zone(d0 + CHUNK * 0.5)
-	_grass_multimesh(d0, 12000, "grass_v2.png", Vector2(2.4, 0.75), 30, false, true)   # 바닥 카펫: 넓고 낮게 흙을 덮는다
-	_grass_multimesh(d0, 16000, "grass_v2.png", Vector2(1.3, 1.0), 46, false)          # 포기: 정강이-허벅지 높이 변화
+	_grass_multimesh(d0, 12000, "grass_v2.png", Vector2(2.4, 1.0), 30, false, true)    # 바닥 카펫: 넓게 흙을 덮는다 (0.55-0.95m)
+	_grass_multimesh(d0, 16000, "grass_v2.png", Vector2(1.3, 1.0), 46, false)          # 포기: 무릎-허리 높이 변화 (0.6-1.1m)
 	_grass_multimesh(d0, [520, 700, 420, 380, 360][zone], "bush_v2.png", Vector2(1.8, 1.6), 14, true)
 	_trees_chunk(d0, zone)
 
 
-# 나무: 숲 덩어리(grove) + 홀로 선 나무 + 쓰러진 나무. 달리는 폭 안의 나무는 장애물에서 따로 둔다.
+# 나무: 숲 덩어리(grove) + 홀로 선 나무 (누운 나무는 두지 않는다). 달리는 폭 안의 나무는 장애물에서 따로 둔다.
 func _trees_chunk(d0: float, zone: int) -> void:
 	var groves: int = [5, 9, 4, 4, 3][zone]
 	var singles: int = [9, 12, 8, 8, 6][zone]
@@ -174,10 +174,6 @@ func _trees_chunk(d0: float, zone: int) -> void:
 			_tree(Vector3(cx + cos(a) * r, 0, -(cd + sin(a) * r)))
 	for i in singles:
 		_tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 1.5, WORLD_HALF), 0, -(d0 + _rng.randf() * CHUNK)))
-	if _rng.randf() < 0.6:                                # 쓰러진 나무 (달리는 폭 밖)
-		var fallen := _tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 2.0, 30.0), 0.25, -(d0 + _rng.randf() * CHUNK)))
-		if fallen:
-			fallen.rotation_degrees.x = _rng.randf_range(78.0, 86.0)
 
 
 func _tree(pos: Vector3) -> Node3D:
@@ -237,14 +233,14 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 	add_child(mmi)
 
 
-# 길은 없다: 풀은 어디든 정강이(0.35m)-허벅지(0.8m) 높이로 바닥을 채운다 (카드 높이 1.0m × 배율)
+# 길은 없다: 풀은 어디든 무릎(0.6m)-허리(1.1m) 높이로 바닥을 채운다 (카드 높이 1.0m × 배율)
 # 매복 좀비가 풀 속에 누워 있다가 일어나고, 폐차·카드 밑동도 풀에 묻혀 떠 보이지 않는다
 func _veg_scale(ax: float, is_bush: bool) -> float:
 	if is_bush:
 		if ax < LANE_HALF:
 			return _rng.randf_range(0.4, 0.6) if _rng.randf() < 0.35 else 0.0001
 		return _rng.randf_range(0.5, 1.1)
-	return _rng.randf_range(0.35, 0.8)
+	return _rng.randf_range(0.6, 1.1)
 
 
 var _cards := {}
@@ -379,7 +375,7 @@ func _build_signs() -> void:
 # 규칙: 장면마다 한쪽(최소 3.5m)은 항상 비워 둔다. obstacles 에는 막는 부품마다 기록한다.
 const SCENES := [
 	["crash", "camp", "overturned", "rubble", "crash"],            # 1000-800m 출발
-	["fallen_tree", "tree", "camp", "tree", "crash", "fallen_tree"],   # 800-600m 숲
+	["tree", "tree", "camp", "tree", "crash", "tree"],             # 800-600m 숲
 	["rubble", "camp", "crash", "overturned", "rubble"],           # 600-400m 마을
 	["crash", "rubble", "camp"],                                   # 400-200m 다리
 	["barricade", "crash", "camp", "overturned", "barricade"],     # 200-0m 목표
@@ -404,7 +400,6 @@ func _build_obstacles() -> void:
 			"camp": _scene_camp(cx, d)
 			"overturned": _scene_overturned(cx, d)
 			"rubble": _scene_rubble(cx, d)
-			"fallen_tree": _scene_fallen_tree(cx, d)
 			"tree": _scene_tree(cx, d)
 			"barricade": _scene_barricade(cx, d)
 		_roadside_litter(d)
@@ -446,14 +441,6 @@ func _scene_rubble(cx: float, d: float) -> void:
 	_obstacle("v2_rubble_stone", cx, d, _rng.randf() * 360.0, 1.6)
 	_spawn("v2_rubble_wood", Vector3(cx + signf(cx) * 1.2, 0, -(d + 1.5)), _rng.randf() * 360.0)
 	_spawn("v2_trash", Vector3(cx - signf(cx) * 0.8, 0, -(d - 1.6)), _rng.randf() * 360.0)
-
-
-func _scene_fallen_tree(cx: float, d: float) -> void:
-	# 달리는 폭 절반을 가로질러 쓰러진 나무
-	var tree: String = ["v2_tree_a", "v2_tree_b", "v2_tree_c", "v2_tree_d"][_rng.randi() % 4]
-	var node := _spawn(tree, Vector3(cx + signf(cx) * 3.0, 0.3, -d), -90.0 * signf(cx) + _rng.randf_range(-15, 15), _rng.randf_range(0.6, 0.8))
-	node.rotation_degrees.x = 84.0
-	obstacles.append({"z": d, "x": cx, "half_width": 2.4})
 
 
 func _scene_tree(cx: float, d: float) -> void:
@@ -517,7 +504,7 @@ func _build_card_props() -> void:
 	while d0 < STAGE_LENGTH:
 		for i in 24:                                      # 나무 카드 (크기 랜덤)
 			_card_at(CardProps.TREES[_rng.randi() % CardProps.TREES.size()], _side() * _rng.randf_range(CARD_MIN_X, WORLD_HALF), d0 + _rng.randf() * CHUNK, _rng.randf_range(0.5, 1.6), true)
-		for i in 5:                                       # 그루터기·쓰러진 통나무
+		for i in 5:                                       # 그루터기
 			_card_at(CardProps.GROUND[_rng.randi() % CardProps.GROUND.size()], _side() * _rng.randf_range(CARD_MIN_X, 24.0), d0 + _rng.randf() * CHUNK, _rng.randf_range(0.85, 1.1), true)
 		d0 += CHUNK
 	var d := 30.0
