@@ -1,0 +1,22 @@
+; 3D_Game_MVP Godot 프로젝트 설정 (주인: C — TECH_SPEC 13.1.1)
+; 지금은 A의 스테이지 미리보기(stage_preview)를 시작 장면으로 둔다.
+; WU-05 공통 뼈대에서 C가 main.tscn으로 바꾸고 입력 키·충돌 레이어(TECH_SPEC 13.3.4)를 채운다.
+config_version=5
+
+[application]
+config/name="3D Zombie Runner (가칭)"
+config/version="0.0.1"
+run/main_scene="res://scenes/stage/stage_preview.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+
+[display]
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=0
+
+[rendering]
+renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_3d=1
