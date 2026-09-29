@@ -178,5 +178,9 @@ func _capture_shots() -> void:
 		var img := get_viewport().get_texture().get_image()
 		var path := "%s/dist_%04d.png" % [_shots_dir, int(d)]
 		img.save_png(path)
+		print("[stats] %dm objects=%d primitives=%d draw_calls=%d" % [StageBuilderV2.remaining(d),   # 성능 측정 (최적화 비교용)
+			Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
 		print("[preview] shot ", path)
 	get_tree().quit()

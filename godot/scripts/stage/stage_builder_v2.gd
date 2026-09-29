@@ -41,8 +41,17 @@ var _fires: Array[OmniLight3D] = []
 var _t := 0.0
 
 
+# 성능 측정용: 실행 인자 --perf-off=shadow,trees,wrecks,cards,grass 로 항목을 꺼 보고
+# 미리보기 --shots 로그의 [stats](면 수·그리기 호출)를 비교한다 (2026-09-29 최적화 때 사용)
+var _perf_off := ""
+
+
 func build(seed_value: int = 20260929) -> void:
 	_rng.seed = seed_value
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--perf-off="):
+			_perf_off = a.trim_prefix("--perf-off=")
+	get_viewport().mesh_lod_threshold = 4.0   # 멀리 있는 모델은 가져올 때 만든 간단한 버전(LOD)으로 일찍 바꾼다
 	_build_environment()
 	_build_ground_and_river()
 	for i in int(STAGE_LENGTH / CHUNK) + 1:
@@ -114,8 +123,8 @@ func _build_environment() -> void:
 	sun.light_color = Color(0.68, 0.75, 0.87)  # 차갑고 약한 빛 (붉은 기는 하늘에만)
 	sun.light_energy = 0.35
 	sun.rotation_degrees = Vector3(-12, 180, 0)
-	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 40.0
+	sun.shadow_enabled = not ("shadow" in _perf_off)
+	sun.directional_shadow_max_distance = 25.0   # 그림자는 가까운 폐차·소품에만
 	add_child(sun)
 
 
@@ -171,23 +180,27 @@ const GRASS_TUFTS := [
 
 
 # 구해 온 3D 에셋 (art/blender/optimize_glb.py 로 줄인 것) — 가까운 곳(7-22m)은 3D, 그 너머는 카드가 채운다
-const TREES_3D := ["tree_dead_01", "tree_dead_02", "tree_dead_03", "tree_dead_04", "tree_dead_small", "tree_dry_01",
+# tree_dead_04 는 2.5만 면 아래로 줄이면 가지가 조각나서 3D 목록에서 뺐다 (파일은 남김)
+const TREES_3D := ["tree_dead_01", "tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01",
 	"tree_fantasy_dead", "tree_old_01", "tree_old_02", "tree_dead_real"]
 const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "car_scan_01", "car_scan_02", "car_scan_03",
 	"car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]
+const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)
+const WRECKS_SCAN := ["car_scan_01", "car_scan_02", "car_scan_03", "car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
 const HOUSES_3D := ["house_abandoned_01", "house_abandoned_02", "house_shack_01", "house_slum_01"]
 const TREE_3D_NEAR := 22.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능)
 const TREE_3D_RANGE := 60.0    # 3D 나무를 그리는 거리
+const GRASS_RANGE := 85.0      # 풀 조각(50m)을 그리는 거리 — 안개가 68m에서 꽉 차서 그 너머는 안 보인다
 
 
 func _trees_chunk(d0: float, zone: int) -> void:
-	var groves: int = [4, 6, 4, 4, 3][zone]
-	var singles: int = [10, 12, 9, 9, 8][zone]
+	var groves: int = [3, 4, 3, 3, 2][zone]
+	var singles: int = [7, 8, 6, 6, 6][zone]
 	for g in groves:
 		var cx := _side() * _rng.randf_range(LANE_HALF + 3.0, TREE_3D_NEAR)
 		var cd := d0 + _rng.randf() * CHUNK
 		var radius := _rng.randf_range(3.0, 7.0)
-		for i in _rng.randi_range(3, 5):
+		for i in _rng.randi_range(2, 4):
 			var a := _rng.randf() * TAU
 			var r := sqrt(_rng.randf()) * radius
 			_tree(Vector3(cx + cos(a) * r, 0, -(cd + sin(a) * r)))
@@ -199,6 +212,7 @@ func _trees_chunk(d0: float, zone: int) -> void:
 
 
 func _tree(pos: Vector3) -> Node3D:
+	if "trees" in _perf_off: return null
 	var d := -pos.z
 	if d > RIVER_Z0 - 4.0 and d < RIVER_Z1 + 4.0:
 		return null
@@ -206,13 +220,32 @@ func _tree(pos: Vector3) -> Node3D:
 		pos.x = signf(pos.x if pos.x != 0.0 else 1.0) * (LANE_HALF + 1.0 + _rng.randf() * 2.0)
 	var tree := _pick_distinct(TREES_3D, pos.x, d)
 	var node := _spawn(tree, pos, _rng.randf() * 360.0, _rng.randf_range(0.6, 1.25), true, TREE_3D_RANGE)
-	node.rotation_degrees.x = _rng.randf_range(-6.0, 6.0)    # 살짝 기운 나무
-	node.rotation_degrees.z = _rng.randf_range(-6.0, 6.0)
+	node.rotation_degrees.x = _rng.randf_range(-3.0, 3.0)    # 살짝 기운 나무 (많이 기울면 밑동 한쪽이 들린다)
+	node.rotation_degrees.z = _rng.randf_range(-3.0, 3.0)
+	_plant(node, tree)
 	return node
+
+
+# 나무를 땅에 박는다: 원점(가장 낮은 점)이 늘어진 가지·퍼진 뿌리 끝이라 줄기 밑동이 떠 보이는 모델이 있다
+# 비율 = 모델 높이 대비 줄기 밑동 높이 (Blender 로 줄기 가운데 점이 촘촘해지는 높이를 잰 값, 2026-09-29)
+const TREE_SINK := {"tree_fantasy_dead": 0.30, "tree_old_01": 0.12, "tree_dry_01": 0.08, "tree_dead_02": 0.05,
+	"tree_dead_03": 0.05, "tree_dead_04": 0.05, "tree_dead_small": 0.04}
+
+
+func _plant(node: Node3D, model: String) -> void:
+	var height := _local_aabb(node).size.y * node.scale.y
+	node.position.y -= height * float(TREE_SINK.get(model, 0.0)) + 0.15
+	_no_shadow(node)                                          # 나무 그림자는 역광·약한 빛이라 거의 안 보이는데 가장 비싸다 (면 수 -60%)
+
+
+func _no_shadow(node: Node) -> void:
+	for g in node.find_children("*", "GeometryInstance3D", true, false):
+		(g as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 # 수풀: clusters 개의 "한 줌" 중심 주변에 70%, 나머지 30%는 아무 데나. 한 줌마다 색(마른 풀·짙은 풀·잿빛)이 다르다.
 func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, clusters: int, is_bush: bool, carpet := false, in_lane := true) -> void:
+	if "grass" in _perf_off: return
 	var tints := [Color(0.9, 0.86, 0.74), Color(0.62, 0.68, 0.58), Color(0.78, 0.78, 0.78), Color(0.84, 0.78, 0.68)]   # 회갈색·잿빛 올리브
 	var centers: Array = []
 	for c in clusters:
@@ -252,7 +285,7 @@ func _grass_multimesh(d0: float, count: int, tex: String, size: Vector2, cluster
 		mm.set_instance_color(i, Color(tint.r * shade, tint.g * shade, tint.b * shade))
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
-	mmi.visibility_range_end = DRAW_RANGE + CHUNK
+	mmi.visibility_range_end = GRASS_RANGE
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
 
@@ -408,7 +441,7 @@ func _build_signs() -> void:
 # 규칙: 장면마다 한쪽(최소 3.5m)은 항상 비워 둔다. obstacles 에는 막는 부품마다 기록한다.
 const SCENES := [
 	["crash", "camp", "overturned", "rubble", "crash"],            # 1000-800m 출발
-	["tree", "tree", "camp", "tree", "crash", "tree"],             # 800-600m 숲
+	["crash", "camp", "rubble", "crash", "camp"],                  # 800-600m 숲 (달리는 폭 안 나무는 시야를 가려 뺐다)
 	["rubble", "camp", "crash", "overturned", "rubble"],           # 600-400m 마을
 	["crash", "rubble", "camp"],                                   # 400-200m 다리
 	["barricade", "crash", "camp", "overturned", "barricade"],     # 200-0m 목표
@@ -433,7 +466,6 @@ func _build_obstacles() -> void:
 			"camp": _scene_camp(cx, d)
 			"overturned": _scene_overturned(cx, d)
 			"rubble": _scene_rubble(cx, d)
-			"tree": _scene_tree(cx, d)
 			"barricade": _scene_barricade(cx, d)
 		_roadside_litter(d)
 
@@ -457,13 +489,15 @@ func _scene_camp(cx: float, d: float) -> void:
 	_burning_drums(Vector3(cx + signf(cx) * 1.6, 0, -(d + 2.4)), _rng.randi_range(2, 3))
 	obstacles.append({"z": d + 2.4, "x": cx + signf(cx) * 1.6, "half_width": 1.1})
 	_spawn("v2_tire", Vector3(cx - signf(cx) * 1.2, 0, -(d - 1.8)), _rng.randf() * 360.0)
+	_spawn("drum_pile_01", Vector3(cx - signf(cx) * 0.4, 0, -(d + 4.2)), _rng.randf() * 360.0)   # 드럼통 무더기
+	obstacles.append({"z": d + 4.2, "x": cx - signf(cx) * 0.4, "half_width": 1.1})
 
 
 func _scene_overturned(cx: float, d: float) -> void:
 	# 옆으로 누운 차 + 떨어져 나온 타이어·잔해
 	var car := _pick_distinct(WRECKS_3D, cx, d)
 	var node := _spawn(car, Vector3(cx, 0, -d), _rng.randf_range(-40, 40) + 90.0)
-	_roll_on_side(node)                                     # 옆으로 굴러 누운 차
+	_settle(node)
 	obstacles.append({"z": d, "x": cx, "half_width": 2.2})
 	_spawn("v2_tire", Vector3(cx - signf(cx) * 2.0, 0, -(d + 1.5)), _rng.randf() * 360.0)
 	_spawn("v2_rubble_wood", Vector3(cx + signf(cx) * 1.5, 0, -(d - 3.0)), _rng.randf() * 360.0)
@@ -474,16 +508,6 @@ func _scene_rubble(cx: float, d: float) -> void:
 	_obstacle("v2_rubble_stone", cx, d, _rng.randf() * 360.0, 1.6)
 	_spawn("v2_rubble_wood", Vector3(cx + signf(cx) * 1.2, 0, -(d + 1.5)), _rng.randf() * 360.0)
 	_spawn("v2_trash", Vector3(cx - signf(cx) * 0.8, 0, -(d - 1.6)), _rng.randf() * 360.0)
-
-
-func _scene_tree(cx: float, d: float) -> void:
-	# 달리는 폭 안에 선 나무 1-2그루
-	var count := _rng.randi_range(1, 2)
-	for k in count:
-		var x := cx + (k * signf(cx) * 1.6)
-		var tree := _pick_distinct(TREES_3D, x, d + k * 2.5)
-		_spawn(tree, Vector3(x, 0, -(d + k * 2.5)), _rng.randf() * 360.0, _rng.randf_range(0.6, 0.95), true, TREE_3D_RANGE)
-		obstacles.append({"z": d + k * 2.5, "x": x, "half_width": 0.8})
 
 
 func _scene_barricade(cx: float, d: float) -> void:
@@ -503,33 +527,32 @@ func _scene_bus(d: float) -> void:
 	obstacles.append({"z": d - 6.0, "x": 1.8, "half_width": 1.0})
 
 
-# 길옆(달리는 폭 바로 밖)의 3D 폐차: 45-70m마다 1-2대 (스캔 폐차는 3만-5만 면이라 드문드문)
+# 길옆(달리는 폭 바로 밖)의 3D 폐차: 30-50m마다 1-2대. 무거운 스캔 폐차는 15%만 (성능: 스캔 1대 = 가벼운 차 5-8대)
 func _build_wrecks_3d() -> void:
-	var d := 25.0
+	if "wrecks" in _perf_off: return
+	var d := 20.0
 	while d < STAGE_LENGTH - 15.0:
-		d += _rng.randf_range(45.0, 70.0)
+		d += _rng.randf_range(30.0, 50.0)
 		if d > RIVER_Z0 - 14.0 and d < RIVER_Z1 + 10.0:
 			continue
 		var side := _side()
 		for k in _rng.randi_range(1, 2):
-			var x := side * _rng.randf_range(LANE_HALF + 2.0, 14.0)
+			var x := side * _rng.randf_range(LANE_HALF + 2.0, 16.0)
 			var wd := d + k * _rng.randf_range(5.0, 8.0)
-			var node := _spawn(_pick_distinct(WRECKS_3D, x, wd), Vector3(x, 0, -wd), _rng.randf() * 360.0, 1.0, true, TREE_3D_RANGE)
-			if _rng.randf() < 0.2:
-				_roll_on_side(node)                              # 가끔은 옆으로 누운 차
+			var pool: Array = WRECKS_SCAN if _rng.randf() < 0.15 else WRECKS_LIGHT
+			_settle(_spawn(_pick_distinct(pool, x, wd), Vector3(x, 0, -wd), _rng.randf() * 360.0, 1.0, true, TREE_3D_RANGE))
 
 
-# 차를 옆으로 굴려 눕힌다: 모델마다 차 길이 방향(긴 축)이 달라서 크기를 재고 긴 축을 기준으로 돌린다
-func _roll_on_side(node: Node3D) -> void:
+# 폐차를 땅에 앉힌다: 옆으로 눕히면 모델 축이 제각각이라 한쪽이 솟아 중력을 무시한 것처럼 보였다
+# → 눕히지 않고 최대 2.5°만 기울이고, 기울어서 뜨는 만큼 땅에 묻는다
+func _settle(node: Node3D) -> void:
+	var tilt_x := _rng.randf_range(-2.5, 2.5)
+	var tilt_z := _rng.randf_range(-2.5, 2.5)
+	node.rotation_degrees.x = tilt_x
+	node.rotation_degrees.z = tilt_z
 	var box := _local_aabb(node)
-	if maxf(box.size.x, box.size.z) < minf(box.size.x, box.size.z) * 1.7:
-		return                                                # 파일 안에서 대각선으로 놓인 차는 긴 축이 불분명 → 눕히지 않는다
-	if box.size.x >= box.size.z:
-		node.rotation_degrees.x = 88.0                        # 길이가 x 방향 → x축으로 굴림
-		node.position.y += box.size.z * 0.5
-	else:
-		node.rotation_degrees.z = 88.0                        # 길이가 z 방향 → z축으로 굴림
-		node.position.y += box.size.x * 0.5
+	var lift := 0.5 * (box.size.z * absf(sin(deg_to_rad(tilt_x))) + box.size.x * absf(sin(deg_to_rad(tilt_z))))
+	node.position.y -= lift + 0.05
 
 
 func _local_aabb(node: Node3D) -> AABB:
@@ -576,6 +599,7 @@ const CARD_RANGE := 120.0     # 카드는 가벼워서 3D 모델(68m)보다 멀�
 
 
 func _build_card_props() -> void:
+	if "cards" in _perf_off: return
 	var d0 := 0.0
 	while d0 < STAGE_LENGTH:
 		for i in 96:                                      # 나무 카드 (크기 랜덤) — 40%는 가까운 12-30m, 나머지는 75m까지
@@ -596,6 +620,14 @@ func _build_card_props() -> void:
 			var vd := d + _rng.randf_range(-7, 7)
 			_card_at(_pick_card(CardProps.VEHICLES, vx, vd), vx, vd, _rng.randf_range(0.95, 1.05), false)
 		d += _rng.randf_range(20.0, 35.0)
+	var fd := 15.0
+	while fd < STAGE_LENGTH:                              # 바깥쪽(35-75m) 폐차 카드: 멀리 흩어진 폐차장 느낌
+		fd += _rng.randf_range(25.0, 45.0)
+		var fx := _side() * _rng.randf_range(35.0, CARD_FAR_X)
+		for k in _rng.randi_range(1, 3):
+			var vx2 := fx + _rng.randf_range(-6, 6)
+			var vd2 := fd + _rng.randf_range(-6, 6)
+			_card_at(_pick_card(CardProps.VEHICLES, vx2, vd2), vx2, vd2, _rng.randf_range(0.95, 1.1), false)
 
 
 # 같은 그림이 가까이(14m 안) 이미 있으면 다른 그림으로 다시 고른다 → 반복이 눈에 띄지 않게
@@ -643,14 +675,19 @@ func _card_at(card_name: String, x: float, d: float, scale_f: float, may_flip: b
 	if may_flip and _rng.randf() < 0.5:
 		mi.scale.x = -mi.scale.x                          # 좌우 뒤집어 같은 그림 반복을 숨긴다
 	mi.visibility_range_end = CARD_RANGE
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
 
 # ── 불타는 드럼통 (불꽃·연기 입자 + 깜빡이는 주황 조명) ─────────────
+const DRUMS_3D := ["drum_oil_01", "drum_oil_02", "drum_old_01", "drum_explosive", "barrel_pack_01", "barrel_pack_02",
+	"barrel_pack_03", "barrel_pack_04", "barrel_pack_05"]
+
+
 func _burning_drums(pos: Vector3, count: int) -> void:
 	for k in count:
 		var off := Vector3(_rng.randf_range(-0.9, 0.9), 0, _rng.randf_range(-0.9, 0.9))
-		var drum := _spawn("v2_drum", pos + off, _rng.randf() * 360.0)
+		var drum := _spawn(_pick_distinct(DRUMS_3D, pos.x + off.x, -(pos.z + off.z), 3.0), pos + off, _rng.randf() * 360.0)
 		if k == count - 1 and count > 2:                 # 하나는 쓰러짐
 			drum.rotation_degrees.z = 90.0
 			drum.position.y = 0.3

@@ -42,6 +42,12 @@
 | house/house_abandoned_02 | pixellabs-abandoned-house-3643.glb | 50k → 12k | 높이 12m | ⚠️ 확인 필요 |
 | house/house_shack_01 | pixellabs-shack-4810.glb | 50k → 10k | 높이 4.5m | ⚠️ 확인 필요 |
 | house/house_slum_01 | pixellabs-slum-4808.glb | 50k → 12k | 높이 6.5m | ⚠️ 확인 필요 |
+| props/drum_oil_01 | oil_drum.glb | 11k → 3k | 높이 0.9m | ⚠️ 확인 필요 |
+| props/drum_oil_02 | oil_drum_by_rishabh.glb (같은 파일 `(1)` 사본은 제외) | 17k → 3k | 높이 0.9m | ⚠️ 확인 필요 |
+| props/drum_old_01 | old_drum.glb | 0.9k | 높이 0.9m | ⚠️ 확인 필요 |
+| props/drum_explosive | modern_dirty_explosive_barrel_model.glb | 0.7k | 높이 0.95m | ⚠️ 확인 필요 |
+| props/barrel_pack_01 - 05 | barrel_pack_-_low_poly_props.glb (5개를 하나씩 분리) | 0.4k씩 | 높이 1m | ⚠️ 확인 필요 |
+| props/drum_pile_01 | oil_drums.glb (드럼통 무더기) | 7k → 6k | 높이 1m | ⚠️ 확인 필요 |
 
 빠진 원본: `a_forest_3_with_a_road_at_night_for_game.glb`(작은 숲 한 판이라 배치용 아님), `zoo-park_dead_tree.glb`(하늘 돔이 함께 들어 있음)
 

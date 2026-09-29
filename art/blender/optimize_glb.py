@@ -5,7 +5,8 @@
 한 파일마다: 조각 합치기 → 면 수 줄이기(Decimate) → 텍스처 줄이기 → 실제 크기로 배율 → 원점 = 바닥 가운데 → 내보내기 + 미리보기
 실행: blender -b --factory-startup -P art/blender/optimize_glb.py -- <작업표.json>
 작업표: [{"src": 원본, "out": 결과 GLB, "tris": 목표 삼각형, "tex": 최대 텍스처 px,
-          "height": 목표 높이(m) 또는 "length": 목표 가로 길이(m), "preview": 미리보기 PNG}, ...]
+          "height": 목표 높이(m) 또는 "length": 목표 가로 길이(m), "preview": 미리보기 PNG,
+          "split": true 이면 파일 속 물건을 하나씩 따로 내보낸다}, ...]
 """
 import json
 import math
@@ -39,7 +40,12 @@ def process(job: dict) -> dict:
     for o in list(bpy.context.scene.objects):
         if o.type != "MESH":
             bpy.data.objects.remove(o, do_unlink=True)
-    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    meshes = sorted([o for o in bpy.context.scene.objects if o.type == "MESH"], key=lambda o: o.name)
+    if "keep" in job:                        # 여러 물건이 한 파일에 들어 있을 때: keep 번째 하나만 남긴다
+        for i, o in enumerate(meshes):
+            if i != job["keep"]:
+                bpy.data.objects.remove(o, do_unlink=True)
+        meshes = [meshes[job["keep"]]]
     bpy.ops.object.select_all(action="DESELECT")
     for o in meshes:
         o.select_set(True)
@@ -125,8 +131,25 @@ def render_preview(ob, path: str, size: Vector) -> None:
     bpy.ops.render.render(write_still=True)
 
 
+def count_meshes(src: str) -> int:
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=src)
+    return len([o for o in bpy.context.scene.objects if o.type == "MESH"])
+
+
 jobs = json.load(open(sys.argv[sys.argv.index("--") + 1]))
-for job in jobs:
+expanded = []
+for job in jobs:                             # "split": true → 물건마다 따로 내보낸다 (이름_01, 이름_02 …)
+    if job.get("split"):
+        base = job["out"][:-4]
+        for i in range(count_meshes(job["src"])):
+            j = dict(job, keep=i, out=f"{base}_{i + 1:02d}.glb")
+            if job.get("preview"):
+                j["preview"] = job["preview"][:-4] + f"_{i + 1:02d}.png"
+            expanded.append(j)
+    else:
+        expanded.append(job)
+for job in expanded:
     try:
         print("OPT " + json.dumps(process(job), ensure_ascii=False), flush=True)
     except Exception as e:
