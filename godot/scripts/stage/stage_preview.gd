@@ -20,7 +20,7 @@ const STEER_SPEED := 2.2    # 좌우 이동 속도 (m/s)
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
 
-var _builder: StageBuilder
+var _builder: StageBuilderV2
 var _camera: Camera3D
 var _label: Label
 var _dist := 0.0
@@ -35,7 +35,7 @@ var _shot_dists: Array[float] = [0.0, 250.0, 500.0, 750.0, 990.0]
 
 func _ready() -> void:
 	_parse_args()
-	_builder = StageBuilder.new()
+	_builder = StageBuilderV2.new()
 	add_child(_builder)
 	_builder.build()
 	# 영상 모드는 화면 밖 캔버스(SubViewport)에 그린다 → 실제 창은 작게 띄워도 영상은 제 크기
@@ -90,7 +90,7 @@ func _process(delta: float) -> void:
 	if not _frames_dir.is_empty() or not _shots_dir.is_empty():
 		return                                           # 캡처 모드는 아래 함수가 직접 한 걸음씩 진행
 	_step(delta)
-	if _dist >= StageBuilder.STAGE_LENGTH:
+	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		_dist = 0.0
 		_x = 0.0
 	_label.text = "%dm   %d fps" % [int(_dist), Engine.get_frames_per_second()]   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
@@ -101,6 +101,7 @@ func _step(delta: float) -> void:
 	_time += delta
 	_dist += RUN_SPEED * delta
 	_x = move_toward(_x, _target_x(), STEER_SPEED * delta)
+	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
 	_label.text = "%dm" % int(_dist)
 
@@ -122,7 +123,7 @@ func _target_x() -> float:
 		return _x                                       # 이미 비켜서 있으면 그대로
 	var left := ox - clear
 	var right := ox + clear
-	var lane := StageBuilder.LANE_HALF - 0.5
+	var lane := StageBuilderV2.LANE_HALF - 0.5
 	if left < -lane:
 		return right
 	if right > lane:
@@ -141,7 +142,7 @@ func _apply_camera(t: float) -> void:
 # 영상용: 1/30초씩 진행하며 한 장이 그려질 때마다 JPG로 저장 (창이 가려져 느려져도 프레임이 빠지거나 겹치지 않음)
 func _capture_frames() -> void:
 	DirAccess.make_dir_recursive_absolute(_frames_dir)
-	var total := int(StageBuilder.STAGE_LENGTH / RUN_SPEED * FRAME_FPS)
+	var total := int(StageBuilderV2.STAGE_LENGTH / RUN_SPEED * FRAME_FPS)
 	if _frame_count > 0:
 		total = _frame_count
 	for i in 3:                                          # 첫 프레임 전에 그림자·가시 범위 준비
@@ -164,6 +165,7 @@ func _capture_shots() -> void:
 	for d in _shot_dists:
 		_dist = d
 		_x = 0.0
+		_builder.update_atmosphere(d)
 		_apply_camera(0.3)
 		_label.text = "%dm" % int(d)
 		for i in 12:                                     # 몇 프레임 기다려 그림자·가시 범위 갱신
