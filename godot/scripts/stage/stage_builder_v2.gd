@@ -71,7 +71,7 @@ func update_atmosphere(dist: float) -> void:
 # ── 환경 ──────────────────────────────────────────────────────────
 func _build_environment() -> void:
 	var sky_mat := PanoramaSkyMaterial.new()
-	sky_mat.panorama = load("res://assets/textures/v2/sky_v2.png")
+	sky_mat.panorama = load("res://assets/textures/v2/sky_ph.png")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	_env = Environment.new()
@@ -117,6 +117,10 @@ func _build_ground_and_river() -> void:
 	mat.set_shader_parameter("road_half", ROAD_HALF)
 	mat.set_shader_parameter("river_z0", RIVER_Z0)
 	mat.set_shader_parameter("river_z1", RIVER_Z1)
+	var ph := "res://assets/textures/polyhaven/brown_mud_leaves_01_"   # Poly Haven CC0 진흙 질감
+	mat.set_shader_parameter("mud_tex", load(ph + "diff_1k.jpg"))
+	mat.set_shader_parameter("mud_nrm", load(ph + "nor_gl_1k.jpg"))
+	mat.set_shader_parameter("mud_rgh", load(ph + "rough_1k.jpg"))
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(WORLD_HALF * 2.0 + 60.0, STAGE_LENGTH + 160.0)
 	plane.material = mat
@@ -484,7 +488,7 @@ func _floodlight(pos: Vector3) -> void:
 	spot.position = pos + Vector3(0, 14.3, 0.6)
 	spot.rotation_degrees = Vector3(-35, 0, 0)          # 길 쪽(+Z)을 비스듬히 비춤
 	spot.light_color = Color(0.9, 0.95, 1.0)
-	spot.light_energy = 6.0
+	spot.light_energy = 3.0
 	spot.spot_range = 70.0
 	spot.spot_angle = 32.0
 	add_child(spot)

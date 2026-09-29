@@ -5,17 +5,17 @@
 class_name StageMaterials
 extends RefCounted
 
-const TEX := "res://assets/textures/v2/"
+const PH := "res://assets/textures/polyhaven/"   # Poly Haven CC0 실사 질감 (색·노멀·거칠기)
 
-# 이름 앞부분 → (질감 파일, 1m당 반복 횟수, 밝기 배수)
+# 이름 앞부분 → (Poly Haven 질감 이름, 1m당 반복 횟수, 밝기 배수, 원래 색을 섞는 정도)
 const RULES := {
-	"wood_siding": ["planks.png", 0.62, 1.0],
-	"wood_dark": ["planks.png", 0.9, 0.55],
-	"wood_crate": ["planks.png", 1.6, 1.25],
-	"rust_": ["rust.png", 0.45, 0.72],
-	"paint_bus": ["rust.png", 0.3, 1.0],
-	"concrete": ["concrete.png", 0.3, 1.0],
-	"bark": ["planks.png", 2.2, 0.5],
+	"wood_siding": ["weathered_planks", 0.45, 1.15, 0.2],
+	"wood_dark": ["weathered_planks", 0.7, 0.5, 0.2],
+	"wood_crate": ["weathered_planks", 1.2, 1.1, 0.3],
+	"rust_": ["rusty_metal_02", 0.4, 0.6, 0.3],
+	"paint_bus": ["rusty_metal_02", 0.3, 1.1, 0.7],      # 스쿨버스는 노란 칠이 보이게
+	"concrete": ["concrete_wall_003", 0.35, 0.42, 0.35],
+	"bark": ["weathered_planks", 1.8, 0.45, 0.2],
 }
 
 var _cache := {}
@@ -49,18 +49,24 @@ func _material_for(src: BaseMaterial3D) -> BaseMaterial3D:
 		for prefix in RULES:
 			if key.begins_with(prefix):
 				var rule: Array = RULES[prefix]
-				mat.albedo_texture = load(TEX + rule[0])
+				var base: String = PH + rule[0]
+				mat.albedo_texture = load(base + "_diff_1k.jpg")
+				mat.normal_enabled = true
+				mat.normal_texture = load(base + "_nor_gl_1k.jpg")
+				mat.roughness = 1.0
+				mat.roughness_texture = load(base + "_rough_1k.jpg")
 				mat.uv1_triplanar = true
 				mat.uv1_world_triplanar = true
+				mat.uv1_triplanar_sharpness = 6.0   # 면 경계에서 질감이 번지지 않게
 				mat.uv1_scale = Vector3.ONE * rule[1]
-				mat.albedo_color = _tone(src.albedo_color, rule[2])
+				mat.albedo_color = _tone(src.albedo_color, rule[2], rule[3])
 				break
 	_cache[key] = mat
 	return mat
 
 
-# 질감 자체에 색이 있으므로, 원래 색은 은은하게만 섞는다 (밝기 배수 × 약한 색조)
-func _tone(c: Color, bright: float) -> Color:
+# 질감 자체에 색이 있으므로, 원래 색은 mix 만큼만 섞는다 (밝기 배수 × 색조)
+func _tone(c: Color, bright: float, mix: float) -> Color:
 	var lum := (c.r + c.g + c.b) / 3.0
 	var tint := Color(c.r / max(lum, 0.01), c.g / max(lum, 0.01), c.b / max(lum, 0.01))
-	return Color(lerpf(1.0, tint.r, 0.35), lerpf(1.0, tint.g, 0.35), lerpf(1.0, tint.b, 0.35)) * (bright * 1.4)
+	return Color(lerpf(1.0, tint.r, mix), lerpf(1.0, tint.g, mix), lerpf(1.0, tint.b, mix)) * bright

@@ -11,6 +11,10 @@ uniform vec3 mud_color : source_color = vec3(0.19, 0.17, 0.15);
 uniform vec3 mud_wet : source_color = vec3(0.09, 0.085, 0.08);
 uniform vec3 soil_color : source_color = vec3(0.075, 0.075, 0.065);
 uniform vec3 moss_color : source_color = vec3(0.09, 0.10, 0.07);
+uniform sampler2D mud_tex : source_color, filter_linear_mipmap, repeat_enable;   // Poly Haven 진흙 (색)
+uniform sampler2D mud_nrm : hint_normal, filter_linear_mipmap, repeat_enable;    // 노멀
+uniform sampler2D mud_rgh : hint_default_white, filter_linear_mipmap, repeat_enable;   // 거칠기
+uniform float mud_scale = 0.35;   // 1m당 반복 횟수
 
 varying vec3 world_pos;
 
@@ -37,14 +41,20 @@ void fragment() {
 	float road = 1.0 - smoothstep(edge - 0.6, edge + 0.9, abs(world_pos.x));
 	float ruts = smoothstep(0.32, 0.0, abs(abs(world_pos.x) - 0.8)) * road;
 	float puddle = smoothstep(0.62, 0.7, fbm(world_pos.xz * 0.28 + 11.0)) * road;   // 물웅덩이
-	vec3 field = mix(soil_color, moss_color, smoothstep(0.35, 0.7, n));
-	vec3 col = mix(field, mud_color, road);
-	col = mix(col, mud_wet, max(ruts * 0.8, puddle));
-	col *= 0.78 + fine * 0.44;
+	vec2 uv = world_pos.xz * mud_scale;
+	vec3 photo = texture(mud_tex, uv).rgb;                        // 실사 진흙·낙엽
+	float photo_l = dot(photo, vec3(0.333));
+	vec3 field = mix(soil_color, moss_color, smoothstep(0.35, 0.7, n)) * (0.55 + photo_l * 1.6);
+	vec3 road_col = mix(mud_color, photo * 0.9, 0.7);
+	vec3 col = mix(field, road_col, road);
+	col = mix(col, mud_wet, max(ruts * 0.7, puddle));
+	col *= 0.85 + fine * 0.3;
+	NORMAL_MAP = mix(texture(mud_nrm, uv).rgb, vec3(0.5, 0.5, 1.0), puddle);   // 웅덩이는 평평하게
+	float rough_tex = texture(mud_rgh, uv).r;
 	// 강가(둑) 근처는 젖어서 어둡게
 	float bank = 1.0 - smoothstep(0.0, 8.0, min(abs(d - river_z0), abs(d - river_z1)));
 	col = mix(col, mud_wet, bank * 0.7);
 	ALBEDO = col;
-	ROUGHNESS = mix(0.95, 0.55, max(puddle, bank * 0.4));   // 웅덩이는 반짝
+	ROUGHNESS = mix(rough_tex, 0.55, max(puddle, bank * 0.4));   // 웅덩이는 반짝
 	SPECULAR = mix(0.3, 0.45, puddle);
 }
