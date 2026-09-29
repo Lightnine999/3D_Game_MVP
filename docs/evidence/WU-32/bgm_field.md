@@ -11,12 +11,27 @@
 ```bash
 blender -b --factory-startup --python art/blender/make_bgm_loop.py -- \
   --src art/source/audio/juhani_junkala_post_apocalyptic_wastelands_loop.ogg \
-  --length 150 --crossfade 3 --bitrate 96000 --out godot/assets/audio/bgm_field.ogg
+  --length 150 --crossfade 3 --bitrate 96000 --even 1.0 --target-db -17 --out godot/assets/audio/bgm_field.ogg
 ```
 - 원본 앞 150초를 쓰고, 150초 뒤에 이어지는 3초를 서서히 줄이며 곡 시작에 겹쳐 **끝 → 처음이 이어지게** 했다
 - 요청 길이 120 - 180초의 가운데인 150초
 
-## 검사
+## 2026-09-29 크기 고르게 (`--even 1.0 --target-db -17`)
+시뮬레이션에서 배경음이 안 들렸다. 원곡은 조용한 곳(-52 dB)과 큰 곳(-7 dB)의 차이가 커서,
+조용한 구간에서는 발소리·총소리에 완전히 묻혔다 (녹화 소리 분석: 발소리가 멈춘 19초가 -56 dB).
+0.25초마다 크기를 재서 조용한 곳은 최대 +20 dB 키우고 큰 곳은 미리 줄였다 (끝과 처음을 이어서 계산 → 이음새 유지).
+
+| | 전 | 후 |
+|---|---|---|
+| 1초 단위 크기 범위 | -52 ~ -7 dB | **-35 ~ -17 dB** |
+| 평균 | -21.3 dBFS | -18.1 dBFS |
+| 최고값 | 0.958 | 0.534 |
+| 이음새 샘플 차 | 0.0228 | 0.0355 (곡 전체가 커진 만큼) |
+| 시뮬레이션 19초 (배경음만 남는 순간) | -56 dB | **-32 dB** |
+
+같이 `sfx_step` 을 -6 → -12 dB 로 낮췄다 (0.36초마다 반복돼 배경음을 덮었다).
+
+## 검사 (처음 만든 때)
 | 항목 | 결과 |
 |---|---|
 | 길이 | 150.00 초, 44,100 Hz 스테레오 |

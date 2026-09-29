@@ -28,7 +28,7 @@ RATE = 44100
 RECIPES = {
     # 게임 효과음 (B 가 재생, SFX 버스)
     "sfx_pistol":        {"synth": "pistol", "peak_db": -3, "bitrate": 96000},   # 직접 합성 (-1 dB 는 압축 뒤 순간값이 1.0 을 넘어 -3 dB) (받은 녹음은 라이선스가 불분명해 쓰지 않음)
-    "sfx_step":          {"src": "kenney_impact-sounds/Audio/footstep_grass_000.ogg", "peak_db": -6},
+    "sfx_step":          {"src": "kenney_impact-sounds/Audio/footstep_grass_000.ogg", "peak_db": -12},  # 0.36초마다 반복돼 -6 dB 는 배경음을 덮었다 (시뮬레이션)
     "sfx_breath":        {"src": "oga_breathing_tired.wav", "peak_db": -8},
     "sfx_empty_click":   {"src": "kenney_rpg-audio/Audio/metalClick.ogg", "peak_db": -6},
     "sfx_zombie_groan":  {"src": "oga_zombies/zombies/zombie-16.wav", "peak_db": -3},   # 가장 낮고 긴 소리 (1.44초, 밝기 890 Hz)

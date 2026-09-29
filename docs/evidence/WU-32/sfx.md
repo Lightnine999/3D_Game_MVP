@@ -12,7 +12,7 @@ blender -b --factory-startup --python art/blender/make_sfx.py
 ## 결과 (모두 원본 CC0)
 | 이름 | 쓰는 곳 | 원본 | 길이 | 최고 | 크기 |
 |---|---|---|---|---|---|
-| `sfx_step` | B | Kenney Impact · footstep_grass_000 | 0.12초 | -6 dB | 4 KB |
+| `sfx_step` | B | Kenney Impact · footstep_grass_000 | 0.12초 | -12 dB (처음 -6, 배경음을 덮어 낮춤) | 4 KB |
 | `sfx_breath` | B | Breathing Tired (mikeask) — 원본이 매우 작아(평균 -43.9 dB) 키움 | 3.17초 | -8 dB | 27 KB |
 | `sfx_empty_click` | B | Kenney RPG · metalClick | 0.37초 | -6 dB | 6 KB |
 | `sfx_zombie_groan` | B | Zombies Sound Pack · zombie-16 | 1.41초 | -3 dB | 13 KB |
