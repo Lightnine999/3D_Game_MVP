@@ -188,7 +188,7 @@ const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "
 const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)
 const WRECKS_SCAN := ["car_scan_01", "car_scan_02", "car_scan_03", "car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
 const HOUSES_3D := ["house_abandoned_01", "house_abandoned_02", "house_shack_01", "house_slum_01"]
-const TREE_3D_NEAR := 22.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능)
+const TREE_3D_NEAR := 16.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능). 22 → 16: 양옆이 너무 벌어져 보여 가운데 쪽으로
 const TREE_3D_RANGE := 60.0    # 3D 나무를 그리는 거리
 const GRASS_RANGE := 85.0      # 풀 조각(50m)을 그리는 거리 — 안개가 68m에서 꽉 차서 그 너머는 안 보인다
 
@@ -197,9 +197,9 @@ func _trees_chunk(d0: float, zone: int) -> void:
 	var groves: int = [3, 4, 3, 3, 2][zone]
 	var singles: int = [7, 8, 6, 6, 6][zone]
 	for g in groves:
-		var cx := _side() * _rng.randf_range(LANE_HALF + 3.0, TREE_3D_NEAR)
+		var cx := _side() * _rng.randf_range(LANE_HALF + 2.0, TREE_3D_NEAR - 1.0)
 		var cd := d0 + _rng.randf() * CHUNK
-		var radius := _rng.randf_range(3.0, 7.0)
+		var radius := _rng.randf_range(2.5, 5.5)
 		for i in _rng.randi_range(2, 4):
 			var a := _rng.randf() * TAU
 			var r := sqrt(_rng.randf()) * radius
@@ -207,7 +207,7 @@ func _trees_chunk(d0: float, zone: int) -> void:
 	for i in singles:
 		_tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 1.5, TREE_3D_NEAR), 0, -(d0 + _rng.randf() * CHUNK)))
 	if _rng.randf() < 0.5:                                # 오래된 그루터기
-		var sx := _side() * _rng.randf_range(LANE_HALF + 1.0, 14.0)
+		var sx := _side() * _rng.randf_range(LANE_HALF + 1.0, 11.0)
 		_spawn("stump_old_01", Vector3(sx, 0, -(d0 + _rng.randf() * CHUNK)), _rng.randf() * 360.0, _rng.randf_range(0.8, 1.3), true, TREE_3D_RANGE)
 
 
@@ -343,14 +343,14 @@ func _ruin(model: String, d: float, x_min: float, x_max: float) -> void:
 
 
 func _build_zone_start() -> void:
-	_ruin("v2_house_a", 70.0, 22.0, 34.0)
-	_ruin("v2_shack", 125.0, 16.0, 26.0)
-	_ruin("v2_house_c", 180.0, 24.0, 36.0)
+	_ruin("v2_house_a", 70.0, 16.5, 25.5)
+	_ruin("v2_shack", 125.0, 12.0, 19.5)
+	_ruin("v2_house_c", 180.0, 18.0, 27.0)
 	_burning_drums(Vector3(-7.5, 0, -10.0), 3)           # 출발 지점의 모닥불
 
 
 func _build_zone_woods() -> void:
-	_ruin("v2_shack", 330.0, 18.0, 30.0)
+	_ruin("v2_shack", 330.0, 13.5, 22.5)
 	for i in 8:                                           # 숲 속에 쓰러져 가는 나무 울타리
 		if _rng.randf() < 0.6:
 			_spawn("v2_fence", Vector3(-9.5, 0, -(232.0 + i * 3.1)), 90.0 + _rng.randf_range(-15, 15))
@@ -361,12 +361,12 @@ func _build_zone_village() -> void:
 	var houses := [["v2_house_b", 468.0, -16.0], ["v2_house_a", 486.0, 21.0], ["v2_house_c", 507.0, -24.0], ["v2_house_b", 530.0, 17.0]]
 	for n in houses.size():
 		var h: Array = houses[n]
-		_spawn(HOUSES_3D[n % HOUSES_3D.size()], Vector3(h[2] + signf(h[2]) * 4.0 + _rng.randf_range(-3, 3), 0, -h[1]), _rng.randf_range(0, 360), 1.0, true, 110.0)
+		_spawn(HOUSES_3D[n % HOUSES_3D.size()], Vector3(h[2] * 0.9 + signf(h[2]) * 2.0 + _rng.randf_range(-2, 2), 0, -h[1]), _rng.randf_range(0, 360), 1.0, true, 110.0)   # 폭 10m 폐허가 달리는 폭에 붙지 않게
 	_spawn("v2_water_tower", Vector3(30.0, 0, -500), 15.0)
 	_spawn("v2_stall", Vector3(-9.0, 0, -480), 100.0)
 	_spawn("v2_stall", Vector3(8.5, 0, -522), -70.0)
-	_ruin("v2_shack", 420.0, 20.0, 32.0)
-	_ruin("v2_shack", 585.0, 20.0, 32.0)
+	_ruin("v2_shack", 420.0, 15.0, 24.0)
+	_ruin("v2_shack", 585.0, 15.0, 24.0)
 
 
 func _build_zone_bridge() -> void:
@@ -382,7 +382,7 @@ func _build_zone_bridge() -> void:
 	_spawn("v2_truck", Vector3(-12.0, -1.7, -(RIVER_Z0 + 8.0)), 70.0, 1.0, false)
 	_spawn("car_scan_red", Vector3(9.0, -1.0, -(RIVER_Z0 + 15.0)), 30.0, 1.0, false)
 	_burning_drums(Vector3(-7.0, 0, -(RIVER_Z0 - 8.0)), 3)
-	_ruin("v2_house_c", 640.0, 22.0, 32.0)
+	_ruin("v2_house_c", 640.0, 16.5, 24.0)
 	_mission_zone("ZoneBridge", "bridge", Vector3(0, 1.5, -(RIVER_Z0 + RIVER_Z1 - 10.0) / 2.0), Vector3(7.0, 3.0, RIVER_Z1 - RIVER_Z0 + 10.0))
 
 
@@ -537,7 +537,7 @@ func _build_wrecks_3d() -> void:
 			continue
 		var side := _side()
 		for k in _rng.randi_range(1, 2):
-			var x := side * _rng.randf_range(LANE_HALF + 2.0, 16.0)
+			var x := side * _rng.randf_range(LANE_HALF + 1.5, 12.0)
 			var wd := d + k * _rng.randf_range(5.0, 8.0)
 			var pool: Array = WRECKS_SCAN if _rng.randf() < 0.15 else WRECKS_LIGHT
 			_settle(_spawn(_pick_distinct(pool, x, wd), Vector3(x, 0, -wd), _rng.randf() * 360.0, 1.0, true, TREE_3D_RANGE))
@@ -593,8 +593,8 @@ func _roadside_litter(d: float) -> void:
 # ── 그림 카드 소품 (폐차 무더기·나무·그루터기) ─────────────────────
 # 테스트 결과(2026-09-29): 12m 밖에서는 자연스럽고 5m 안에서는 떠 보이고 평면 티가 난다
 # → 카드는 원거리(달리는 폭 중심에서 12m 밖) 전용. 근거리 폐차·나무는 3D 에셋으로 채운다
-const CARD_MIN_X := 12.0      # 카드는 원거리 전용: 이보다 가까우면 평면 티가 난다 (2026-09-29 근거리 테스트)
-const CARD_FAR_X := 75.0      # 카드 나무는 옆으로 75m까지 — 안개 너머 실루엣이 겹겹이 보여 깊이감(Z 뎁스)을 만든다
+const CARD_MIN_X := 10.0      # 카드는 원거리 전용: 5m 안은 평면 티가 난다 (2026-09-29 근거리 테스트). 12 → 10: 가운데 쪽으로
+const CARD_FAR_X := 60.0      # 카드 나무는 옆으로 60m까지 — 안개 너머 실루엣이 겹겹이 보여 깊이감(Z 뎁스)을 만든다
 const CARD_RANGE := 120.0     # 카드는 가벼워서 3D 모델(68m)보다 멀리까지 그린다
 
 
@@ -603,27 +603,27 @@ func _build_card_props() -> void:
 	var d0 := 0.0
 	while d0 < STAGE_LENGTH:
 		for i in 96:                                      # 나무 카드 (크기 랜덤) — 40%는 가까운 12-30m, 나머지는 75m까지
-			var tx := _side() * (_rng.randf_range(CARD_MIN_X, 30.0) if _rng.randf() < 0.4 else lerpf(30.0, CARD_FAR_X, _rng.randf()))
+			var tx := _side() * (_rng.randf_range(CARD_MIN_X, 24.0) if _rng.randf() < 0.4 else lerpf(24.0, CARD_FAR_X, _rng.randf()))
 			var td := d0 + _rng.randf() * CHUNK
 			_card_at(_pick_card(CardProps.TREES, tx, td), tx, td, _rng.randf_range(0.5, 1.6), true)
 		for i in 8:                                       # 그루터기·잔가지 더미·뿌리
-			var gx := _side() * _rng.randf_range(CARD_MIN_X, 28.0)
+			var gx := _side() * _rng.randf_range(CARD_MIN_X, 22.0)
 			var gd := d0 + _rng.randf() * CHUNK
 			_card_at(_pick_card(CardProps.GROUND, gx, gd), gx, gd, _rng.randf_range(0.8, 1.2), true)
 		d0 += CHUNK
 	var d := 30.0
 	while d < STAGE_LENGTH - 10.0:                        # 폐차 무더기: 2-4대가 모여 있다
 		var side := _side()
-		var cx := side * _rng.randf_range(CARD_MIN_X + 5.0, 34.0)
+		var cx := side * _rng.randf_range(CARD_MIN_X + 3.0, 28.0)
 		for k in _rng.randi_range(3, 6):
 			var vx := cx + _rng.randf_range(-8, 8)
 			var vd := d + _rng.randf_range(-7, 7)
 			_card_at(_pick_card(CardProps.VEHICLES, vx, vd), vx, vd, _rng.randf_range(0.95, 1.05), false)
 		d += _rng.randf_range(20.0, 35.0)
 	var fd := 15.0
-	while fd < STAGE_LENGTH:                              # 바깥쪽(35-75m) 폐차 카드: 멀리 흩어진 폐차장 느낌
+	while fd < STAGE_LENGTH:                              # 바깥쪽(28-58m) 폐차 카드: 멀리 흩어진 폐차장 느낌
 		fd += _rng.randf_range(25.0, 45.0)
-		var fx := _side() * _rng.randf_range(35.0, CARD_FAR_X)
+		var fx := _side() * _rng.randf_range(28.0, CARD_FAR_X - 2.0)
 		for k in _rng.randi_range(1, 3):
 			var vx2 := fx + _rng.randf_range(-6, 6)
 			var vd2 := fd + _rng.randf_range(-6, 6)
