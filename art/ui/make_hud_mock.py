@@ -88,16 +88,17 @@ def progress_bar(img, d, cx, y, width=720):
 
 def weapon_group(img, d, cx, y, ammo, knife):
     """무기 표시 (PRD F-78) — 화면 최상단 중앙, 진행 막대보다 위.
-    권총 + 남은 탄약 수. 0발이면 권총을 흐리게, 숫자는 0 (빨갛게). 칼은 있으면 보이고 쓰면 없어진다."""
-    w = 300 + (130 if knife else 0)
+    권총 + 남은 탄약 수. 0발이면 권총을 흐리게, 숫자는 0 (빨갛게). 칼은 있으면 보이고 쓰면 없어진다.
+    아이콘 60px (처음 시안 120px 의 절반 — 화면 가운데를 덜 가리게)."""
+    w = 150 + (70 if knife else 0)
     x = cx - w // 2
-    panel(img, (x, y, x + w, y + 112))
-    img.alpha_composite(icon("icon_pistol" if ammo > 0 else "icon_pistol_empty", 120), (x + 10, y - 4))
-    text(d, (x + 150, y + 56), str(ammo), 68, fill=(240, 238, 228) if ammo > 0 else (225, 70, 60), anchor="lm")
+    panel(img, (x, y, x + w, y + 64), radius=12)
+    img.alpha_composite(icon("icon_pistol" if ammo > 0 else "icon_pistol_empty", 60), (x + 6, y + 2))
+    text(d, (x + 76, y + 32), str(ammo), 38, fill=(240, 238, 228) if ammo > 0 else (225, 70, 60), anchor="lm", stroke=2)
     if knife:
-        d.line([(x + 290, y + 18), (x + 290, y + 94)], fill=(200, 200, 190, 120), width=2)
-        img.alpha_composite(icon("icon_knife", 110), (x + 306, y + 1))
-    return (x, y, x + w, y + 112)
+        d.line([(x + 146, y + 12), (x + 146, y + 52)], fill=(200, 200, 190, 120), width=2)
+        img.alpha_composite(icon("icon_knife", 55), (x + 156, y + 4))
+    return (x, y, x + w, y + 64)
 
 
 def pause_button(img, d):
@@ -128,7 +129,7 @@ def screen(ammo, knife):
     img = background()
     d = ImageDraw.Draw(img, "RGBA")
     weapon_group(img, d, W // 2, SAFE, ammo, knife)          # 최상단 중앙 (F-78)
-    progress_bar(img, d, W // 2, SAFE + 160)                   # 그 아래 진행 막대 (F-54 "화면 상단")
+    progress_bar(img, d, W // 2, SAFE + 110)                   # 그 아래 진행 막대 (F-54 "화면 상단")
     pause_button(img, d)
     fire_button(img, d, ammo)
     return img
@@ -145,7 +146,7 @@ def main():
     full.convert("RGB").save(os.path.join(OUT, "hud_mock_full.png"), optimize=True)
 
     # 세 상태를 위아래로: 각 줄은 화면 윗부분(진행 막대 + 무기 표시)만 잘라 붙인다
-    crop = (W // 2 - 520, 0, W // 2 + 520, 280)
+    crop = (W // 2 - 520, 0, W // 2 + 520, 230)
     cw, ch, cap = crop[2] - crop[0], crop[3] - crop[1], 48
     sheet = Image.new("RGB", (cw, (ch + cap) * len(STATES)), (20, 20, 20))
     sd = ImageDraw.Draw(sheet)

@@ -31,7 +31,7 @@ A 는 **그림만** 만들어 여기(`art/ui/`)에 둔다. C 의 폴더에는 �
 | `icon_ammo.png` | 탄약 한 발 — F-78 에서는 안 쓴다. 조작 안내(F-71)·보급 알림 등에 필요하면 사용 | 아이콘용으로 따로 만듦 |
 | `icon_supply.png` | 보급 상자 (낙하산 빼고) — F-78 에서는 안 쓴다. 조작 안내(F-71) 보급 설명 등에 사용 | `prop_supply_crate.glb` |
 
-Godot: 가져오기 설정은 기본값(Lossless), `TextureRect` 의 `expand_mode` 로 줄여 쓴다 (시안 기준 약 110 - 120 px).
+Godot: 가져오기 설정은 기본값(Lossless), `TextureRect` 의 `expand_mode` 로 줄여 쓴다 (시안 기준 권총 60 px · 칼 55 px · 숫자 38 px — 처음 시안의 절반으로 줄였다).
 
 ## 시안 — 1920×1080 (TECH_SPEC 6.1 기준 해상도)
 
