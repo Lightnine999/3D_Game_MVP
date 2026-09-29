@@ -19,6 +19,13 @@ TANK_HEIGHT = (2.0, 2.4)            # 5.2 예외: 탱커(zombie_tank)만
 ORIGIN_TOL = 0.02                    # 발밑이 지면(0)에서 2cm 이내
 IN_PLACE_TOL = 0.05                  # 5.4 walk/run 수평 이동 5cm 이내
 REQUIRED = ["idle", "attack", "hit", "death"]   # WU-20: idle, walk 또는 run, attack, hit, death
+# TECH_SPEC 13.3.1 ①-2 모델 목록: B 의 코드가 이 이름으로 애니메이션을 부른다 (A 가 주인인 약속)
+CONTRACT_ANIMS = {
+    "zombie_walker": ["idle", "walk", "attack", "hit", "death"],
+    "zombie_runner": ["idle", "run", "attack", "hit", "death"],
+    "zombie_tank": ["idle", "walk", "attack", "hit", "death"],
+    "zombie_ambusher": ["idle", "walk", "attack", "hit", "death", "getup"],
+}
 
 
 MAX_TEXTURE = 1024                  # 5.2 텍스처 최대 1024×1024
@@ -137,6 +144,9 @@ def check(path):
         missing.append("walk 또는 run")
     if missing:
         fails.append("애니메이션 없음: " + ", ".join(missing))
+    contract_missing = [n for n in CONTRACT_ANIMS.get(stem, []) if n not in acts]
+    if contract_missing:
+        fails.append("13.3.1 약속의 애니메이션 없음: " + ", ".join(contract_missing))
 
     hips = next((pb for pb in arm.pose.bones if pb.name.lower().endswith("hips")), None)
     ad = arm.animation_data or arm.animation_data_create()

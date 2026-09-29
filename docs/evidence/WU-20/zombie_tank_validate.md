@@ -5,7 +5,7 @@
 ## 만든 방법
 ```bash
 blender -b --factory-startup --python art/blender/import_mixamo.py -- \
-  --character art/source/mixamo/tank_pumpkinhulk.fbx --height 2.2 \
+  --character art/source/mixamo/tank_pumpkinhulk.fbx --height 2.3 \
   --anim idle="art/source/mixamo/scary_zombie_pack/zombie idle.fbx" \
   --anim walk="art/source/mixamo/scary_zombie_pack/zombie walk.fbx" \
   --anim attack="art/source/mixamo/scary_zombie_pack/zombie attack.fbx" \
@@ -13,7 +13,7 @@ blender -b --factory-startup --python art/blender/import_mixamo.py -- \
   --anim death="art/source/mixamo/scary_zombie_pack/zombie death.fbx" \
   --in-place walk,hit --out godot/assets/models/zombie_tank.glb
 ```
-변환 결과: 키 2.040 → 2.200 m / 그림 2048×2048 두 장 → 1024×1024 / 삼각형 9,620 (상한 이하라 줄이지 않음) / 수평 이동 walk 1.486 → 0.000 m, hit 0.799 → 0.000 m / 캐릭터에 없는 뼈 경고 없음
+변환 결과: 키 2.040 → 2.300 m / 그림 2048×2048 두 장 → 1024×1024 / 삼각형 9,620 (상한 이하라 줄이지 않음) / 수평 이동 walk 1.486 → 0.000 m, hit 0.799 → 0.000 m / 캐릭터에 없는 뼈 경고 없음
 
 탱커는 PRD F-42 "크고 느리지만" 이라 run 을 넣지 않았다 (걷기 속도 0.8 m/s 는 게임 코드가 정한다).
 
@@ -23,7 +23,7 @@ blender -b --factory-startup --python art/blender/import_mixamo.py -- \
 | 이름 | `zombie_tank` | 5.2 |
 | 그림 | pumpkinHulk_diffuse 1024×1024, pumpkinHulk_normal 1024×1024 | 5.2 최대 1024×1024 |
 | 삼각형 | 9,620 | 5.3 좀비 10,000 이하 |
-| 키 | 2.200 m | 5.2 탱커 예외 2.0 - 2.4 m |
+| 키 | 2.300 m | 5.2 탱커 예외 2.0 - 2.4 m, 13.3.1 "키 2.3m" |
 | 원점 | 발밑 z 0.001 | 5.2 |
 | 정면 | Godot -Z | 5.2 |
 | 애니메이션 | idle, walk, attack, hit, death | 5.4 / WU-20 (walk 또는 run) |
@@ -34,3 +34,6 @@ blender -b --factory-startup --python art/blender/import_mixamo.py -- \
 
 ## 눈으로 확인
 그림을 입힌 미리보기(기본 자세·걷기·공격, 앞·옆)에서 동작이 몸에 자연스럽게 입혀지고 팔다리가 꼬이지 않음. 미리보기는 `art/previews/zombie_tank_*.png` (git 제외).
+
+## 키 정정 (2026-09-29)
+처음에 2.2 m 로 만들었으나 TECH_SPEC 13.3.1 ①-2 모델 목록의 탱커 크기가 "키 2.3m" 라서 2.3 m 로 다시 만들었다.
