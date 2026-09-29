@@ -718,7 +718,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) | B |
 | `weapon_pistol.glb` | 1인칭 권총 | 길이 0.2m, 원점 = 손잡이 | 없음 (반동은 B가 코드로) | B `scenes/weapons/pistol.tscn` |
 | `weapon_knife.glb` | 칼 탈출 연출 (PRD F-32) | 길이 0.25m, 원점 = 손잡이, 칼끝 = -Z | 없음 (찌르는 동작은 B가 코드로) | B `scripts/core/grab_system.gd` (WU-25) |
-| `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산 | 없음 | B `scenes/weapons/supply_drop.tscn` |
+| `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산. 물체 이름 `Crate`·`Parachute` 두 부분 (착지하면 B 가 `Parachute` 만 숨긴다) | 없음 | B `scenes/weapons/supply_drop.tscn` |
 | `obs_wreck_car.glb` | 장애물: 폐차 | 4.2 × 1.8 × 1.5m | 없음 | B 스포너 |
 | `obs_drum.glb` | 장애물: 폐드럼통 | 지름 0.6m, 높이 0.9m | 없음 | B 스포너 |
 | `obs_trash.glb` | 장애물: 쓰레기 더미 | 1.5 × 1.5 × 0.8m | 없음 | B 스포너 |
@@ -926,6 +926,7 @@ main.tscn (C)
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.5.3 | 2026-09-29 | 13.3.1 ①-2 `prop_supply_crate.glb` 에 물체 이름 `Crate`·`Parachute` 명시 — 착지 뒤 낙하산만 숨길 수 있게 |
 | v0.5.2 | 2026-09-29 | 13.3.1 ①-2 모델 목록에 `weapon_knife.glb` 추가 — PRD F-32 칼 탈출 연출에 쓸 모델이 목록에 없었다 (A 가 WU-29 에서 Blender 스크립트로 제작) |
 | v0.5.1 | 2026-09-29 | 5.4 연출용 추가 동작 이름(WU-20b), 13.3.1 ①-2 탱커 `run`(돌진, B 가 느리게 재생). 좀비 재질 금속 값 0 (import_mixamo.py) |
 | v0.5 | 2026-09-29 | **스테이지 전달 방식 변경** — 13.3.1 ①-3 지형 타일(20×40m)·헛간·탈출 트럭 → `StageBuilderV2` 빌더 1개(사용법·장애물 목록·미션 구역 `ZoneBridge`). 6.1.1 깊이감(노을 하늘·산 능선, 원경 68m 컬링), 6.2 폴더·6.3 모듈(far_layers → stage_builder_v2), 6.3.1 미션 M3 → `pass_zone_clean`(다리), 6.4 성능 기법(한 번에 생성 + 거리 컬링, S24 Ultra 60fps) |
