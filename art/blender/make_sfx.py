@@ -27,6 +27,7 @@ RATE = 44100
 # 이름: 원본, 최고 크기(dBFS), 그 밖의 설정 — 원본은 모두 CC0 (ASSETS_LICENSE.md)
 RECIPES = {
     # 게임 효과음 (B 가 재생, SFX 버스)
+    "sfx_pistol":        {"synth": "pistol", "peak_db": -3, "bitrate": 96000},   # 직접 합성 (-1 dB 는 압축 뒤 순간값이 1.0 을 넘어 -3 dB) (받은 녹음은 라이선스가 불분명해 쓰지 않음)
     "sfx_step":          {"src": "kenney_impact-sounds/Audio/footstep_grass_000.ogg", "peak_db": -6},
     "sfx_breath":        {"src": "oga_breathing_tired.wav", "peak_db": -8},
     "sfx_empty_click":   {"src": "kenney_rpg-audio/Audio/metalClick.ogg", "peak_db": -6},
@@ -60,8 +61,38 @@ def trim_silence(x, below_db=40.0):
     return x[a:b]
 
 
+def lowpass(x, cutoff):
+    """한 단 저역 필터 (높은 소리를 깎아 둔하게)."""
+    a = np.exp(-2 * np.pi * cutoff / RATE)
+    y = np.empty_like(x)
+    acc = 0.0
+    for i, v in enumerate(x):
+        acc = (1 - a) * v + a * acc
+        y[i] = acc
+    return y
+
+
+def synth_pistol():
+    """권총 소리 합성: 파열음(딱) + 몸통(쿵) + 들판 잔향 + 메아리 두 번. 난수 고정이라 매번 같다."""
+    rng = np.random.default_rng(7)
+    n = int(RATE * 0.9)
+    t = np.arange(n) / RATE
+    noise = rng.standard_normal(n).astype(np.float32)
+    crack = np.diff(noise, prepend=0.0) * np.exp(-t / 0.004) * (t < 0.02)            # 날카로운 파열음
+    crack = lowpass(crack, 7000) * 2.0                                                 # 7 kHz 위를 깎아 압축 때 튀지 않게
+    freq = 60 + 120 * np.exp(-t / 0.03)                                               # 180 Hz → 60 Hz
+    boom = np.sin(2 * np.pi * np.cumsum(freq) / RATE) * np.exp(-t / 0.06) * 0.9       # 낮게 떨어지는 쿵
+    thud = lowpass(noise * np.exp(-t / 0.08), 900) * 2.5                               # 둔한 폭발 잡음
+    tail = lowpass(noise * np.exp(-t / 0.3), 1800) * 0.35                              # 들판 잔향
+    x = crack * 0.9 + boom + thud + tail
+    for delay, gain in ((0.12, 0.25), (0.26, 0.12)):                                   # 멀리서 돌아오는 메아리
+        d = int(RATE * delay)
+        x[d:] += lowpass(x[:-d] * gain, 1200)
+    return np.tanh(x * 1.6).astype(np.float32)                                         # 살짝 거칠게
+
+
 def build(name, r):
-    x = load_mono(r["src"])
+    x = synth_pistol() if r.get("synth") == "pistol" else load_mono(r["src"])
     if "start" in r or "end" in r:
         x = x[int(r.get("start", 0) * RATE): int(r["end"] * RATE) if "end" in r else None]
     x = trim_silence(x)
@@ -79,11 +110,11 @@ def build(name, r):
     x[-n_out:] *= np.linspace(1, 0, n_out)
     path = os.path.join(OUT, name + ".ogg")
     aud.Sound.buffer(x.reshape(-1, 1), RATE).write(
-        path, RATE, aud.CHANNELS_MONO, aud.FORMAT_S16, aud.CONTAINER_OGG, aud.CODEC_VORBIS, 64000)
+        path, RATE, aud.CHANNELS_MONO, aud.FORMAT_S16, aud.CONTAINER_OGG, aud.CODEC_VORBIS, r.get("bitrate", 64000))
     rms = float(np.sqrt(np.mean(x ** 2)))
     print("MAKE_SFX %-18s %5.2f초  최고 %5.1f dB  평균 %6.1f dB  %5.1f KB  <- %s%s" % (
         name, len(x) / RATE, r["peak_db"], 20 * np.log10(max(rms, 1e-9)), os.path.getsize(path) / 1024,
-        r["src"].split("/")[-1], " + " + r["mix"]["src"].split("/")[-1] if "mix" in r else ""))
+        r.get("src", "직접 합성").split("/")[-1], " + " + r["mix"]["src"].split("/")[-1] if "mix" in r else ""))
 
 
 def main():

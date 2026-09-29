@@ -1,6 +1,6 @@
 # WU-32 근거 — 효과음 (2026-09-29)
 
-TECH_SPEC 13.3.1 ①-5 목록의 효과음 13종 중 **12종** 완료. `sfx_pistol` 은 아래 "총성" 참고.
+TECH_SPEC 13.3.1 ①-5 목록의 효과음 **13종 모두** 완료 (`sfx_pistol` 은 직접 합성).
 
 ## 만든 방법
 ```bash
@@ -35,6 +35,12 @@ Zombies Sound Pack 의 24개는 이름이 번호뿐이라, 길이·평균 크기
 - Godot 4.7.2: 12개 모두 `AudioStreamOggVorbis` 로 열림, 12개 모두 1채널(mono)
 - 👤 사람이 들어서 확인할 것: 좀비 신음·비명이 맞게 골라졌는지, 크기 차이가 자연스러운지
 
-## 총성 `sfx_pistol` — 보류
+## 총성 `sfx_pistol` — 직접 합성
 - 처음 받은 "Gunshot Sounds" (OpenGameArt, 올린 사람 Tabasco) 는 페이지에는 CC0 이지만, **zip 안 `creativecommons.txt` 에는 "Copyright (c) 2009 Vincent Sevedge … Creative Commons Attribution 3.0"** 이라고 적혀 있다
 - ASSETS_LICENSE 규칙 5 "라이선스가 불분명하면 쓰지 않는다" 에 따라 **쓰지 않았다** (원본은 git 제외 폴더에만 있음)
+- 👤 사용자가 대안 3가지(직접 합성 / Free Firearm Sound Library 194 MB / 원출처 불분명한 22 Pistol) 중 **직접 합성**을 골랐다
+- `make_sfx.py` 의 `synth_pistol()`: 파열음(딱, 20 ms) + 180 → 60 Hz 로 떨어지는 몸통(쿵) + 둔한 폭발 잡음 + 들판 잔향 + 메아리 2번(0.12·0.26초). 난수를 고정해 매번 같은 소리
+- 결과: 0.90초, mono, 13 KB. 구간별 세기 0 - 20 ms -5.6 dB → 20 - 100 ms -8.4 → 100 - 200 ms -12.8 → 200 - 400 ms -20.4 → 400 ms 뒤 -33.0 dB
+- 고친 문제: 최고 크기 -1 dB 로 만들면 Ogg 압축 뒤 순간값이 1.0 을 넘어 찌그러졌다 (0.175%). -3 dB 로 낮춰도 1.096 → 파열음의 7 kHz 위를 깎고 압축 품질을 96 kbps 로 올려 **찌그러짐 0%** (최고 0.994)
+- Godot 4.7.2 에서 13개 모두 열림
+- 👤 진짜 녹음보다 덜 사실적일 수 있으니 들어 보고, 필요하면 나중에 CC0 녹음(Free Firearm Sound Library)으로 바꾼다
