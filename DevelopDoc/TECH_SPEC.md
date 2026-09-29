@@ -188,7 +188,9 @@
 | `attack` | 공격 | - |
 | `hit` | 피격 | - |
 | `death` | 사망 | - |
+| `grab` `bite` `stabbed` `stagger` `lunge` `lie_idle` `walk_b` `walk_c` `death_b` | 연출용 추가 동작 (있는 좀비만, WU-20b) | 이동 모션은 **In Place** |
 
+- 추가 동작이 없는 좀비는 B 가 대체 동작으로 재생한다 (WORK_UNITS WU-20b "못 구하면" 칸). `has_animation()` 으로 확인한 뒤 고른다.
 - 모든 좀비는 Mixamo 동일 뼈대를 사용해 애니메이션을 공유한다 (Godot 리타깃).
 - 이동은 코드가 담당하므로 이동 모션은 반드시 **In Place**로 받는다.
 - 다운로드 목록(캐릭터·모션·옵션)은 작업 단위에서 Claude가 정리해 사용자에게 전달한다.
@@ -712,7 +714,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 |---|---|---|---|---|
 | `zombie_walker.glb` | 워커 | 키 1.8m | `idle` `walk` `attack` `hit` `death` | B `scenes/actors/zombie.tscn` |
 | `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` | B |
-| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `attack` `hit` `death` | B |
+| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `run`(돌진, B 가 느리게 재생) `attack` `hit` `death` | B |
 | `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) | B |
 | `weapon_pistol.glb` | 1인칭 권총 | 길이 0.2m, 원점 = 손잡이 | 없음 (반동은 B가 코드로) | B `scenes/weapons/pistol.tscn` |
 | `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산 | 없음 | B `scenes/weapons/supply_drop.tscn` |
@@ -923,6 +925,7 @@ main.tscn (C)
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.5.1 | 2026-09-29 | 5.4 연출용 추가 동작 이름(WU-20b), 13.3.1 ①-2 탱커 `run`(돌진, B 가 느리게 재생). 좀비 재질 금속 값 0 (import_mixamo.py) |
 | v0.5 | 2026-09-29 | **스테이지 전달 방식 변경** — 13.3.1 ①-3 지형 타일(20×40m)·헛간·탈출 트럭 → `StageBuilderV2` 빌더 1개(사용법·장애물 목록·미션 구역 `ZoneBridge`). 6.1.1 깊이감(노을 하늘·산 능선, 원경 68m 컬링), 6.2 폴더·6.3 모듈(far_layers → stage_builder_v2), 6.3.1 미션 M3 → `pass_zone_clean`(다리), 6.4 성능 기법(한 번에 생성 + 거리 컬링, S24 Ultra 60fps) |
 | v0.4.3 | 2026-09-29 | 5.2 좀비 키에 탱커 예외(2.0 - 2.4 m) 추가 — PRD F-42 "크고"와 1.7 - 1.9 m 규격이 충돌해 탱커를 크게 만들면 검사에서 실패하던 문제 |
 | v0.4.2 | 2026-09-29 | 별도 문서였던 CONTRACTS.md를 폐지하고 내용을 **13.3 담당 간 연결 규칙**으로 통합 (에셋 13.3.1, 게임 신호 13.3.2, 서비스 값 13.3.3, 공통 설정 13.3.4, 가짜 부품 현황 13.3.5) |
