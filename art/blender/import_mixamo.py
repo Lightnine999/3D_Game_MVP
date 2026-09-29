@@ -16,6 +16,7 @@
   - 원점은 발밑 중앙, 1 unit = 1 m 을 유지한다                 (5.2)
   - --height 로 기본 자세의 키를 맞춘다 (탱커 2.0 - 2.4 m 예외)  (5.2)
   - 그림을 한 변 --max-texture(기본 1024) 픽셀 이하로 줄인다     (5.2)
+  - --brightness 로 몸 색 그림만 밝게 한다 (종류끼리 구분이 안 될 때, WU-20 "4종이 서로 구분된다")
 원본 FBX(art/source/)는 읽기만 하고 고치지 않는다.
 """
 import argparse
@@ -42,7 +43,36 @@ def parse_args():
     p.add_argument("--height", type=float, default=0.0,
                    help="기본 자세의 키를 이 값(m)으로 맞춘다. 0 이면 그대로 (탱커 2.0 - 2.4 m 예외, 5.2)")
     p.add_argument("--max-texture", type=int, default=1024, help="그림 한 변 최대 픽셀 (5.2)")
+    p.add_argument("--brightness", type=float, default=1.0,
+                   help="몸 색 그림(Base Color)의 밝기 배율. 1.25 = 한 단계(25%%) 밝게. 다른 그림은 그대로")
     return p.parse_args(argv)
+
+
+def brighten_base_color(factor):
+    """재질의 Base Color 에 연결된 그림만 factor 배 밝게 한다 (1 을 넘는 값은 1 로)."""
+    import numpy as np
+    done = []
+    seen = set()
+    for m in bpy.data.materials:
+        if not m.use_nodes:
+            continue
+        bsdf = next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if not bsdf or not bsdf.inputs["Base Color"].is_linked:
+            continue
+        img = getattr(bsdf.inputs["Base Color"].links[0].from_node, "image", None)
+        if img is None or img.name in seen:
+            continue
+        seen.add(img.name)
+        px = np.empty(len(img.pixels), dtype=np.float32)
+        img.pixels.foreach_get(px)
+        rgba = px.reshape(-1, 4)
+        before = float(rgba[:, :3].mean())
+        rgba[:, :3] = np.clip(rgba[:, :3] * factor, 0.0, 1.0)
+        img.pixels.foreach_set(rgba.ravel())
+        img.update()
+        img.pack()
+        done.append("%s 평균 밝기 %.3f -> %.3f" % (img.name, before, float(rgba[:, :3].mean())))
+    return done
 
 
 def rest_height(arm, meshes):
@@ -244,6 +274,7 @@ def main():
             strip.action_slot = act.slots[0]
 
     shrunk = shrink_textures(args.max_texture)
+    brightened = brighten_base_color(args.brightness) if args.brightness != 1.0 else []
 
     bpy.ops.export_scene.gltf(
         filepath=args.out,
@@ -255,6 +286,8 @@ def main():
     print("IMPORT_MIXAMO height %.3f m -> %.3f m" % (h0, h1))
     for s in shrunk:
         print("IMPORT_MIXAMO texture " + s)
+    for s in brightened:
+        print("IMPORT_MIXAMO brightness " + s)
     print("IMPORT_MIXAMO tris %d -> %d (max %d)" % (tris_before, tris_after, args.max_tris))
     for name, (b, a) in report.items():
         print("IMPORT_MIXAMO in_place %s: %.3f m -> %.3f m" % (name, b, a))

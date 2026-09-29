@@ -40,3 +40,13 @@ blender -b --factory-startup --python art/blender/import_mixamo.py -- \
 
 ## 참고
 파일 크기 9.5 MB — 그림이 여덟 장이라 크다. 휴대폰 로딩이 느리면 Specular·Glossiness 를 빼거나 512 로 줄이는 것을 검토한다 (TECH_SPEC 10.3 첫 실행 로딩 5초).
+
+## 밝기 한 단계 올림 (2026-09-29)
+매복(Ch45, 평균 밝기 0.155)과 안개 속에서 헷갈리지 않도록 몸 색 그림(Base Color)만 25% 밝게 했다 (`--brightness 1.25`). 울퉁불퉁함(Normal) 등 다른 그림은 그대로.
+
+| 그림 | 전 | 후 (결과 glb 에서 다시 잼) |
+|---|---|---|
+| Ch10_1001_Diffuse (몸) | 0.272 | 0.340 |
+| Ch10_1002_Diffuse (바지 쪽) | 0.169 | 0.212 |
+
+나란히 놓은 미리보기(`art/previews/compare_runner_ambusher.png`)에서 러너는 갈색 피부와 바지가 보이고, 매복은 검은 몸에 초록 발광이라 구분된다. 검사 통과.
