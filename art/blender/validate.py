@@ -15,6 +15,7 @@ from mathutils import Vector
 BUDGET = {"zombie_": 10000, "weapon_": 5000, "prop_": 2000, "env_": 5000}
 PREFIXES = ("zombie_", "prop_", "env_", "weapon_", "fx_")
 ZOMBIE_HEIGHT = (1.7, 1.9)          # 5.2 좀비 키
+TANK_HEIGHT = (2.0, 2.4)            # 5.2 예외: 탱커(zombie_tank)만
 ORIGIN_TOL = 0.02                    # 발밑이 지면(0)에서 2cm 이내
 IN_PLACE_TOL = 0.05                  # 5.4 walk/run 수평 이동 5cm 이내
 REQUIRED = ["idle", "attack", "hit", "death"]   # WU-20: idle, walk 또는 run, attack, hit, death
@@ -66,8 +67,10 @@ def check(path):
         notes.append("키 %.3f m, 발밑 z %.3f, 중심 (%.2f, %.2f)" % (height, lo_z, cx, cy))
         if abs(lo_z) > ORIGIN_TOL:
             fails.append("원점이 발밑이 아님 (최저점 z = %.3f)" % lo_z)
-        if prefix == "zombie_" and not (ZOMBIE_HEIGHT[0] <= height <= ZOMBIE_HEIGHT[1]):
-            fails.append("좀비 키 %.3f m 가 %.1f - %.1f m 범위 밖" % (height, *ZOMBIE_HEIGHT))
+        if prefix == "zombie_":
+            lo, hi = TANK_HEIGHT if stem.startswith("zombie_tank") else ZOMBIE_HEIGHT
+            if not (lo <= height <= hi):
+                fails.append("좀비 키 %.3f m 가 %.1f - %.1f m 범위 밖" % (height, lo, hi))
 
     if prefix != "zombie_" or not arms:
         return name, fails, notes
