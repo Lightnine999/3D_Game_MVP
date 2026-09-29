@@ -78,12 +78,13 @@ def text(d, xy, s, size, fill=(240, 238, 228), bold=True, anchor="la", stroke=3)
 
 
 def progress_bar(img, d, cx, y, width=720):
-    """진행 막대 (PRD F-54, B 의 WU-15 가 값 제공) — 320m / 1,000m 예시."""
+    """남은 거리와 진행 막대 (PRD F-54 "남은 거리(1,000m → 0m)와 진행 막대", B 의 WU-15 가 값 제공).
+    예시: 320m 달림 → 남은 거리 680m, 막대는 달린 만큼(32%) 채움."""
     x0, x1 = cx - width // 2, cx + width // 2
     panel(img, (x0 - 24, y - 26, x1 + 24, y + 62), alpha=120)
     d.rounded_rectangle((x0, y + 22, x1, y + 44), 11, fill=(40, 40, 36), outline=(10, 10, 10), width=3)
     d.rounded_rectangle((x0, y + 22, x0 + int(width * 0.32), y + 44), 11, fill=(196, 58, 44))
-    text(d, (cx, y + 2), "320 m / 1,000 m", 26, anchor="mm")
+    text(d, (cx, y + 2), "680m", 30, anchor="mm")
 
 
 def weapon_group(img, d, cx, y, ammo, knife):
@@ -129,7 +130,7 @@ def screen(ammo, knife):
     img = background()
     d = ImageDraw.Draw(img, "RGBA")
     weapon_group(img, d, W // 2, SAFE, ammo, knife)          # 최상단 중앙 (F-78)
-    progress_bar(img, d, W // 2, SAFE + 110)                   # 그 아래 진행 막대 (F-54 "화면 상단")
+    progress_bar(img, d, W // 2, SAFE + 110)                   # 그 아래 남은 거리·진행 막대 (F-54)
     pause_button(img, d)
     fire_button(img, d, ammo)
     return img
