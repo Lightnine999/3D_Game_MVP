@@ -10,6 +10,7 @@
 하는 일 (규격 번호는 TECH_SPEC):
   - 애니메이션 이름을 --anim 에 준 이름으로 바꾼다            (5.4)
   - walk / run 은 제자리 동작(In Place)으로 만든다            (5.4 "이동 모션은 반드시 In Place")
+    --in-place 로 hit 처럼 살아 있는 동안 쓰는 동작도 제자리로 만들 수 있다
   - 삼각형을 --max-tris 이하로 줄인다 (좀비 기본 10,000)       (5.3)
   - 정면이 Godot 기준 -Z 를 보게 돌린다                        (5.2 "캐릭터 정면은 -Z")
   - 원점은 발밑 중앙, 1 unit = 1 m 을 유지한다                 (5.2)
@@ -22,7 +23,7 @@ import sys
 import bpy
 from mathutils import Vector
 
-IN_PLACE = {"walk", "run"}
+IN_PLACE_DEFAULT = "walk,run"
 
 
 def parse_args():
@@ -33,6 +34,8 @@ def parse_args():
     p.add_argument("--out", required=True)
     p.add_argument("--max-tris", type=int, default=10000)
     p.add_argument("--target-tris", type=int, default=9000, help="여유를 두고 줄일 목표")
+    p.add_argument("--in-place", default=IN_PLACE_DEFAULT,
+                   help="제자리로 만들 동작 이름들 (쉼표). 5.4 는 walk·run 필수, 살아 있는 동안 쓰는 hit 도 권장")
     return p.parse_args(argv)
 
 
@@ -149,9 +152,10 @@ def main():
     if arm.animation_data is None:
         arm.animation_data_create()
 
+    in_place = {n.strip() for n in args.in_place.split(",") if n.strip()}
     report = {}
     for name, act in named:
-        if name in IN_PLACE:
+        if name in in_place:
             before = horizontal_move(arm, act)
             make_in_place(arm, act)
             report[name] = (round(before, 3), round(horizontal_move(arm, act), 3))
