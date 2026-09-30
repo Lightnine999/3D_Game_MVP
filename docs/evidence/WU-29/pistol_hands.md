@@ -29,3 +29,4 @@
 
 ![미리보기](pistol_hands_preview.jpg)
 ![손 옆모습](pistol_hands_side.jpg)
+![1인칭 확대](pistol_hands_close.jpg)

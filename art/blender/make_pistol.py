@@ -22,7 +22,7 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Euler, Matrix, Vector
 
 GRIP_TILT = math.radians(-18)            # 손잡이 기울기 (아래쪽이 뒤로)
 GRIP_ROT = Matrix.Rotation(GRIP_TILT, 4, "X")
@@ -38,8 +38,10 @@ def parse_args():
     p.add_argument("--arms-fbx", default="", help="Mixamo 캐릭터 FBX — 주면 스크립트 손 대신 이 캐릭터의 팔(팔꿈치 아래)을 쓴다")
     p.add_argument("--arms-anim", default="", help="두 손으로 권총을 쥔 Mixamo 동작 FBX (예: pistol idle)")
     p.add_argument("--arms-frame", type=int, default=10, help="그 동작에서 손 모양을 가져올 프레임")
-    p.add_argument("--grip", default="0.100,0.004,0.000,6",   # 손가락이 손잡이 앞면을 감싸는 자리 (2026-09-30 맞춤)
+    p.add_argument("--grip", default="0.100,-0.015,0.000,6",  # 손가락이 손잡이 앞면을 감싸고, 손잡이가 엄지·검지 사이에 끼는 자리
                    help="오른손 손목에서 손잡이까지: 손끝 방향 m, 위 m, 오른쪽 m, 총구 좌우 각도(도)")
+    p.add_argument("--left-thumb", default="0,0,-55",
+                   help="왼손 엄지 첫 마디를 더 돌리는 각도 (x,y,z 도) — 위로 선 엄지를 총 옆면을 따라 앞으로 눕힐 때")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",
                    help="소매(원래 SWAT 파란색) 를 바꿀 색 (선형 RGB). 기본 짙은 올리브. 빈 값이면 그대로")
@@ -298,6 +300,12 @@ def build_mixamo_hands(a):
     if getattr(act, "slots", None):
         arm.animation_data.action_slot = act.slots[0]
     bpy.context.scene.frame_set(a.arms_frame)
+    tx, ty, tz = [math.radians(float(v)) for v in a.left_thumb.split(",")]
+    if tx or ty or tz:                                                   # 받쳐 쥐는 왼손 엄지를 앞으로 눕힌다
+        pb = next(b for b in arm.pose.bones if b.name.endswith("LeftHandThumb1"))
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = pb.rotation_quaternion @ Euler((tx, ty, tz)).to_quaternion()
+        bpy.context.view_layer.update()
 
     def bone(n):
         return next(b for b in arm.pose.bones if b.name.endswith(n))
