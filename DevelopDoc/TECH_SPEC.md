@@ -762,7 +762,7 @@ stage.update_atmosphere(distance_m)       # 남은 400m부터 안개를 회색�
 |---|---|
 | 경로 | `godot/assets/audio/sfx_<이름>.ogg`, `bgm_<이름>.ogg` |
 | 버스 | `Master` / `BGM` / `SFX` / `UI` (`default_bus_layout.tres`, 주인 A) |
-| 게임 효과음 목록 | `sfx_step` `sfx_breath` `sfx_pistol` `sfx_empty_click` `sfx_zombie_groan` `sfx_zombie_scream` `sfx_supply_pickup` `sfx_knife` `sfx_bite` `sfx_hit_obstacle` → **B가 재생** (SFX 버스) |
+| 게임 효과음 목록 | `sfx_step` `sfx_breath` `sfx_pistol`(+ `sfx_pistol_2` `sfx_pistol_3`, 무작위 재생 `sfx_pistol_random.tres`) `sfx_empty_click` `sfx_zombie_groan` `sfx_zombie_scream` `sfx_supply_pickup` `sfx_knife` `sfx_bite` `sfx_hit_obstacle` → **B가 재생** (SFX 버스) |
 | UI 효과음 목록 | `sfx_ui_click` `sfx_ui_purchase` `sfx_mission_done` → **C가 재생** (UI 버스) |
 | 배경음 | `bgm_field` (게임), `bgm_title` (타이틀) → C의 `main`이 재생 |
 

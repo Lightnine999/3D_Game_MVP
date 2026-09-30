@@ -44,3 +44,11 @@ Zombies Sound Pack 의 24개는 이름이 번호뿐이라, 길이·평균 크기
 - 고친 문제: 최고 크기 -1 dB 로 만들면 Ogg 압축 뒤 순간값이 1.0 을 넘어 찌그러졌다 (0.175%). -3 dB 로 낮춰도 1.096 → 파열음의 7 kHz 위를 깎고 압축 품질을 96 kbps 로 올려 **찌그러짐 0%** (최고 0.994)
 - Godot 4.7.2 에서 13개 모두 열림
 - 👤 진짜 녹음보다 덜 사실적일 수 있으니 들어 보고, 필요하면 나중에 CC0 녹음(Free Firearm Sound Library)으로 바꾼다
+
+
+## 2026-09-30 총성 다시 만들기 — 3가지 + 무작위 재생
+- 한 가지 소리만 반복되면 연사할 때 기계처럼 들려서, **합성 총성(매번 다른 난수·낮은 음) + 슬라이드 철컥(Kenney metalLatch) + 탄피가 땅에 떨어지는 소리(Kenney impactMetal_light, 음을 높여 작은 금속처럼)** 를 겹친 3가지를 만들었다
+  - `sfx_pistol.ogg` (이름 그대로 — 기존 코드는 바뀌지 않음), `sfx_pistol_2.ogg`, `sfx_pistol_3.ogg` — 각 0.9초, 최고 -3 dB, 압축 뒤 잘림 0%
+- `sfx_pistol_random.tres` (AudioStreamRandomizer): 3가지 중 하나를 고르고 음 높이 ±6%, 크기 ±1.5 dB 로 바꿔 낸다
+  - **B:** `player.stream = preload("res://assets/audio/sfx_pistol_random.tres")` — `sfx_pistol.ogg` 대신 쓰면 된다 (SFX 버스)
+- 원본은 모두 CC0 (Kenney RPG Audio · Impact Sounds, 이미 기록됨)
