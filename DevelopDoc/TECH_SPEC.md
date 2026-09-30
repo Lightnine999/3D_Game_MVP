@@ -45,7 +45,7 @@
 | D3 | 안개 표현 **거리·높이 안개 + 안개 판(반투명 평면)** | 볼류메트릭 안개는 Forward+ 전용이라 Mobile에서 사용 불가 | 볼류메트릭 안개 |
 | D4 | 배경·소품 **Blender 스크립트 생성** | 로우폴리 소품은 코드로 충분히 생성 가능, 어둠·안개가 디테일을 가려줌 | 수작업 모델링 |
 | D5 | 좀비 **Mixamo 캐릭터 + 모션** | 리깅과 좀비 전용 모션(걷기·달리기·공격·사망)이 이미 있음 → 리깅 문제 해소 | Blender 스크립트 리깅 — 인체형 리깅·스키닝 품질 확보가 어려움 |
-| D6 | 1인칭 **팔 모델 생략** (MVP) | 총만 화면에 띄우고 흔들림·반동을 코드로 구현 → 리깅 불필요 | Mixamo 팔 모델 |
+| D6 | 1인칭 **총을 쥔 장갑 손을 총 모델에 포함** (뼈대 없음) — v0.5.4 변경 제안, 팀 확인 필요 | 손이 없으면 총이 떠 보인다. 손을 총 모델 안의 물체(HandRight·HandLeft)로 넣어 리깅 없이 총과 함께 움직이고, 장전 때 왼손만 통째로 옮긴다 | 팔 모델 생략 (v0.5.3 까지) / Mixamo 팔 모델 (리깅 필요) |
 | D7 | 무기 **CC0 무료 에셋 우선** | 1인칭에서 총이 화면에 크게 보여 품질이 중요 | Blender 스크립트 (에셋이 없을 때 대안) |
 | D8 | 결제 **마감 전 = 웹·앱 모두 토스페이먼츠 테스트 결제 / Google Play 출시 버전 = 앱은 Google Play Billing** | 마감 전 테스트는 APK 직접 배포라 Play 정책과 무관하고, 토스 테스트 결제는 Play Console 인증 없이 바로 검증할 수 있다. Play에 올리는 버전부터 앱 결제는 구글 결제로 교체한다(디지털 상품은 Play 결제가 원칙). 두 결제는 서버의 구매 기록·지급 로직(`purchases`, `inventory`)을 공유해 교체 부담을 줄인다 | 마감 전 구글 결제 — Play Console 본인 인증(며칠)과 내부 테스트 업로드가 필요해 마감 내 보장 불가 |
 | D9 | 백엔드 **Supabase** (Auth: 익명 로그인 + 이메일·비밀번호) | 게스트(익명) 계정으로 바로 시작하고, 가입 시 같은 계정에 이메일을 연결해 기록이 이어진다. 인증·DB·Edge Function을 한 곳에서 처리 | 자체 서버 / 구글 로그인 — OAuth·앱 서명 등록 설정이 마감 내 부담 |
@@ -196,8 +196,8 @@
 - 다운로드 목록(캐릭터·모션·옵션)은 작업 단위에서 Claude가 정리해 사용자에게 전달한다.
 
 ### 5.5 1인칭 무기 (Viewmodel)
-- 팔 모델 없이 무기만 카메라 앞에 배치한다.
-- 걷기 흔들림(bob), 사격 반동(recoil), 재장전 동작은 코드(Tween)로 구현한다.
+- 총을 쥔 장갑 손이 들어 있는 `weapon_pistol.glb` 를 카메라 앞에 배치한다 (D6). 뼈대가 없어 손은 총과 함께 움직인다.
+- 걷기 흔들림(bob), 사격 반동(recoil), 재장전 동작은 코드(Tween)로 구현한다. A 의 시범 코드: `scripts/stage/viewmodel_motion.gd` (`aim_at()` 좀비 쪽으로 돌리기, `fire()`, `reload()`), 미리보기 `scenes/stage/viewmodel_preview.tscn`
 
 ---
 
@@ -716,7 +716,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` + `walk` `grab` `bite` (WU-20b) | B |
 | `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `run`(돌진, B 가 느리게 재생) `attack` `hit` `death` + `grab` `bite` (WU-20b) | B |
 | `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) + `scream` `grab` `bite` `crouch_idle`(풀속에 쭈그려 앉음, 반복) `crouch_rise`(쭈그린 채 → 일어섬 1.2초) (WU-20b) | B |
-| `weapon_pistol.glb` | 1인칭 권총 | 길이 0.2m, 원점 = 손잡이 | 없음 (반동은 B가 코드로) | B `scenes/weapons/pistol.tscn` |
+| `weapon_pistol.glb` | 1인칭 권총 + 총을 쥔 장갑 손 | 총 길이 0.2m(손 제외, ±10%), 원점 = 손잡이. 물체 `Frame` `Slide`(자식 `Optic`) `Magazine`(원점 = 탄창 위, 손잡이 축 (0, -0.951, 0.309) 방향으로 빠짐) `Trigger` `HandRight` `HandLeft`. 총구 = 원점에서 (0, 0.055, -0.16) | 없음 (반동·장전은 B가 코드로 — 물체를 이름으로 찾아 움직인다) | B `scenes/weapons/pistol.tscn` |
 | `weapon_knife.glb` | 칼 탈출 연출 (PRD F-32) | 길이 0.25m, 원점 = 손잡이, 칼끝 = -Z | 없음 (찌르는 동작은 B가 코드로) | B `scripts/core/grab_system.gd` (WU-25) |
 | `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산. 물체 이름 `Crate`·`Parachute` 두 부분 (착지하면 B 가 `Parachute` 만 숨긴다) | 없음 | B `scenes/weapons/supply_drop.tscn` |
 | `obs_wreck_car.glb` | 장애물: 폐차 | 4.2 × 1.8 × 1.5m | 없음 | B 스포너 |
@@ -926,6 +926,7 @@ main.tscn (C)
 |---|---|---|
 | v0.1 | 2026-09-28 | 최초 작성 — 대화에서 확정한 기술 스택 정리 (Godot 4 + Blender 스크립트 + Mixamo + Supabase + Google Play Billing, 토스페이먼츠 제외) |
 | v0.1.1 | 2026-09-28 | PRD v0.1 작성에 따라 미결 사항 Q3, Q4 결정 처리 |
+| v0.5.4 | 2026-09-30 | **D6 변경 제안** — 총을 쥔 장갑 손을 `weapon_pistol.glb` 에 포함(뼈대 없음), 5.5 A 의 시범 동작 코드, 13.3.1 권총 물체 이름·총구 위치 (팀 확인 필요) |
 | v0.5.3 | 2026-09-29 | 13.3.1 ①-2 `prop_supply_crate.glb` 에 물체 이름 `Crate`·`Parachute` 명시 — 착지 뒤 낙하산만 숨길 수 있게 |
 | v0.5.2 | 2026-09-29 | 13.3.1 ①-2 모델 목록에 `weapon_knife.glb` 추가 — PRD F-32 칼 탈출 연출에 쓸 모델이 목록에 없었다 (A 가 WU-29 에서 Blender 스크립트로 제작) |
 | v0.5.1 | 2026-09-29 | 5.4 연출용 추가 동작 이름(WU-20b), 13.3.1 ①-2 탱커 `run`(돌진, B 가 느리게 재생). 좀비 재질 금속 값 0 (import_mixamo.py) |

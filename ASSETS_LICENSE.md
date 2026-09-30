@@ -43,7 +43,7 @@
 | Slum Shanty Shack Stilt (pixellabs-slum-4808) | 3D 모델 (AI 생성, 작가 표시) | https://pixabay.com/3d-models/slum-shanty-shack-stilt-house-4808/ | PixelLabs | Pixabay Content License | 가능 | 불필요 (원본 단독 재배포 금지 → 최적화본만 커밋) | 2026-09-29 | `godot/assets/models/house/house_slum_01.glb` |
 | weathered_planks · rusty_metal_02 · concrete_wall_003 · brown_mud_leaves_01 | 질감 | https://polyhaven.com | Poly Haven | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/textures/polyhaven/` |
 | industrial_sunset_puresky | HDRI | https://polyhaven.com/a/industrial_sunset_puresky | Poly Haven | CC0 | 가능 | 불필요 | 2026-09-29 | `art/polyhaven/` → `textures/v2/sky_ph.png` (현재 미사용) |
-| Pistol (Ultimate Guns Pack) | 3D 모델 (권총, 길이 0.2 m 로 줄이고 원점을 손잡이로) | https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F | Quaternius | CC0 (Public Domain) | 가능 | 불필요 | 2026-09-29 | `godot/assets/models/weapon_pistol.glb`, `art/ui/icons/icon_pistol.png` (모델을 찍은 HUD 아이콘) |
+| Pistol (Ultimate Guns Pack) | 3D 모델 (권총, 길이 0.2 m 로 줄이고 원점을 손잡이로) | https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F | Quaternius | CC0 (Public Domain) | 가능 | 불필요 | 2026-09-29 | 사용 안 함 (2026-09-30 `art/blender/make_pistol.py` 직접 제작 권총으로 교체) |
 
 > **변경 사항 (CC BY 요구)**: 위 3D 모델은 모바일용으로 면 수 축소(Decimate)·텍스처 512px(폐허 1024px) 축소·실제 크기 배율·원점 이동을 했고, 일부는 색조를 바꿔 배치한다 (`art/blender/optimize_glb.py`). 제작자·라이선스는 원본 GLB 안의 정보(asset.extras)로 확인했다 (2026-09-29). 원본은 `art/source_assets/`(git 제외)에 보관.
 
