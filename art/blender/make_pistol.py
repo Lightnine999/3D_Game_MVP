@@ -47,6 +47,8 @@ def parse_args():
                                      "RightHandMiddle1=-10,0,0;RightHandRing1=-10,0,0;RightHandPinky1=-10,0,0",
                    # 검지·엄지는 총 쪽으로 감되 손잡이 속으로 파고들지 않게, 나머지 세 손가락은 살짝 펴 손잡이 표면에 닿게
                    help="손가락 관절을 더 구부리는 각도. '뼈이름=x,y,z;...' (도). 예: RightHandIndex1=0,0,-20")
+    p.add_argument("--gun-nudge", default="0,0,0,0,0,0",
+                   help="조정 화면(grip_tuner)에서 찾은 값: 총을 손에 대해 옮긴 거리(m)·각도(도), Godot 기준 x,y,z,위아래,좌우,기울임")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",
                    help="소매(원래 SWAT 파란색) 를 바꿀 색 (선형 RGB). 기본 짙은 올리브. 빈 값이면 그대로")
@@ -377,6 +379,17 @@ def build_mixamo_hands(a):
         hands.append(h)
     if a.sleeve:
         recolor_blue(a.sleeve)
+    nx, ny, nz, rx, ry, rz = [float(v) for v in a.gun_nudge.split(",")]
+    if any((nx, ny, nz, rx, ry, rz)):
+        # 조정 화면에서는 총을 움직였다 → 여기서는 총(원점 = 손잡이)을 그대로 두고 손을 반대로 옮긴다
+        # Godot (x, y, z) = Blender (x, -y, z) 의 (x, z, -y) — 회전 순서는 Godot 기본 YXZ
+        N = (Matrix.Translation((nx, -nz, ny))
+             @ Matrix.Rotation(math.radians(ry), 4, "Z")
+             @ Matrix.Rotation(math.radians(rx), 4, "X")
+             @ Matrix.Rotation(math.radians(-rz), 4, "Y"))
+        inv = N.inverted()
+        for h in hands:
+            h.data.transform(inv)
     hl = next(h for h in hands if h.name == "HandLeft")
     c = sum((Vector(v.co) for v in hl.data.vertices), Vector()) / len(hl.data.vertices)
     set_origin(hl, c)                                                    # 왼손만 통째로 옮기므로 원점을 손 가운데로
