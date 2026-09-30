@@ -712,10 +712,10 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 ##### ①-2 모델 목록
 | 경로 (`godot/assets/models/`) | 용도 | 크기 | 애니메이션 이름 | 쓰는 곳 |
 |---|---|---|---|---|
-| `zombie_walker.glb` | 워커 | 키 1.8m | `idle` `walk` `attack` `hit` `death` | B `scenes/actors/zombie.tscn` |
-| `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` | B |
-| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `run`(돌진, B 가 느리게 재생) `attack` `hit` `death` | B |
-| `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) | B |
+| `zombie_walker.glb` | 워커 | 키 1.8m | `idle` `walk` `attack` `hit` `death` + `run` `grab` `bite` (WU-20b) | B `scenes/actors/zombie.tscn` |
+| `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` + `walk` `grab` `bite` (WU-20b) | B |
+| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `run`(돌진, B 가 느리게 재생) `attack` `hit` `death` + `grab` `bite` (WU-20b) | B |
+| `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) + `scream` `grab` `bite` (WU-20b) | B |
 | `weapon_pistol.glb` | 1인칭 권총 | 길이 0.2m, 원점 = 손잡이 | 없음 (반동은 B가 코드로) | B `scenes/weapons/pistol.tscn` |
 | `weapon_knife.glb` | 칼 탈출 연출 (PRD F-32) | 길이 0.25m, 원점 = 손잡이, 칼끝 = -Z | 없음 (찌르는 동작은 B가 코드로) | B `scripts/core/grab_system.gd` (WU-25) |
 | `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산. 물체 이름 `Crate`·`Parachute` 두 부분 (착지하면 B 가 `Parachute` 만 숨긴다) | 없음 | B `scenes/weapons/supply_drop.tscn` |
