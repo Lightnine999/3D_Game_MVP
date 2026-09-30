@@ -94,6 +94,7 @@ var _dead_t := 0.0
 var _killer: Node3D
 var _fall_from := Vector3.ZERO      # 쓰러지기 시작할 때의 카메라 각도
 var _fade: ColorRect
+var _blood: TextureRect             # 물릴 때 화면 가장자리에 튄 피 (assets/textures/fx/fx_blood_screen.png)
 var _dead_label: Label
 var _retry: Button                  # 사망 후 "다시 시작하겠습니까?" (누르면 처음부터)
 
@@ -136,6 +137,7 @@ func _ready() -> void:
 		if _play:
 			_showcase.catching = true                     # 좀비에게 잡힐 수 있다 (칼 1번, 그다음은 사망)
 			_showcase.knifed.connect(_on_knifed)
+			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.caught.connect(_on_caught)
 			_showcase.auto_fire = false                   # 사격은 스페이스바·FIRE 버튼으로 직접
 			_showcase.live_audio = true
@@ -203,6 +205,7 @@ func _on_caught(z: Node3D) -> void:
 func _death_cam(delta: float) -> void:
 	_dead_t += delta
 	var eye := Vector3(_x, EYE_HEIGHT, -_dist)
+	_blood.modulate.a = clampf(_dead_t / 0.25, 0.0, 1.0) * (0.9 + 0.1 * sin(_dead_t * 9.0))   # 물리는 순간 화면에 피가 튄다
 	if _dead_t < 1.4:
 		var head := _killer.global_position + Vector3(0, 1.35, 0) if is_instance_valid(_killer) else eye + Vector3(0, 0, -1)
 		var shake := Vector3(sin(_dead_t * 47.0), sin(_dead_t * 61.0), 0) * 0.03
@@ -353,6 +356,14 @@ func _build_overlay(holder: Node) -> void:
 	_label.add_theme_constant_override("shadow_offset_x", 3)
 	_label.add_theme_constant_override("shadow_offset_y", 3)
 	layer.add_child(_label)
+	_blood = TextureRect.new()
+	_blood.texture = load("res://assets/textures/fx/fx_blood_screen.png")
+	_blood.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_blood.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_blood.stretch_mode = TextureRect.STRETCH_SCALE
+	_blood.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_blood.modulate.a = 0.0
+	layer.add_child(_blood)
 	_fade = ColorRect.new()                              # 사망 연출: 블랙아웃
 	_fade.color = Color(0.0, 0.0, 0.0, 0.0)
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)

@@ -14,7 +14,8 @@ const SHOT_GAP := 0.45                        # 연사 간격 (초)
 
 const FIRST_ZOMBIE := 70.0                    # 첫 좀비 지점 (2026-09-30 "초반에 좀 더 걷다가") — 25 → 70m, 약 7초 걷고 나서 멀리 보인다
 const INTRO_SAFE := 3                         # 처음 이만큼은 풀숲에 엎드린 매복을 넣지 않는다 (안 보이다 갑자기 튀어나와 잡던 문제)
-const ZOMBIE_COUNT := 100                     # 스테이지(500m)에 100마리 (약 5m 마다 한 마리), 4종을 25마리씩 골고루
+const ZOMBIE_COUNT := 150                     # 스테이지(750m)에 150마리 (약 4.4m 마다 한 마리 — 500m·100마리 때 밀도), 4종을 골고루
+const SPAWN_AHEAD := 36.0                     # 이만큼 앞에서 나타난다 (달빛 테두리로 멀리서도 보인다)
 const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
 # 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 글록 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
@@ -25,23 +26,45 @@ const GLOCKS := [["G43", 6], ["G26", 10], ["G19", 15], ["G17", 17], ["G17 확장
 const RELOAD_TIME := 1.5                      # 재장전 기본 시간 (초) + 탄창이 클수록 조금 더 (30발 = 2.1초)
 const RELOAD_PER_ROUND := 0.02
 # 초록 불빛 보급 (2026-09-30 추가): 하늘에서 초록 불을 뿜으며 낙하산으로 내려오고, 땅에 놓인 것 앞을 지나가면 총알 충전
-const GREEN_AT := [60.0, 140.0, 220.0, 300.0, 410.0]   # 달린 거리 (500m 기준)
+const GREEN_AT := [60.0, 140.0, 220.0, 300.0, 410.0]   # 달린 거리 (500m 기준 → × STAGE_LENGTH / 500)
 const DROP_AHEAD := 55.0                      # 이만큼 앞에서 떨어지기 시작 → 착지할 때 약 30m 앞 (PRD F-20: 40-60m 앞 착지에 가깝게)
 const DROP_HEIGHT := 20.0
 const DROP_SPEED := 4.0                       # 낙하 속도 (m/s)
 const PICK_X := 2.3                           # 옆으로 이 거리 안을 지나가면 줍는다
 const PICK_Z := 1.6
 const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자 지점 (1000m 기준 → × StageBuilderV2.DS, PRD F-22)
-# 이동 속도 (m/s) — 2026-09-30 "너무 정적": 무게·크기에 따라 강·중·약, 한 마리마다 범위 안에서 무작위
-#   러너(가볍다) 강 / 워커·매복(보통) 중 / 탱커(무겁고 크다) 약 — 탱커는 가까워지면 돌진해 빨라진다
-const SPEED := {"walker": [2.0, 3.0], "runner": [4.2, 5.6], "tank": [1.3, 1.9], "ambusher": [2.6, 3.6]}
+# 좀비 행동 (2026-09-30 "액션·스피드·모션을 다양하게"): 모델 4종은 그대로, 한 마리마다 행동 스타일을 무작위로 고른다
+#   shamble 비틀비틀 걷기 / jog 뛰어오기 / sprint 전력 질주 / idle 서 있다가 가까워지면 출발 / crawl 기어 오기
+#   crawl_run 빠르게 기어 오기 / rise 누워 있다가 일어나 달려오기 / stomp 탱커(가까워지면 포효 후 돌진)
+#   무게·크기에 따라 강·중·약: 러너(가볍다) 빠른 스타일 위주, 워커·매복(보통) 중간, 탱커(무겁다) 느림
+const STYLES := {
+	"walker": [["shamble", 40], ["jog", 25], ["idle", 15], ["crawl", 20]],
+	"runner": [["sprint", 50], ["jog", 25], ["crawl_run", 25]],
+	"tank": [["stomp", 100]],
+	"ambusher": [["rise", 55], ["jog", 25], ["crawl", 20]],
+}
+const STYLE_SPEED := {"shamble": [1.6, 2.6], "jog": [2.6, 3.8], "sprint": [4.2, 5.8], "idle": [1.8, 3.2], "crawl": [0.9, 1.4],
+	"crawl_run": [2.2, 3.2], "rise": [3.8, 5.0], "stomp": [1.3, 1.9], "event": [5.4, 6.6]}
 const TANK_CHARGE := 1.8                      # 탱커 돌진 배율
-const RUN_ANIM_FROM := 2.4                    # 이보다 빠르면 달리기 동작 (run 없는 탱커는 걷기를 빠르게)
+const RISE_AT := 28.0                         # 누운 좀비가 일어나기 시작하는 거리 (일어나는 데 약 2.7초 — 멀리서 보인다)
+const IDLE_WAKE := [13.0, 20.0]               # 서 있던 좀비가 출발하는 거리
+# 사이드 질주 이벤트 (2026-09-30): 가끔 빠른 좀비 2-3마리가 양옆 멀리서 먼저 비명을 질러 알리고 대각선으로 달려든다
+const EVENT_FROM := 130.0                     # 첫 이벤트 지점
+const EVENT_GAP := [70.0, 110.0]              # 이벤트 사이 거리
+const EVENT_AHEAD := 38.0                     # 이만큼 앞, 옆으로 8-11m 떨어진 곳에서 나타난다 (갑자기 튀어나오지 않게)
+const SCREAM_TIME := 0.9                      # 달려들기 전에 비명을 지르며 멈춰 있는 시간
+# 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
+const ANIM_PACK := "res://assets/models/zombie_anims.glb"
+const PACK_HIPS := 96.29514                   # 팩 뼈대의 엉덩이 높이 (뼈대 좌표, cm) — 좀비마다 키 비율로 맞춘다
+const PACK_LOOPS := ["p_walk", "p_run", "p_crawl", "p_crawl_run", "p_idle", "p_bite", "p_bite2", "p_neck_bite", "p_attack"]
+const GRAB_ANIMS := ["attack", "pack/p_attack", "pack/p_bite", "pack/p_bite2", "pack/p_neck_bite"]
+const DEATH_ANIMS := ["death", "pack/p_death", "pack/p_dying"]
 const HOMING_LOCK := 3.0                      # 이만큼 가까워지면 더는 방향을 틀지 않는다 → 옆으로 비키면 피할 수 있다
 const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 → 2발 (2026-09-30 "너무 세다")
 
 signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 연출 (stage_preview)
 signal knifed                                 # 칼로 잡은 좀비를 죽이고 벗어났다
+signal tripped                                # 기는 좀비가 발목을 잡았다 → 잠깐 휘청 (풀에 묻혀 안 보이니 죽이지는 않는다)
 
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
 var catching := false                         # 플레이 테스트: 좀비가 플레이어를 잡을 수 있다
@@ -58,8 +81,8 @@ var _grace_t := 0.0
 var _hud_knife: TextureRect
 var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
 var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
-const SFX_DB := -6.0                          # 효과음 절반 크기 (2026-09-30 "소리가 크다")
-const BGM_DB := -12.0                         # 배경음도 절반 (-6 → -12)
+const SFX_DB := -7.94                         # 효과음: 절반(-6dB) → 거기서 20% 더 줄임(×0.8 = -1.94dB) (2026-09-30 "아직 크다")
+const BGM_DB := -13.94                        # 배경음도 같은 비율로 (-12 → -13.94)
 const FIRE_RANGE := 30.0                      # 직접 쏠 때 닿는 거리
 const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서 옆으로 이만큼(+거리 × 0.06) 안에 있으면 맞는다
 var _builder: StageBuilderV2
@@ -71,6 +94,9 @@ var _plan: Array = []                         # [나타날 지점(달린 거리)
 var _next_wave := 0
 var _next_crate := 0
 var _next_green := 0
+var _next_event := EVENT_FROM
+static var _libs := {}                        # 종류 → 동작 라이브러리 (한 번만 만든다)
+static var _pack: AnimationPlayer
 var _mag := START_MAG                         # 탄창에 든 총알
 var _mag_cap := START_MAG                     # 지금 총의 탄창 크기
 var _reserve := 0                             # 예비탄
@@ -107,6 +133,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		bag[i] = bag[j]
 		bag[j] = t
 	_intro_order(bag)
+	_next_event = EVENT_FROM + _rng.randf_range(0.0, 20.0)
 	for i in ZOMBIE_COUNT:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
@@ -250,14 +277,17 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	_hud_tick.position.x = LINE_W * k - 1.5
 	_gun_toast_t -= delta
 	_hud_gun.modulate.a = clampf(_gun_toast_t / 0.5, 0.0, 1.0)   # 2.5초 떠 있다가 마지막 0.5초에 사라진다
-	while _next_wave < _plan.size() and dist >= _plan[_next_wave][0] - 34.0:   # 34m 앞에서 나타난다
-		_spawn_wave([_plan[_next_wave][0], _plan[_next_wave][1], 1], dist, cam_x)
+	while _next_wave < _plan.size() and dist >= _plan[_next_wave][0] - SPAWN_AHEAD:
+		_spawn(_plan[_next_wave][1], "", _plan[_next_wave][0] - dist, NAN, dist, cam_x)
 		_next_wave += 1
+	if dist >= _next_event and dist < StageBuilderV2.STAGE_LENGTH - 60.0:
+		_sprint_event(dist, cam_x)
+		_next_event += _rng.randf_range(EVENT_GAP[0], EVENT_GAP[1])
 	while _next_crate < SUPPLY_AT.size() and dist >= SUPPLY_AT[_next_crate] * StageBuilderV2.DS - DROP_AHEAD:
 		_drop_crate(SUPPLY_AT[_next_crate] * StageBuilderV2.DS, false)
 		_next_crate += 1
-	while _next_green < GREEN_AT.size() and dist >= GREEN_AT[_next_green] - DROP_AHEAD:
-		_drop_crate(GREEN_AT[_next_green], true)
+	while _next_green < GREEN_AT.size() and dist >= GREEN_AT[_next_green] * StageBuilderV2.STAGE_LENGTH / 500.0 - DROP_AHEAD:
+		_drop_crate(GREEN_AT[_next_green] * StageBuilderV2.STAGE_LENGTH / 500.0, true)
 		_next_green += 1
 	_update_crates(dist, cam_x, delta)
 	_update_zombies(dist, cam_x, delta)
@@ -268,29 +298,121 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 		reload()                                         # 탄창이 비고 예비탄이 있으면 저절로 재장전 (2026-09-30 피드백 — 게이지 없이 총을 내렸다 올리는 동작만)
 
 
-func _spawn_wave(w: Array, dist: float, cam_x: float) -> void:
-	var kind: String = w[1]
-	for i in int(w[2]):
-		var z: Node3D = load("res://assets/models/zombie_%s.glb" % kind).instantiate()
-		var ahead: float = float(w[0]) - dist + (0.0 if kind != "ambusher" else -12.0)   # 매복은 더 가까이 엎드려 있다
-		var x := clampf(cam_x + _rng.randf_range(-3.5, 3.5), -4.5, 4.5)
-		if kind == "runner":
-			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(10.0, 14.0)   # 옆에서 대각선으로 (F-41)
-		add_child(z)
-		_add_rim(z)
-		var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
-		var e := {"node": z, "ap": ap, "kind": kind, "hp": HP[kind], "state": "move", "x": x, "d": dist + ahead + i * 1.8, "t": 0.0,
-			"spd": _rng.randf_range(SPEED[kind][0], SPEED[kind][1])}
-		if kind == "ambusher":
-			ap.play("getup")                              # 풀숲에 엎드린 자세로 멈춰 둔다 (F-43)
+# 좀비 한 마리: kind 모델, style 행동 (비우면 무작위), ahead 앞 거리, x 가로 위치 (NAN 이면 내 근처 무작위)
+func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, cam_x: float) -> Dictionary:
+	if style.is_empty():
+		style = _pick_style(kind)
+	var z: Node3D = load("res://assets/models/zombie_%s.glb" % kind).instantiate()
+	add_child(z)
+	_add_rim(z)
+	var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
+	var sk: Skeleton3D = z.find_children("*", "Skeleton3D", true, false)[0]
+	if not ap.has_animation_library("pack"):
+		ap.add_animation_library("pack", _lib_for(kind, sk))
+	for n in ["walk", "run", "idle"]:                    # 가져온 동작은 한 번만 재생하고 멈춘다 → 반복으로 (굳은 채 미끄러져 오던 버그)
+		if ap.has_animation(n):
+			ap.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+	if is_nan(x):
+		x = clampf(cam_x + _rng.randf_range(-3.5, 3.5), -4.5, 4.5)
+		if style == "sprint":
+			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(9.0, 12.0)   # 옆에서 대각선으로 (F-41)
+	var e := {"node": z, "ap": ap, "kind": kind, "style": style, "hp": HP[kind], "state": "move", "x": x, "d": dist + ahead, "t": 0.0,
+		"spd": _rng.randf_range(STYLE_SPEED[style][0], STYLE_SPEED[style][1]), "low": style.begins_with("crawl")}
+	e["walk"] = "walk" if _rng.randf() < 0.5 else "pack/p_walk"       # 같은 스타일이라도 걸음걸이·뛰는 폼을 섞는다
+	e["run"] = "run" if ap.has_animation("run") and _rng.randf() < 0.5 else "pack/p_run"
+	match style:
+		"rise":
+			ap.play("getup" if ap.has_animation("getup") else "pack/getup")   # 땅에 누운 자세로 멈춰 둔다
 			ap.seek(0.0, true)
 			ap.pause()
 			e["state"] = "lie"
-		else:
-			_move_anim(e, e["spd"])
+		"idle":
+			ap.play("pack/p_idle")
+			ap.speed_scale = _rng.randf_range(0.8, 1.2)
+			ap.seek(_rng.randf() * 3.0, true)
+			e["state"] = "idle"
+			e["wake"] = _rng.randf_range(IDLE_WAKE[0], IDLE_WAKE[1])
+		_:
+			_move_anim(e)
 			ap.seek(_rng.randf() * 0.8, true)             # 무리가 똑같이 걷지 않게 시작 시점을 흩뜨린다
-		_zombies.append(e)
-		_place(e)
+	_zombies.append(e)
+	_place(e)
+	return e
+
+
+func _pick_style(kind: String) -> String:
+	var total := 0
+	for st in STYLES[kind]:
+		total += st[1]
+	var r := _rng.randi() % total
+	for st in STYLES[kind]:
+		r -= st[1]
+		if r < 0:
+			return st[0]
+	return STYLES[kind][0][0]
+
+
+# 사이드 질주: 양옆 멀리(8-11m)에서 2-3마리가 비명을 지르고 대각선으로 달려든다
+func _sprint_event(dist: float, cam_x: float) -> void:
+	var n := _rng.randi_range(2, 3)
+	var side := -1.0 if _rng.randf() < 0.5 else 1.0
+	for i in n:
+		var sx := side if i < 2 else -side                  # 셋째는 반대쪽에서
+		var e := _spawn("runner" if _rng.randf() < 0.6 else "walker", "event", EVENT_AHEAD + i * 2.5 + _rng.randf_range(-1.0, 1.0),
+			sx * _rng.randf_range(8.0, 11.0), dist, cam_x)
+		var ap: AnimationPlayer = e["ap"]
+		ap.play("pack/p_scream")
+		ap.speed_scale = 1.0
+		e["state"] = "scream"
+		e["t"] = -i * 0.25                                   # 한 마리씩 차례로 비명
+	_sfx("sfx_zombie_scream")
+	print("[event] %.0fm 옆에서 %d마리 질주" % [dist, n])
+
+
+# 동작 라이브러리: 팩 동작(뼈 이름 mixamorig10_ → mixamorig_)을 이 좀비 키에 맞춰 제자리 동작으로 바꾼다
+# + 매복 모델에만 있던 getup 을 다른 좀비도 쓰게 넣는다. 종류마다 한 번만 만든다
+func _lib_for(kind: String, sk: Skeleton3D) -> AnimationLibrary:
+	if _libs.has(kind):
+		return _libs[kind]
+	if _pack == null:
+		var holder: Node3D = load(ANIM_PACK).instantiate()
+		_pack = holder.find_children("*", "AnimationPlayer", true, false)[0]
+	var hips := absf(sk.get_bone_rest(0).origin.z)
+	var lib := AnimationLibrary.new()
+	for n in _pack.get_animation_list():
+		lib.add_animation(n, _retarget(_pack.get_animation(n), hips / PACK_HIPS, "mixamorig10_", n in PACK_LOOPS))
+	if kind != "ambusher":
+		var amb: Node3D = load("res://assets/models/zombie_ambusher.glb").instantiate()
+		var amb_ap: AnimationPlayer = amb.find_children("*", "AnimationPlayer", true, false)[0]
+		var amb_sk: Skeleton3D = amb.find_children("*", "Skeleton3D", true, false)[0]
+		lib.add_animation("getup", _retarget(amb_ap.get_animation("getup"), hips / absf(amb_sk.get_bone_rest(0).origin.z), "mixamorig_", false))
+		amb.free()
+	_libs[kind] = lib
+	return lib
+
+
+# 동작 한 개 옮기기: 엉덩이만 위치를 남기고(키 비율로), 앞뒤·좌우로 가는 움직임은 지운다 (게임이 직접 옮긴다)
+# 다른 뼈의 위치·크기 트랙은 버린다 — 뼈 길이가 팩 캐릭터 것으로 바뀌어 몸이 일그러지지 않게
+func _retarget(src: Animation, ratio: float, prefix: String, loop: bool) -> Animation:
+	var a := Animation.new()
+	a.length = src.length
+	a.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
+	for t in src.get_track_count():
+		var typ := src.track_get_type(t)
+		var path := str(src.track_get_path(t)).replace(prefix, "mixamorig_")
+		var hip := path.ends_with(":mixamorig_Hips")
+		if typ == Animation.TYPE_SCALE_3D or (typ == Animation.TYPE_POSITION_3D and not hip):
+			continue
+		var nt := a.add_track(typ)
+		a.track_set_path(nt, NodePath(path))
+		a.track_set_interpolation_type(nt, src.track_get_interpolation_type(t))
+		var first: Vector3 = src.track_get_key_value(t, 0) if typ == Animation.TYPE_POSITION_3D else Vector3.ZERO
+		for k in src.track_get_key_count(t):
+			var v = src.track_get_key_value(t, k)
+			if typ == Animation.TYPE_POSITION_3D:
+				v = Vector3(first.x * ratio, first.y * ratio, v.z * ratio)   # 뼈대 좌표: z 가 높이, x·y 는 바닥 방향
+			a.track_insert_key(nt, src.track_get_key_time(t, k), v)
+	return a
 
 
 # 달빛 테두리를 입힌다 (scenes/fx/zombie_rim.gdshader). 같은 모델끼리 재질을 같이 쓰므로 재질마다 한 번만
@@ -324,18 +446,25 @@ func _intro_order(bag: Array) -> void:
 					break
 
 
-# 속도에 맞는 동작: 빠르면 달리기, 느리면 걷기 — 재생 속도도 발이 미끄러져 보이지 않게 맞춘다
-func _move_anim(e: Dictionary, spd: float) -> void:
+# 스타일·속도에 맞는 동작 — 재생 속도도 발이 미끄러져 보이지 않게 맞춘다
+func _move_anim(e: Dictionary, spd := -1.0) -> void:
 	var ap: AnimationPlayer = e["ap"]
-	for a in ["walk", "run"]:                             # 가져온 동작은 한 번만 재생하고 멈춘다 → 반복으로 (굳은 채 미끄러져 오던 버그)
-		if ap.has_animation(a):
-			ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
-	if spd >= RUN_ANIM_FROM and ap.has_animation("run"):
-		ap.play("run")
-		ap.speed_scale = clampf(spd / 4.8, 0.55, 1.3)
-	else:
-		ap.play("walk")
-		ap.speed_scale = clampf(spd / 1.2, 0.8, 2.2)
+	if spd < 0.0:
+		spd = e["spd"]
+	match e["style"]:
+		"crawl":
+			ap.play("pack/p_crawl")
+			ap.speed_scale = clampf(spd / 1.1, 0.7, 1.6)
+		"crawl_run":
+			ap.play("pack/p_crawl_run")
+			ap.speed_scale = clampf(spd / 2.6, 0.7, 1.4)
+		_:
+			if spd >= 2.5 and (e["kind"] != "tank"):
+				ap.play(e["run"])
+				ap.speed_scale = clampf(spd / 4.8, 0.6, 1.35)
+			else:
+				ap.play(e["walk"])
+				ap.speed_scale = clampf(spd / 1.2, 0.8, 2.2)
 
 
 func _place(e: Dictionary) -> void:
@@ -354,22 +483,57 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 		var ap: AnimationPlayer = e["ap"]
 		e["t"] += delta
 		match e["state"]:
-			"lie":
-				if ahead < 9.0:                            # 8m 안에 들어오면 일어난다 (F-43)
+			"lie":                                         # 누워 있다가 멀리서(28m) 일어난다 → 달려온다
+				_place(e)
+				if ahead < RISE_AT:
 					e["state"] = "getup"
 					e["t"] = 0.0
-					ap.play("getup")
-					_sfx("sfx_zombie_scream")
+					ap.play(ap.assigned_animation)
+					ap.speed_scale = 1.9
+					ap.seek(ap.current_animation_length * 0.3, true)   # 가장 느린 앞부분은 건너뛴다
+					_sfx("sfx_zombie_groan")
+				elif ahead < -2.0:
+					z.queue_free()
 			"getup":
-				if e["t"] > ap.current_animation_length * 0.9:
+				_place(e)
+				if ap.current_animation_position > ap.current_animation_length * 0.93 or not ap.is_playing():
 					e["state"] = "move"
-					_move_anim(e, e["spd"])
+					e["style"] = "sprint"
+					_move_anim(e)
+					_sfx("sfx_zombie_scream")
+			"idle":                                        # 서서 두리번거리다가 가까워지면 출발
+				_place(e)
+				if ahead < e["wake"]:
+					e["state"] = "move"
+					e["style"] = "shamble" if e["spd"] < 2.6 else "jog"
+					_move_anim(e)
+					if _rng.randf() < 0.4:
+						_sfx("sfx_zombie_groan")
+			"scream":                                      # 사이드 질주 전: 멈춰서 비명
+				_place(e)
+				if e["t"] > SCREAM_TIME:
+					e["state"] = "move"
+					e["style"] = "sprint"
+					_move_anim(e)
+			"roar":                                        # 탱커 돌진 전 포효
+				_place(e)
+				if e["t"] > 0.8:
+					e["state"] = "move"
+					_move_anim(e, e["spd"] * TANK_CHARGE)
+			"stagger":                                     # 한 발 맞고 휘청 (탱커)
+				if e["t"] > 0.45:
+					e["state"] = "move"
+					_move_anim(e, e["spd"] * (TANK_CHARGE if e.get("charging", false) else 1.0))
 			"move":
 				var spd: float = e["spd"]
-				if e["kind"] == "tank" and ahead < 16.0 and not e.get("charging", false):   # 탱커 돌진 (PRD F-42, WU-20b)
+				if e["style"] == "stomp" and ahead < 16.0 and not e.get("charging", false):   # 탱커 돌진 (PRD F-42): 포효하고 달려든다
 					e["charging"] = true
-					_move_anim(e, spd * TANK_CHARGE)
+					e["state"] = "roar"
+					e["t"] = 0.0
+					ap.play("pack/p_scream")
+					ap.speed_scale = 1.4
 					_sfx("sfx_zombie_groan")
+					continue
 				if e.get("charging", false):
 					spd *= TANK_CHARGE
 				if e.get("passed", false):                 # 지나친 좀비: 더는 쫓지 않고 가던 방향으로 계속 간다 (뒤돌지 않는다)
@@ -393,6 +557,12 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					var dx := absf(e["x"] - cam_x)
 					var cover := clampf((ZOMBIE_W * 0.5 + PLAYER_W * 0.5 - dx) / PLAYER_W, 0.0, 1.0)
 					if catching and cover >= COVER_TO_GRAB and _grace_t <= 0.0:
+						if e.get("low", false):                # 기는 좀비: 풀에 묻혀 잘 안 보인다 → 발목만 잡고 휘청하게 (사망 없음)
+							e["passed"] = true
+							_grace_t = 0.8
+							_sfx("sfx_bite")
+							tripped.emit()
+							continue
 						_grab(e, dist, cam_x)
 						continue
 					if cover <= 0.0:
@@ -402,6 +572,11 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 				if auto_fire and ahead < SHOOT_RANGE and ahead > 1.5 and (_mag > 0 or INFINITE_AMMO) and _reload_left <= 0.0 and _shot_cd <= 0.0:
 					_shoot(e)
 			"dead":
+				if e.has("pool_t"):
+					e["pool_t"] -= delta
+					if e["pool_t"] <= 0.0:
+						e.erase("pool_t")
+						CardFX.blood_pool(self, Vector3(z.global_position.x, 0.0, z.global_position.z), _rng.randf_range(1.3, 1.9))
 				if ahead < -4.0:
 					z.queue_free()
 			"grab":
@@ -419,9 +594,8 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 			_hud_knife.modulate = Color(1, 1, 1, 0.2)      # 칼 다 씀
 		_sfx("sfx_knife")
 		BulletHitFX.spawn(self, z.global_position + Vector3(0, 1.3, 0), z.global_position - _camera.global_position, 1.6)
-		e["state"] = "dead"
+		_kill(e, z.global_position + Vector3(0, 1.3, 0), 1.6)
 		e["passed"] = true
-		ap.play("death")
 		_grace_t = KNIFE_GRACE
 		print("[knife] %.0fm 칼로 벗어남" % dist)
 		knifed.emit()
@@ -432,10 +606,13 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 	_hud_layer.visible = false                             # 사망 연출에는 HUD 를 치운다 (블랙아웃 + DEAD 만)
 	e["x"] = cam_x
 	_place(e)
-	if ap.has_animation("attack"):
-		ap.get_animation("attack").loop_mode = Animation.LOOP_LINEAR
-		ap.play("attack")
+	var bite: String = GRAB_ANIMS[_rng.randi() % GRAB_ANIMS.size()]   # 무는 동작 5가지 중 하나
+	if ap.has_animation(bite):
+		ap.get_animation(bite).loop_mode = Animation.LOOP_LINEAR
+		ap.play(bite)
+	e["low"] = false
 	_sfx("sfx_bite")
+	CardFX.blood_splash(self, _camera.global_position + (z.global_position + Vector3(0, 1.4, 0) - _camera.global_position) * 0.6, 1.4)
 	print("[caught] %.0fm %s 에게 잡힘 (칼 없음)" % [dist, e["kind"]])
 	caught.emit(z)
 
@@ -509,26 +686,49 @@ func _shoot(e: Dictionary) -> void:
 		return                                            # 빗나감 (조준선 앞에 좀비 없음)
 	var z: Node3D = e["node"]
 	# 착탄 섬광·불똥 + 핏방울·피 안개 (엔진에서 만든 이펙트, scenes/fx/bullet_hit.gd)
-	var hit_at := z.global_position + Vector3(_rng.randf_range(-0.12, 0.12), (1.35 if e["kind"] != "tank" else 1.75) + _rng.randf_range(-0.15, 0.15), 0)
+	var hy: float = 0.35 if e.get("low", false) else (1.75 if e["kind"] == "tank" else 1.35)   # 기는 좀비는 낮게 맞는다
+	var hit_at := z.global_position + Vector3(_rng.randf_range(-0.12, 0.12), hy + _rng.randf_range(-0.15, 0.15), 0)
 	BulletHitFX.spawn(self, hit_at, hit_at - _camera.global_position, 1.3 if e["kind"] == "tank" else 1.0)
+	var near_k := clampf(hit_at.distance_to(_camera.global_position) / 6.0, 0.35, 1.0)   # 코앞이면 작게 (화면을 붉은 원이 덮지 않게)
+	CardFX.blood_splash(self, hit_at, (1.5 if e["kind"] == "tank" else 1.1) * near_k)   # 피 튐 카드 (2026-09-30 "피가 안 보인다")
 	e["hp"] -= 1
 	if e["hp"] <= 0:
-		e["state"] = "dead"
-		e["ap"].speed_scale = 1.0
-		e["ap"].play("death")
+		_kill(e, hit_at, 1.0)
+	elif e["state"] == "move":
+		e["state"] = "stagger"                             # 탱커 첫 발: 휘청
+		e["t"] = 0.0
+		if e["ap"].has_animation("hit"):
+			e["ap"].play("hit")
+			e["ap"].speed_scale = 1.6
+
+
+# 쓰러뜨림: 죽는 동작 3가지 중 하나 + 큰 피 튐 + 잠깐 뒤 바닥 핏자국 (몇 초 뒤 사라진다)
+func _kill(e: Dictionary, at: Vector3, k: float) -> void:
+	var z: Node3D = e["node"]
+	var ap: AnimationPlayer = e["ap"]
+	e["state"] = "dead"
+	ap.speed_scale = 1.0
+	var dn: String = "death" if e.get("low", false) else DEATH_ANIMS[_rng.randi() % DEATH_ANIMS.size()]
+	ap.play(dn if ap.has_animation(dn) else "death")
+	CardFX.blood_splash(self, at + Vector3(0, 0.1, 0), 1.7 * k)
+	e["pool_t"] = 0.9                                      # 쓰러지고 나서 바닥에 핏자국 (_update_zombies 의 dead)
+
+
+# 보급 상자 (2026-09-30): 풀(1m)에 묻혀 안 보이던 0.6m 상자를 2배(1.2m)로 → 땅에 놓이면 박스가 보인다. 충돌 없음 (그냥 지나가며 줍는다)
+# 연기·불꽃은 카드 시퀀스 신호탄 (scenes/fx/card_fx.gd) — 떨어지는 동안부터 불똥을 뿜는다. 밑에 깔리던 검은 원판(옛 연기 장면)은 뺐다
+const CRATE_SCALE := 2.0
 
 
 func _drop_crate(d: float, green: bool) -> void:
 	var c: Node3D = load("res://assets/models/prop_supply_crate.glb").instantiate()
 	add_child(c)
+	c.scale = Vector3.ONE * CRATE_SCALE
 	var x := _free_x(d)
 	var e := {"node": c, "d": d, "x": x, "y": DROP_HEIGHT, "landed": false, "taken": false, "green": green, "smoke": null}
 	c.position = Vector3(x, DROP_HEIGHT, -d)
-	if green:                                             # 초록 불빛: 떨어지는 동안부터 뿜는다 (멀리서도 보이게)
-		var fx: Node3D = load("res://scenes/fx/smoke_green.tscn").instantiate()
-		c.add_child(fx)
-		fx.play(60.0)
-		e["smoke"] = fx
+	var fx := CardFX.flare(c, green)
+	fx.scale = Vector3.ONE / CRATE_SCALE                  # 상자 크기와 상관없이 이펙트는 제 크기
+	e["smoke"] = fx
 	_crates.append(e)
 
 
@@ -562,11 +762,6 @@ func _update_crates(dist: float, cam_x: float, delta: float) -> void:
 				var chute := n.find_child("Parachute", true, false)
 				if chute:
 					chute.visible = false                  # 착지하면 낙하산만 숨긴다 (TECH_SPEC 13.3.1)
-				if not c["green"]:
-					var smoke: Node3D = load("res://scenes/fx/smoke_red.tscn").instantiate()
-					n.add_child(smoke)
-					smoke.play()
-					c["smoke"] = smoke
 		# 땅에 놓인 상자 앞(옆 PICK_X 안)을 지나가면 줍는다 → 글록 한 정 (탄창 크기 무작위). 멀리 비켜 가면 못 줍는다
 		elif absf(c["d"] - dist) < PICK_Z and absf(c["x"] - cam_x) < PICK_X:
 			c["taken"] = true

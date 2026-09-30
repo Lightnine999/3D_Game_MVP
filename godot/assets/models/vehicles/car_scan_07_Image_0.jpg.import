@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://132p11oifpjr"
-path="res://.godot/imported/car_scan_07_Image_0.jpg-49451f268ef8f6c3295ee9a040e18e29.ctex"
+path.s3tc="res://.godot/imported/car_scan_07_Image_0.jpg-49451f268ef8f6c3295ee9a040e18e29.s3tc.ctex"
+path.etc2="res://.godot/imported/car_scan_07_Image_0.jpg-49451f268ef8f6c3295ee9a040e18e29.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "2284ffd3baed0ab7098c9b80bbdf4aae"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/vehicles/car_scan_07_Image_0.jpg"
-dest_files=["res://.godot/imported/car_scan_07_Image_0.jpg-49451f268ef8f6c3295ee9a040e18e29.ctex"]
+dest_files=["res://.godot/imported/car_scan_07_Image_0.jpg-49451f268ef8f6c3295ee9a040e18e29.s3tc.ctex", "res://.godot/imported/car_scan_07_Image_0.jpg-49451f268ef8f6c3295ee9a040e18e29.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

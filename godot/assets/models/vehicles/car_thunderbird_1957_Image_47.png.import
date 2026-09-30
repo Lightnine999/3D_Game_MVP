@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://xkww6el3b6s5"
-path="res://.godot/imported/car_thunderbird_1957_Image_47.png-1b42c17365beec1168b318ef2d2e8d3e.ctex"
+path.s3tc="res://.godot/imported/car_thunderbird_1957_Image_47.png-1b42c17365beec1168b318ef2d2e8d3e.s3tc.ctex"
+path.etc2="res://.godot/imported/car_thunderbird_1957_Image_47.png-1b42c17365beec1168b318ef2d2e8d3e.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "2461484506dfe4a592c5738731c43c68"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/vehicles/car_thunderbird_1957_Image_47.png"
-dest_files=["res://.godot/imported/car_thunderbird_1957_Image_47.png-1b42c17365beec1168b318ef2d2e8d3e.ctex"]
+dest_files=["res://.godot/imported/car_thunderbird_1957_Image_47.png-1b42c17365beec1168b318ef2d2e8d3e.s3tc.ctex", "res://.godot/imported/car_thunderbird_1957_Image_47.png-1b42c17365beec1168b318ef2d2e8d3e.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -71,6 +71,7 @@
 | zombie scream | 애니메이션 → `scream` (Scary Zombie Pack 포함) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_ambusher.glb` |
 | FuzZombie | 캐릭터 (워커, 경찰복, 키 2.044 → 1.85 m, 그림 2048 → 1024) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb`, `art/ui/hud_mock_*.png` (HUD 시안 배경 그림, 게임에는 안 들어감) |
 | Getting Up | 애니메이션 → `getup` (제자리로 변환) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_ambusher.glb` |
+| Scary Zombie Pack 동작 12종 (zombie walk·run·running crawl·zombie crawl·attack·biting·biting (2)·neck bite·death·dying·idle·scream) | 애니메이션 → `p_walk` `p_run` `p_crawl_run` `p_crawl` `p_attack` `p_bite` `p_bite2` `p_neck_bite` `p_death` `p_dying` `p_idle` `p_scream` (제자리로 변환, 뼈 이름 mixamorig10 → mixamorig, 캐릭터 Ch28 은 쓰지 않음) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-30 | `godot/assets/models/zombie_anims.glb` (원본 FBX 는 `art/source/scary_zombie_pack/`, 커밋 안 함 · 변환 `tools/assets/pack_zombie_anims.py`) |
 
 ## 사운드
 | 에셋명 | 종류 | 출처 URL | 제작자 | 라이선스 | 상업 이용 | 크레딧 표기 위치 | 다운로드일 | 사용 위치 (파일) |

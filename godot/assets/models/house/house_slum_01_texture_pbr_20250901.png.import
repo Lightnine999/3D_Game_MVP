@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://53vbiq2e0p3i"
-path="res://.godot/imported/house_slum_01_texture_pbr_20250901.png-ef397e24e73b2cf52184c2b041ae237e.ctex"
+path.s3tc="res://.godot/imported/house_slum_01_texture_pbr_20250901.png-ef397e24e73b2cf52184c2b041ae237e.s3tc.ctex"
+path.etc2="res://.godot/imported/house_slum_01_texture_pbr_20250901.png-ef397e24e73b2cf52184c2b041ae237e.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b82ecfa00c205988d4cc91b1bcaf763b"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/house/house_slum_01_texture_pbr_20250901.png"
-dest_files=["res://.godot/imported/house_slum_01_texture_pbr_20250901.png-ef397e24e73b2cf52184c2b041ae237e.ctex"]
+dest_files=["res://.godot/imported/house_slum_01_texture_pbr_20250901.png-ef397e24e73b2cf52184c2b041ae237e.s3tc.ctex", "res://.godot/imported/house_slum_01_texture_pbr_20250901.png-ef397e24e73b2cf52184c2b041ae237e.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

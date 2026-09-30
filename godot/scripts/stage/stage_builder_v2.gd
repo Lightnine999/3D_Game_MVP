@@ -17,22 +17,24 @@
 class_name StageBuilderV2
 extends Node3D
 
-const STAGE_LENGTH := 500.0           # 1000 → 500 (2026-09-30 레벨 디자인: 좀비 100마리가 루즈해서 절반으로 압축)
+const STAGE_LENGTH := 750.0           # 1000 → 500 → 750 (2026-09-30: 500m 는 판이 너무 짧다 → 750m + 좀비 150마리, 밀도는 500m 때 그대로)
 const DS := STAGE_LENGTH / 1000.0     # 1000m 시절 지점 → 지금 지점 (구간·랜드마크 위치는 비율 그대로)
 const LANE_HALF := 6.0                # 이동 가능 폭 ±6m (PRD F-07)
 const WORLD_HALF := 48.0
 const CHUNK := 50.0
 const DRAW_RANGE := 68.0              # 이보다 먼 것은 그리지 않음 (안개가 이미 가림)
-const RIVER_Z0 := 340.0               # 강 (달린 거리 기준 → 남은 거리 160-140m)
-const RIVER_Z1 := 360.0               # 강 폭 20m (다리가 짧아야 긴장감)
-const TREE_PACK := 2                  # 500m 압축: 나무 수는 1000m 때 그대로 → 50m 조각마다 2배
+const RIVER_Z0 := STAGE_LENGTH * 0.68 # 강 (전체의 68% 지점 — 500m 때 340m 와 같은 비율, 750m 면 510m)
+const RIVER_Z1 := RIVER_Z0 + 20.0     # 강 폭 20m (다리가 짧아야 긴장감)
+# 나무 밀도: 1000m 시절 50m 조각당 수의 몇 배인지. 500m 때 2배 → 750m 는 1.5배 (전체 나무는 약 12%만 늘고,
+# 겹쳐 뭉친 숲·바깥 카드 나무가 조각마다 25% 줄어든다 — 2026-09-30 "겹치거나 외곽에 뭉친 나무는 빼 줘")
+const TREE_DENSITY := 1.5
 
 # 안개·하늘: 앞쪽(분홍 노을) → 뒤쪽(무거운 회색)으로 점점 바뀐다
 const FOG_NEAR := Color8(59, 71, 82)      # 짙은 청회색 안개 (FOREST TOUR 톤, 사용자 선택 2026-09-29)
 const FOG_FAR := Color8(66, 72, 80)
 # [달린 거리, 표지판 글자(남은 거리)]
-const SIGNS := [[0.0, "500m\nSTART"], [100.0, "400m ->\nDENSE\nWOODS"], [200.0, "300m ->\nVILLAGE\nCENTER"],
-	[300.0, "200m ->\nBROKEN\nBRIDGE"], [400.0, "100m ->\nPATH TO\nOBJECTIVE"]]
+# 구간 표지판: 전체를 5구간으로 나눈 경계마다 (거리는 STAGE_LENGTH 에서 계산 — _build_signs)
+const SIGN_TEXT := ["START", "DENSE\nWOODS", "VILLAGE\nCENTER", "BROKEN\nBRIDGE", "PATH TO\nOBJECTIVE"]
 
 var obstacles: Array[Dictionary] = []   # 미리보기 카메라 회피용: {z(양수 거리), x, half_width}
 var _rng := RandomNumberGenerator.new()
@@ -206,8 +208,8 @@ const GRASS_RANGE := 85.0      # 풀 조각(50m)을 그리는 거리 — 안개�
 
 
 func _trees_chunk(d0: float, zone: int) -> void:
-	var groves: int = [3, 4, 3, 3, 2][zone] * TREE_PACK
-	var singles: int = [7, 8, 6, 6, 6][zone] * TREE_PACK
+	var groves: int = _dense([3, 4, 3, 3, 2][zone])
+	var singles: int = _dense([7, 8, 6, 6, 6][zone])
 	for g in groves:
 		var cx := _side() * _rng.randf_range(LANE_HALF + 2.0, TREE_3D_NEAR - 1.0)
 		var cd := d0 + _rng.randf() * CHUNK
@@ -218,10 +220,16 @@ func _trees_chunk(d0: float, zone: int) -> void:
 			_tree(Vector3(cx + cos(a) * r, 0, -(cd + sin(a) * r)))
 	for i in singles:
 		_tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 1.5, TREE_3D_NEAR), 0, -(d0 + _rng.randf() * CHUNK)))
-	for k in TREE_PACK:
+	for k in _dense(1):
 		if _rng.randf() < 0.5:                            # 오래된 그루터기
 			var sx := _side() * _rng.randf_range(LANE_HALF + 1.0, 11.0)
 			_spawn("stump_old_01", Vector3(sx, 0, -(d0 + _rng.randf() * CHUNK)), _rng.randf() * 360.0, _rng.randf_range(0.8, 1.3), true, TREE_3D_RANGE)
+
+
+# 1000m 시절 개수 n × TREE_DENSITY (소수점은 확률로 반올림 — 조각마다 들쭉날쭉하게)
+func _dense(n: int) -> int:
+	var f := n * TREE_DENSITY
+	return int(f) + (1 if _rng.randf() < f - int(f) else 0)
 
 
 func _tree(pos: Vector3) -> Node3D:
@@ -488,7 +496,9 @@ func _build_zone_objective() -> void:
 
 
 func _build_signs() -> void:
-	for s in SIGNS:
+	for k in SIGN_TEXT.size():
+		var at := STAGE_LENGTH / 5.0 * k
+		var s := [at, ("%dm\n" % int(STAGE_LENGTH) if k == 0 else "%dm ->\n" % int(STAGE_LENGTH - at)) + SIGN_TEXT[k]]
 		var d: float = s[0] + (8.0 if s[0] == 0.0 else 0.0)
 		var sign := _spawn("v2_sign", Vector3(LANE_HALF + 0.6, 0, -d), -8.0)
 		var label := Label3D.new()
@@ -507,7 +517,7 @@ func _build_signs() -> void:
 #       어느 카드든 빠져나갈 틈(GAP_MIN 이상)이 반드시 한 군데는 있다.
 # 차 수는 1000m 시절과 같다(63대). 길옆에 흩어져 있던 차를 달리는 폭 안으로 끌어와 장애물로 쓴다.
 # 모든 차·소품은 _build_colliders 에서 충돌 상자를 받는다 → 뚫고 지나갈 수 없다.
-const CAR_TOTAL := 63             # 1000m 시절 3D 차 수 (길 안 26 + 길옆 37, 2026-09-30 세어 봄)
+const CAR_TOTAL := 84             # 1000m 시절 63대 (길 안 26 + 길옆 37) → 750m 로 늘리며 84대 (500m 때 밀도를 유지, 2026-09-30)
 const CAR_FIXED := 4              # 스쿨버스·강에 빠진 트럭·강 속 빨간 차·다리 위 차
 const CAR_ROADSIDE := 12          # 길 바로 옆에 남기는 차 (나머지는 전부 달리는 폭 안의 장애물)
 const GAP_MIN := 2.4              # 빠져나갈 틈 최소 폭 (플레이어 폭 0.7m + 여유)
@@ -1009,11 +1019,11 @@ func _build_card_props() -> void:
 	if "cards" in _perf_off: return
 	var d0 := 0.0
 	while d0 < STAGE_LENGTH:
-		for i in 72 * TREE_PACK:                          # 나무 카드 (500m 압축: 수 유지 → 조각마다 2배) (크기 랜덤) — 40%는 가까운 쪽, 나머지는 멀리 (96 → 72: 폰 FPS)
+		for i in _dense(72):                              # 나무 카드 (크기 랜덤) — 40%는 가까운 쪽, 나머지는 멀리 (96 → 72: 폰 FPS)
 			var tx := _side() * (_rng.randf_range(CARD_MIN_X, 24.0) if _rng.randf() < 0.4 else lerpf(24.0, CARD_FAR_X, _rng.randf()))
 			var td := d0 + _rng.randf() * CHUNK
 			_card_at(_pick_card(CardProps.TREES, tx, td), tx, td, _rng.randf_range(0.5, 1.6), true)
-		for i in 8 * TREE_PACK:                           # 그루터기·잔가지 더미·뿌리
+		for i in _dense(8):                               # 그루터기·잔가지 더미·뿌리
 			var gx := _side() * _rng.randf_range(CARD_MIN_X, 22.0)
 			var gd := d0 + _rng.randf() * CHUNK
 			_card_at(_pick_card(CardProps.GROUND, gx, gd), gx, gd, _rng.randf_range(0.8, 1.2), true)
