@@ -26,7 +26,7 @@ const PICK_X := 2.3                           # 옆으로 이 거리 안을 지�
 const PICK_Z := 1.6
 const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자 지점 (1000m 기준 → × StageBuilderV2.DS, PRD F-22)
 const SPEED := {"walker": 1.2, "runner": 4.5, "tank": 0.8, "ambusher": 1.5}   # PRD 4.5 이동 속도 (m/s)
-const HP := {"walker": 1, "runner": 1, "tank": 4, "ambusher": 1}
+const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 → 2발 (2026-09-30 "너무 세다")
 
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
 var _builder: StageBuilderV2
@@ -242,10 +242,9 @@ func _shoot(e: Dictionary) -> void:
 	flash.position = MUZZLE
 	flash.play()
 	var z: Node3D = e["node"]
-	var blood: Node3D = load("res://scenes/fx/hit_blood.tscn").instantiate()
-	add_child(blood)
-	blood.global_position = z.global_position + Vector3(0, 1.3 if e["kind"] != "tank" else 1.7, 0)
-	blood.play()
+	# 착탄 섬광·불똥 + 핏방울·피 안개 (엔진에서 만든 이펙트, scenes/fx/bullet_hit.gd)
+	var hit_at := z.global_position + Vector3(_rng.randf_range(-0.12, 0.12), (1.35 if e["kind"] != "tank" else 1.75) + _rng.randf_range(-0.15, 0.15), 0)
+	BulletHitFX.spawn(self, hit_at, hit_at - _camera.global_position, 1.3 if e["kind"] == "tank" else 1.0)
 	e["hp"] -= 1
 	if e["hp"] <= 0:
 		e["state"] = "dead"

@@ -554,6 +554,8 @@ func _build_obstacles() -> void:
 var _last_s := 1.0
 var _clear_side := 0.0            # 이 카드에서 반드시 비워 둘 쪽 (-1 왼쪽 / +1 오른쪽 / 0 없음 — 벽 카드는 틈을 직접 만든다)
 const CLEAR_W := GAP_MIN + 0.4    # 비워 둘 폭 (달리는 폭 가장자리에서)
+const START_CLEAR := 40.0         # 출발 구간: 이 안의 뒤집힌 차는 가운데를 비운다
+const START_GAP := 1.2            # 가운데에서 이만큼은 비운다 (좌우 각각)
 
 
 # s = 장애물이 몰린 쪽 (빈 틈은 반대쪽). 70%는 직전 카드와 반대 → 좌우로 번갈아 파고들게 만든다
@@ -658,6 +660,10 @@ func _car(model: String, x: float, d: float, yaw: float, pose: String) -> Dictio
 		_align(info, -LANE_HALF + CLEAR_W, 1.0)
 	elif _clear_side > 0.0 and info["x1"] > LANE_HALF - CLEAR_W:
 		_align(info, LANE_HALF - CLEAR_W, -1.0)
+	# 출발 직후(40m 안) 뒤집힌 차는 정중앙을 막지 않게 옆으로 밀어낸다 (2026-09-30 피드백: 시작하자마자 정면에 뒤집힌 차)
+	if pose == "flipped" and d < START_CLEAR and info["x0"] < START_GAP and info["x1"] > -START_GAP:
+		var sd := signf(info["x"]) if absf(info["x"]) > 0.01 else _side()
+		_align(info, sd * START_GAP, sd)
 	obstacles.append(info["ob"])
 	return info
 

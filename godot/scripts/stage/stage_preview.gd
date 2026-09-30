@@ -26,6 +26,7 @@ const PLAYER_RADIUS := 0.35
 # 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
 const SLIDE_SPEED := 3.2    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
 const SLIDE_HOLD := 0.35    # 한 번 막히면 이 시간 동안 미끄러짐을 이어 간다 (초)
+const SLIDE_FORWARD := 0.25 # 미끄러지는 동안 앞으로 가는 속도 비율
 const JUMP_MAX := 0.8       # 이보다 낮은 장애물(타이어·가방·잔해)은 자동으로 뛰어넘는다 (m)
 const JUMP_LOOK := 1.3      # 낮은 장애물이 이만큼 앞에 오면 뛴다 (m)
 const JUMP_SPEED := 5.2     # 뛰어오르는 속도 (m/s) → 최고 약 0.97m, 체공 약 0.74초
@@ -57,6 +58,7 @@ var _vy := 0.0                      # 점프 세로 속도
 var _slide_t := 0.0                 # 미끄러짐 남은 시간
 var _slide_x := 0.0                 # 미끄러져 갈 x (가장 가까운 틈)
 var _jumps := 0                     # 자동 점프 횟수 (통과 검사 기록용)
+var _grounded := true               # 땅이나 낮은 물건(가방·상자) 위에 서 있다
 
 
 func _ready() -> void:
@@ -193,6 +195,7 @@ func _lane() -> float:
 func _step(delta: float) -> void:
 	_time += delta
 	var vx := 0.0
+	var vz := RUN_SPEED
 	if _play:
 		var key := 0.0
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -207,16 +210,20 @@ func _step(delta: float) -> void:
 	if _slide_t > 0.0:                                   # 막혀서 미끄러지는 중: 조작보다 우선 (조작 안 해도 빠져나간다)
 		_slide_t -= delta
 		vx = clampf((_slide_x - _x) * 6.0, -SLIDE_SPEED, SLIDE_SPEED)
+		vz = RUN_SPEED * SLIDE_FORWARD                    # 비스듬한 차 면을 계속 밀면 반대로 밀려나 옆걸음이 막힌다 → 앞으로는 살살
 		_steer_target = _x                                # 손을 떼도 제자리로 끌려가지 않게
 	_auto_jump()
-	if _body.position.y > 0.0 or _vy > 0.0:
+	if (_body.position.y > 0.0 and not _grounded) or _vy > 0.0:
 		_vy -= GRAVITY * delta
+	elif _body.position.y > 0.0:
+		_vy = -0.5                                        # 짐 위에 서 있다: 살짝 눌러서 가장자리를 벗어나면 떨어지게
 	else:
 		_vy = 0.0
-	_move_body(Vector3(vx, _vy, -RUN_SPEED) * delta)
+	_move_body(Vector3(vx, _vy, -vz) * delta)
 	if _body.position.y <= 0.0 and _vy <= 0.0:             # 착지 (막 뛰어오르려는 순간은 건드리지 않는다)
 		_body.position.y = 0.0
 		_vy = 0.0
+		_grounded = true
 	_bump = maxf(_bump - delta * 3.0, 0.0)
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
@@ -284,13 +291,16 @@ func _move_body(motion: Vector3) -> void:
 		var vcol := _body.move_and_collide(Vector3(0.0, motion.y, 0.0))
 		if vcol and motion.y < 0.0:
 			_vy = 0.0                                     # 낮은 것 위에 내려앉음 → 그 위로 계속 달린다
+			_grounded = true
+		else:
+			_grounded = false
 	motion.y = 0.0
 	for i in 4:
 		var col := _body.move_and_collide(motion)
 		if col == null:
 			break
 		var n := col.get_normal()
-		if n.y > 0.3 and _body.position.y <= 0.05:        # 낮은 것의 모서리·비탈(타이어·잔해)에 걸렸다 → 폴짝 넘는다
+		if n.y > 0.3 and _grounded:                       # 낮은 것의 모서리·비탈(타이어·잔해)에 걸렸다 → 폴짝 넘는다
 			_vy = JUMP_SPEED
 		n.y = 0.0
 		n = n.normalized() if n.length() > 0.01 else Vector3.BACK
@@ -303,8 +313,12 @@ func _move_body(motion: Vector3) -> void:
 			_slide_t = SLIDE_HOLD
 		elif n.z > 0.5:
 			_slide_t = SLIDE_HOLD                          # 아직 막혀 있으면 미끄러짐 연장
-			if absf(_slide_x - _x) < 0.15:                   # 목표에 왔는데도 막힘(가장자리 등) → 반대쪽으로
-				_slide_x = clampf(_x - signf(_x if _x != 0.0 else 1.0) * 3.0, -_lane(), _lane())
+			if absf(_slide_x - _x) < 0.15:                   # 목표에 왔는데도 막힘(가장자리 등) → 반대쪽 틈으로
+				var far := -signf(_x if _x != 0.0 else 1.0) * _lane()
+				var g2 := _gap_x(_dist + 1.0, 6.0, far)
+				_slide_x = g2 if not is_nan(g2) and absf(g2 - _x) > 0.3 else clampf(_x + signf(far) * 3.0, -_lane(), _lane())
+				if _grounded:
+					_vy = JUMP_SPEED                              # 끼었으면 한 번 뛰어 본다 (낮은 짐 더미 위로)
 	_body.position.x = clampf(_body.position.x, -_lane(), _lane())
 	var moved := before.z - _body.position.z
 	if moved < want * 0.3 and _time > 0.5 and _bump <= 0.0:
@@ -316,14 +330,15 @@ func _move_body(motion: Vector3) -> void:
 
 # 바로 앞(JUMP_LOOK 안)에 낮은 장애물이 몸과 겹치면 저절로 뛴다 — 사용자는 점프를 조작하지 않는다
 func _auto_jump() -> void:
-	if _body.position.y > 0.01:
+	if not _grounded:
 		return
 	for ob in _builder.obstacles:
 		if ob.get("top", 9.0) >= JUMP_MAX:
 			continue
 		var ahead: float = ob["z"] - ob.get("half_depth", 1.0) - _dist
-		if ahead > 0.0 and ahead < JUMP_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
+		if ahead > -0.3 and ahead < JUMP_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
 			_vy = JUMP_SPEED
+			_grounded = false
 			_jumps += 1
 			return
 
