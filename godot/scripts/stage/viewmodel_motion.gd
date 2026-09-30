@@ -16,7 +16,7 @@ extends Node3D
 signal reloaded
 
 const MODEL := "res://assets/models/weapon_pistol.glb"
-const REST_POS := Vector3(0.11, -0.12, -0.38)   # 카메라 기준 오른쪽 아래 (WU-23 "화면 오른쪽 아래"). 손이 너무 크게 보이지 않을 만큼 떨어뜨림
+const REST_POS := Vector3(0.025, -0.12, -0.38)   # 카메라 기준 오른쪽 아래 (WU-23 "화면 오른쪽 아래"). 손이 너무 크게 보이지 않을 만큼 떨어뜨림
 const REST_YAW := deg_to_rad(12.0)              # 총구를 안쪽으로 → 총 오른쪽 면과 오른손 등이 보인다
 const REST_ROLL := deg_to_rad(6.0)              # 총 윗면을 살짝 왼쪽으로 기울여 → 오른손 등이 화면 쪽을 향한다
 const MUZZLE := Vector3(0.0, 0.055, -0.160)     # 손잡이 원점에서 총구 (make_pistol.py 출력)

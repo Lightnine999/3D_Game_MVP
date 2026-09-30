@@ -14,7 +14,7 @@ var _gun: Node3D         # 총만 (손은 빼고)
 var _label: Label
 var _gun_pos := Vector3.ZERO      # 총을 손에 대해 옮긴 거리 (m, 총 기준: x 오른쪽, y 위, z 뒤)
 var _gun_rot := Vector3.ZERO      # 총을 돌린 각도 (도: x 위아래, y 좌우, z 기울임)
-var _vm_pos := Vector3(0.11, -0.12, -0.38)
+var _vm_pos := Vector3(0.025, -0.12, -0.38)
 var _vm_rot := Vector3(0, 12, 6)
 
 

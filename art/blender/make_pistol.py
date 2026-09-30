@@ -47,7 +47,7 @@ def parse_args():
                                      "RightHandMiddle1=-10,0,0;RightHandRing1=-10,0,0;RightHandPinky1=-10,0,0",
                    # 검지·엄지는 총 쪽으로 감되 손잡이 속으로 파고들지 않게, 나머지 세 손가락은 살짝 펴 손잡이 표면에 닿게
                    help="손가락 관절을 더 구부리는 각도. '뼈이름=x,y,z;...' (도). 예: RightHandIndex1=0,0,-20")
-    p.add_argument("--gun-nudge", default="0,0,0,0,0,0",
+    p.add_argument("--gun-nudge", default="-0.023,0,0,0,0,0",   # 2026-09-30 사용자가 조정 화면에서 맞춘 값 (엄지 쪽으로 23 mm)
                    help="조정 화면(grip_tuner)에서 찾은 값: 총을 손에 대해 옮긴 거리(m)·각도(도), Godot 기준 x,y,z,위아래,좌우,기울임")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",
