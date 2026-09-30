@@ -20,7 +20,8 @@ const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
 # 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 글록 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
 # 새 탄창 크기가 된다. 받은 총알은 예비탄으로 쟁여 두고 R(폰 RELOAD)로 재장전한다 — 재장전은 시간이 걸린다
-const LINE_W := 360.0                         # 진행 실선 길이 (px)
+const LINE_W := 200.0                         # 진행 실선 길이 (px) — 왼쪽 위 거리 숫자 아래
+const HUD_WHITE := Color(0.96, 0.95, 0.93)    # HUD 흰색 (살짝 따뜻한 흰색 — 순백은 노을 화면에서 튄다)
 const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
 const GLOCKS := [["G43", 6], ["G26", 10], ["G19", 15], ["G17", 17], ["G17 확장탄창", 24], ["G18 롱탄창", 30]]   # [모델, 탄창]
 const RELOAD_TIME := 1.5                      # 재장전 기본 시간 (초) + 탄창이 클수록 조금 더 (30발 = 2.1초)
@@ -110,7 +111,7 @@ var _shot_cd := 0.0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 var _hud_layer: CanvasLayer
-var _hud_ammo: Label
+var _hud_bullets: Control
 var _hud_reserve: Label
 var _hud_gun: Label
 var _hud_pistol: TextureRect
@@ -119,7 +120,6 @@ var _hud_line_done: ColorRect                 # 진행 실선: 지나온 쪽 (�
 var _hud_tick: ColorRect                      # 진행 작대기
 var _gun_toast_t := 0.0
 var _tex_pistol: Texture2D
-var _tex_pistol_empty: Texture2D
 
 
 func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
@@ -159,82 +159,135 @@ func _build_hud(holder: Node) -> void:
 	holder.add_child(layer)
 	_hud_layer = layer
 	var w := 1560.0
-	var panel := Panel.new()                           # 무기 표시 (PRD F-78): 최상단 가운데
-	panel.position = Vector2(w / 2 - 150, 18)
-	panel.size = Vector2(300, 62)
-	panel.self_modulate = Color(0.12, 0.13, 0.14, 0.7)
-	layer.add_child(panel)
-	_tex_pistol = _icon("icon_pistol.png")
-	_tex_pistol_empty = _icon("icon_pistol_empty.png")
+	# HUD (2026-09-30 "인투더데드2 처럼 깔끔한 흰색"): 어두운 상자 없이 흰색만. 가운데 위 = 장전된 총알 줄 | 예비탄,
+	# 그 아래 = 권총·칼 흰 실루엣. 왼쪽 위 = 남은 거리(m) + 바로 아래 진행 실선. 굵고 좁은 글꼴 하나로 통일
+	var heavy := SystemFont.new()
+	heavy.font_names = PackedStringArray(["Impact", "Arial Narrow", "Arial Black", "Roboto Condensed", "sans-serif"])
+	heavy.font_weight = 800
+	_hud_bullets = Control.new()                       # 총알 줄 (쏠 때마다 하나씩 사라진다 — _draw_bullets)
+	_hud_bullets.position = Vector2(w / 2 - 250, 22)
+	_hud_bullets.size = Vector2(500, 44)
+	_hud_bullets.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_bullets.draw.connect(_draw_bullets)
+	layer.add_child(_hud_bullets)
+	_hud_reserve = Label.new()                         # 예비탄 숫자 (총알 줄 오른쪽, 세로줄 뒤)
+	_hud_reserve.add_theme_font_override("font", heavy)
+	_hud_reserve.add_theme_font_size_override("font_size", 50)
+	_white_label(_hud_reserve)
+	layer.add_child(_hud_reserve)
+	_tex_pistol = _white_icon("icon_pistol.png")
 	_hud_pistol = TextureRect.new()
-	_hud_pistol.texture = _tex_pistol_empty
+	_hud_pistol.texture = _tex_pistol
 	_hud_pistol.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_hud_pistol.position = Vector2(10, 1)
-	_hud_pistol.size = Vector2(60, 60)
-	panel.add_child(_hud_pistol)
-	_hud_ammo = Label.new()
-	_hud_ammo.position = Vector2(78, 6)
-	_hud_ammo.add_theme_font_size_override("font_size", 38)
-	panel.add_child(_hud_ammo)
-	_hud_reserve = Label.new()                         # 예비탄 "/ 24"
-	_hud_reserve.position = Vector2(132, 18)
-	_hud_reserve.add_theme_font_size_override("font_size", 24)
-	_hud_reserve.add_theme_color_override("font_color", Color(0.75, 0.75, 0.72))
-	panel.add_child(_hud_reserve)
-	_hud_gun = Label.new()                             # 새 총을 주웠을 때만 잠깐 뜬다 (진행 실선 아래)
-	_hud_gun.position = Vector2(0, 100)
-	_hud_gun.size = Vector2(300, 24)
+	_hud_pistol.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_hud_pistol.position = Vector2(w / 2 - 70, 72)
+	_hud_pistol.size = Vector2(76, 54)
+	layer.add_child(_hud_pistol)
+	var knife := TextureRect.new()
+	knife.texture = _white_icon("icon_knife.png")
+	knife.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	knife.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	knife.position = Vector2(w / 2 + 22, 76)
+	knife.size = Vector2(50, 46)
+	layer.add_child(knife)
+	_hud_knife = knife
+	_hud_gun = Label.new()                             # 새 총을 주웠을 때만 잠깐 뜬다 (무기 아이콘 아래)
+	_hud_gun.position = Vector2(w / 2 - 150, 128)
+	_hud_gun.size = Vector2(300, 28)
 	_hud_gun.modulate.a = 0.0
 	_hud_gun.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud_gun.add_theme_font_size_override("font_size", 18)
-	_hud_gun.add_theme_color_override("font_color", Color(0.8, 0.8, 0.76))
-	panel.add_child(_hud_gun)
-
-	var knife := TextureRect.new()
-	knife.texture = _icon("icon_knife.png")
-	knife.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	knife.position = Vector2(235, 4)
-	knife.size = Vector2(55, 55)
-	panel.add_child(knife)
-	_hud_knife = knife
-	# 남은 거리: 왼쪽 위 큰 흰 숫자 (예전 방식, 2026-09-30 피드백)
+	_hud_gun.add_theme_font_size_override("font_size", 20)
+	_white_label(_hud_gun)
+	layer.add_child(_hud_gun)
+	# 남은 거리 (m): 왼쪽 위
 	_hud_dist = Label.new()
-	_hud_dist.position = Vector2(48, 28)
-	_hud_dist.add_theme_font_size_override("font_size", 56)
-	_hud_dist.add_theme_color_override("font_color", Color(0.92, 0.92, 0.9))
-	_hud_dist.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
-	_hud_dist.add_theme_constant_override("shadow_offset_x", 3)
-	_hud_dist.add_theme_constant_override("shadow_offset_y", 3)
+	_hud_dist.position = Vector2(44, 14)
+	_hud_dist.add_theme_font_override("font", heavy)
+	_hud_dist.add_theme_font_size_override("font_size", 66)
+	_white_label(_hud_dist)
 	layer.add_child(_hud_dist)
-	# 진행: 가는 실선 하나 위를 작대기 하나가 결승점 쪽으로 간다 (두꺼운 막대·상자 없이, 2026-09-30 디자인)
+	# 진행: 거리 숫자 바로 아래 가는 실선 + 작대기
 	var line := ColorRect.new()
-	line.position = Vector2(w / 2 - LINE_W / 2, 98)
+	line.position = Vector2(48, 98)
 	line.size = Vector2(LINE_W, 2)
-	line.color = Color(0.85, 0.81, 0.75, 0.28)
+	line.color = Color(1, 1, 1, 0.3)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(line)
 	_hud_line_done = ColorRect.new()
 	_hud_line_done.size = Vector2(0, 2)
-	_hud_line_done.color = Color(0.85, 0.81, 0.75, 0.7)
+	_hud_line_done.color = Color(1, 1, 1, 0.75)
 	line.add_child(_hud_line_done)
 	_hud_tick = ColorRect.new()
-	_hud_tick.size = Vector2(3, 16)
-	_hud_tick.position = Vector2(-1.5, -7)
-	_hud_tick.color = Color(0.93, 0.9, 0.84, 0.95)
+	_hud_tick.size = Vector2(3, 14)
+	_hud_tick.position = Vector2(-1.5, -6)
+	_hud_tick.color = Color(1, 1, 1, 0.95)
 	line.add_child(_hud_tick)
 	_refresh_ammo()
 
 
 func _refresh_ammo() -> void:
-	if INFINITE_AMMO:
-		_hud_ammo.text = "∞"
-		_hud_pistol.texture = _tex_pistol
-		return
-	_hud_ammo.text = str(_mag)
-	_hud_ammo.add_theme_color_override("font_color", Color(0.9, 0.25, 0.2) if _mag == 0 else Color(0.95, 0.95, 0.93))
-	_hud_reserve.text = "/ %d" % _reserve
+	_hud_bullets.queue_redraw()
+	_hud_reserve.text = "∞" if INFINITE_AMMO else str(_reserve)
+	var row_w := _bullet_row_width(_mag_cap)
+	_hud_reserve.position = Vector2(_hud_bullets.position.x + (_hud_bullets.size.x + row_w) * 0.5 + 18, 8)
 	_hud_gun.text = "%s  %d발 탄창" % [_gun_name, _mag_cap]
-	_hud_pistol.texture = _tex_pistol if _mag + _reserve > 0 else _tex_pistol_empty
+	_hud_pistol.modulate.a = 1.0 if (_mag + _reserve > 0 or INFINITE_AMMO) else 0.3   # 총알이 하나도 없으면 흐리게
+
+
+# 총알 줄: 탄창 크기가 클수록 촘촘하게 (6발 = 굵게, 30발 = 가늘게)
+func _bullet_dims(cap: int) -> Vector2:
+	return Vector2(10.0, 34.0) if cap <= 12 else (Vector2(8.0, 30.0) if cap <= 20 else Vector2(6.0, 26.0))
+
+
+func _bullet_row_width(cap: int) -> float:
+	var d := _bullet_dims(cap)
+	return cap * (d.x + d.x * 0.55) - d.x * 0.55
+
+
+# 장전된 총알만 그린다 (쏘면 하나씩 사라진다). 재장전 중에는 하나씩 다시 채워진다
+func _draw_bullets() -> void:
+	var shown := _mag
+	if _reload_left > 0.0:
+		var take := mini(_mag_cap - _mag, _reserve)
+		shown = _mag + int(take * clampf(1.0 - _reload_left / _reload_total, 0.0, 1.0))
+	var d := _bullet_dims(_mag_cap)
+	var gap := d.x * 0.55
+	var row_w := _bullet_row_width(_mag_cap)
+	var x0 := (_hud_bullets.size.x - row_w) * 0.5
+	var y0 := (_hud_bullets.size.y - d.y) * 0.5
+	for i in shown:
+		var x := x0 + i * (d.x + gap)
+		_bullet_shape(Vector2(x + 2, y0 + 2), d, Color(0, 0, 0, 0.35))   # 그림자
+		_bullet_shape(Vector2(x, y0), d, HUD_WHITE)
+	var bar_x := x0 + row_w + 9.0                        # 예비탄 앞 가는 세로줄
+	_hud_bullets.draw_rect(Rect2(bar_x, y0 - 2, 2, d.y + 4), Color(1, 1, 1, 0.55))
+
+
+# 총알 하나: 둥근 탄두 + 탄피, 사이에 가는 홈 한 줄
+func _bullet_shape(at: Vector2, d: Vector2, c: Color) -> void:
+	var r := d.x * 0.5
+	var tip_h := d.y * 0.36
+	_hud_bullets.draw_circle(at + Vector2(r, r), r, c)
+	_hud_bullets.draw_rect(Rect2(at + Vector2(0, r), Vector2(d.x, tip_h - r)), c)
+	_hud_bullets.draw_rect(Rect2(at + Vector2(0, tip_h + 1.5), Vector2(d.x, d.y - tip_h - 1.5)), c)
+
+
+func _white_label(l: Label) -> void:
+	l.add_theme_color_override("font_color", HUD_WHITE)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+	l.add_theme_constant_override("shadow_offset_x", 2)
+	l.add_theme_constant_override("shadow_offset_y", 2)
+
+
+# 아이콘을 흰 실루엣으로 (모양은 그대로, 색만 흰색)
+func _white_icon(name: String) -> Texture2D:
+	var img := Image.load_from_file(ProjectSettings.globalize_path(UI_DIR + name))
+	img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var a := img.get_pixel(x, y).a
+			img.set_pixel(x, y, Color(HUD_WHITE.r, HUD_WHITE.g, HUD_WHITE.b, a))
+	return ImageTexture.create_from_image(img)
 
 
 # 재장전 (탄창이 비면 저절로 · R 키 · RELOAD 버튼): 시간이 걸리고 그동안 못 쏜다
@@ -243,6 +296,7 @@ func reload() -> void:
 		return
 	_reload_total = RELOAD_TIME + RELOAD_PER_ROUND * _mag_cap
 	_reload_left = _reload_total
+	_refresh_ammo()
 	_sfx("sfx_ui_click")                                 # 탄창 빼는 소리
 	print("[reload] 시작 %.1f초 (탄창 %d / 예비 %d)" % [_reload_total, _mag, _reserve])
 
@@ -253,6 +307,7 @@ func _update_reload(delta: float) -> void:
 		_pistol.rotation_degrees.x = lerpf(_pistol.rotation_degrees.x, 6.0, minf(delta * 12.0, 1.0))
 		return
 	_reload_left -= delta
+	_hud_bullets.queue_redraw()
 	var k := 1.0 - _reload_left / _reload_total
 	var dip := sin(clampf(k, 0.0, 1.0) * PI)            # 총을 아래로 내렸다가 (탄창 갈고) 다시 올린다
 	_pistol.position = _pistol_rest + Vector3(0.02, -0.16, 0.05) * dip

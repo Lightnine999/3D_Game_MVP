@@ -289,14 +289,9 @@ func _build_pause_button(holder: Node) -> void:
 	_pause_btn.offset_right = -36
 	_pause_btn.offset_top = 26
 	_pause_btn.offset_bottom = 98
-	var circle := StyleBoxFlat.new()
-	circle.bg_color = Color(0.05, 0.05, 0.06, 0.38)
-	circle.set_corner_radius_all(36)
-	var round_hi := circle.duplicate() as StyleBoxFlat
-	round_hi.bg_color = Color(0.05, 0.05, 0.06, 0.6)
-	_pause_btn.add_theme_stylebox_override("normal", circle)
-	_pause_btn.add_theme_stylebox_override("hover", round_hi)
-	_pause_btn.add_theme_stylebox_override("pressed", round_hi)
+	var none := StyleBoxEmpty.new()                        # 배경 없이 흰 아이콘만 (HUD 흰색 통일, 2026-09-30)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		_pause_btn.add_theme_stylebox_override(st, none)
 	_pause_btn.draw.connect(_draw_pause_icon)
 	_pause_btn.pressed.connect(_toggle_pause)
 	layer.add_child(_pause_btn)
@@ -304,12 +299,15 @@ func _build_pause_button(holder: Node) -> void:
 
 func _draw_pause_icon() -> void:
 	var c := Vector2(36, 36)
-	var bone := Color8(233, 226, 214)
-	if get_tree().paused:                                  # ▶ 다시 달리기
-		_pause_btn.draw_colored_polygon(PackedVector2Array([c + Vector2(-9, -14), c + Vector2(-9, 14), c + Vector2(15, 0)]), bone)
-	else:                                                  # ❚❚ 일시정지
-		_pause_btn.draw_rect(Rect2(c + Vector2(-11, -14), Vector2(7, 28)), bone)
-		_pause_btn.draw_rect(Rect2(c + Vector2(4, -14), Vector2(7, 28)), bone)
+	var white := Color(0.96, 0.95, 0.93)
+	for pass_i in 2:                                       # 그림자 한 번 → 흰색 한 번
+		var o := Vector2(2, 2) if pass_i == 0 else Vector2.ZERO
+		var col := Color(0, 0, 0, 0.4) if pass_i == 0 else white
+		if get_tree().paused:                              # ▶ 다시 달리기
+			_pause_btn.draw_colored_polygon(PackedVector2Array([c + o + Vector2(-11, -18), c + o + Vector2(-11, 18), c + o + Vector2(19, 0)]), col)
+		else:                                              # ❚❚ 일시정지
+			_pause_btn.draw_rect(Rect2(c + o + Vector2(-14, -18), Vector2(10, 36)), col)
+			_pause_btn.draw_rect(Rect2(c + o + Vector2(4, -18), Vector2(10, 36)), col)
 
 
 func _toggle_pause() -> void:
