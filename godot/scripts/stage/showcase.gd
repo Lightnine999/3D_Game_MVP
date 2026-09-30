@@ -12,10 +12,10 @@ const MUZZLE := Vector3(0, 0.08, -0.166)       # weapon_pistol.glb 총구 위치
 const SHOOT_RANGE := 10.0                     # 이 거리 안에 들어온 좀비를 쏜다 (손 뻗고 다가오는 모습이 보이게 가까이)
 const SHOT_GAP := 0.45                        # 연사 간격 (초)
 
-const ZOMBIE_COUNT := 100                     # 1,000m 에 100마리 (약 10m 마다 한 마리), 4종을 25마리씩 골고루
+const ZOMBIE_COUNT := 100                     # 스테이지(500m)에 100마리 (약 5m 마다 한 마리), 4종을 25마리씩 골고루
 const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := true                   # 시연용: 총알 무한 (HUD 에 ∞)
-const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자가 떨어지는 지점 (약 150m 간격, PRD F-22)
+const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자 지점 (1000m 기준 → × StageBuilderV2.DS, PRD F-22)
 const SPEED := {"walker": 1.2, "runner": 4.5, "tank": 0.8, "ambusher": 1.5}   # PRD 4.5 이동 속도 (m/s)
 const HP := {"walker": 1, "runner": 1, "tank": 4, "ambusher": 1}
 
@@ -53,7 +53,8 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		bag[i] = bag[j]
 		bag[j] = t
 	for i in ZOMBIE_COUNT:
-		_plan.append([25.0 + i * 9.6 + _rng.randf_range(-3.0, 3.0), bag[i]])
+		var gap := (StageBuilderV2.STAGE_LENGTH - 45.0) / ZOMBIE_COUNT
+		_plan.append([25.0 + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
 	_pistol = load("res://assets/models/weapon_pistol.glb").instantiate()
 	_pistol.position = Vector3(0.03, -0.2, -0.46)       # 1인칭: 화면 가운데 아래 (살짝 틀어 총 옆모습이 보이게)
 	_pistol.rotation_degrees = Vector3(6, 14, -4)
@@ -134,8 +135,8 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_wave < _plan.size() and dist >= _plan[_next_wave][0] - 34.0:   # 34m 앞에서 나타난다
 		_spawn_wave([_plan[_next_wave][0], _plan[_next_wave][1], 1], dist, cam_x)
 		_next_wave += 1
-	while _next_crate < SUPPLY_AT.size() and dist >= SUPPLY_AT[_next_crate] - 28.0:
-		_drop_crate(SUPPLY_AT[_next_crate], cam_x)
+	while _next_crate < SUPPLY_AT.size() and dist >= SUPPLY_AT[_next_crate] * StageBuilderV2.DS - 28.0:
+		_drop_crate(SUPPLY_AT[_next_crate] * StageBuilderV2.DS, cam_x)
 		_next_crate += 1
 	_update_crates(dist, cam_x, delta)
 	_update_zombies(dist, cam_x, delta)

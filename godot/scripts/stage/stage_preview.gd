@@ -1,10 +1,12 @@
 # 스테이지 미리보기 — 주인: A
-# 1인칭 시점으로 초속 5m(PRD F-01) 자동 달리기를 흉내 내며 1,000m를 훑는다.
-# 앞 18m 안의 장애물을 보고 좌우로 피해 간다 (플레이어가 드래그로 피하는 모습 흉내).
+# 1인칭 시점으로 초속 5m(PRD F-01) 자동 달리기를 하며 500m를 달린다.
 #
-# 폰·PC 실행: 끝(1,000m)에 닿으면 처음으로 돌아가 반복
+# 플레이 테스트 (2026-09-30, 기본): 사용자가 직접 좌우로 피한다 — 레벨 디자인 확인용 (진짜 조작·판정은 B 담당)
+#   폰: 화면을 누른 채 좌우로 끌기 / PC: A·D 또는 ←·→ (마우스 끌기도 됨)
+#   차·소품에 부딪히면 막힌다 (뚫고 지나가지 못함). 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
+#   --auto: 예전처럼 알아서 피해 가는 자동 달리기 / --no-showcase: 좀비 없이 맵만
 # 영상 프레임: godot --path godot --resolution 1560x720 -- --frames=<폴더>
-#              → 1/30초씩 진행하며 그려진 장면을 JPG 6,000장으로 저장 후 종료 (ffmpeg로 mp4 조립)
+#              → 1/30초씩 진행하며 그려진 장면을 JPG(약 3,000장)로 저장 후 종료 (ffmpeg로 mp4 조립)
 #              Movie Maker를 쓰지 않는 이유: macOS가 가려진 창의 그리기를 건너뛰어 영상이 어긋났다
 #              실행 예: --resolution 320x148 --position 0,0 --always-on-top (구석의 작은 창, 영상은 1560x720)
 # 지점 캡처:   godot --path godot -- --shots=<폴더> [--dist=0,250,500,750,990]
@@ -17,7 +19,10 @@ const BOB_FREQ := 2.6       # 발걸음 주기 (Hz)
 const BOB_AMP := 0.05
 const LOOK_AHEAD := 18.0    # 이만큼 앞의 장애물부터 피하기 시작
 const DODGE_MARGIN := 1.1   # 장애물 옆으로 두는 여유 (m)
-const STEER_SPEED := 2.2    # 좌우 이동 속도 (m/s)
+const STEER_SPEED := 3.0    # 자동 달리기 좌우 이동 속도 (m/s) — 500m 압축 뒤 장애물이 촘촘해져 2.2 → 3.0
+const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
+const DRAG_WIDTH_M := 14.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
+const PLAYER_RADIUS := 0.35
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
 
@@ -32,8 +37,15 @@ var _frame_count := -1       # 테스트용: --count=N 이면 N장만
 var _frame_start := 0        # 이어 찍기: --start=N 이면 N번째 프레임부터 (앞부분은 그리지 않고 계산만)
 var _frame_vp: SubViewport   # 영상 모드: 창 크기와 상관없이 이 캔버스에 그린다
 var _shots_dir := ""
-var _shot_dists: Array[float] = [0.0, 250.0, 500.0, 750.0, 990.0]
+var _shot_dists: Array[float] = [0.0, 125.0, 250.0, 375.0, 490.0]
 var _showcase: ShowcaseDirector     # --showcase: 좀비·권총·보급·HUD 시연 연출 (scripts/stage/showcase.gd)
+var _body: CharacterBody3D          # 플레이어 몸 (충돌용 캡슐) — 차·소품에 막힌다
+var _play := false                  # 플레이 테스트: 사용자가 좌우 조작
+var _steer_target := 0.0
+var _touch_id := -1
+var _touch_x0 := 0.0
+var _steer_x0 := 0.0
+var _bump := 0.0                    # 부딪힌 순간 화면 흔들림
 
 
 func _ready() -> void:
@@ -56,16 +68,35 @@ func _ready() -> void:
 	_camera.far = 400.0                         # 180m 배경막(먼 산)과 120m 카드 숲까지 보이게 (60m 였을 때 모두 잘렸다)
 	holder.add_child(_camera)
 	_camera.make_current()
+	_build_body()
 	_build_overlay(holder)
-	if "--showcase" in OS.get_cmdline_user_args():
+	var args := OS.get_cmdline_user_args()
+	_play = _frames_dir.is_empty() and _shots_dir.is_empty() and not ("--auto" in args or "--sim" in args)
+	if "--showcase" in args or (_play and not ("--no-showcase" in args)):
 		_showcase = ShowcaseDirector.new()
 		add_child(_showcase)
 		_showcase.setup(_builder, _camera, holder)
-		_label.visible = false                      # 시연 HUD 가 남은 거리를 보여 준다
+		_label.position = Vector2(48, 640)          # 시연 HUD 가 남은 거리를 보여 준다 → 구석에 FPS 만
+		_label.add_theme_font_size_override("font_size", 28)
+		_label.visible = _play
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
 		_capture_shots()
+	elif "--sim" in args:
+		_simulate()
+
+
+# 통과 검사: 그리지 않고 자동 달리기만 끝까지 돌려 부딪힌 곳을 찍는다 (godot --headless --path godot -- --sim)
+func _simulate() -> void:
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	var steps := 0
+	while _dist < StageBuilderV2.STAGE_LENGTH and steps < 9000:
+		_step(1.0 / FRAME_FPS)
+		steps += 1
+	print("[sim] %s %.0fs (막힘 없으면 %.0fs)" % ["완주" if _dist >= StageBuilderV2.STAGE_LENGTH else "멈춤", steps / FRAME_FPS, StageBuilderV2.STAGE_LENGTH / RUN_SPEED])
+	get_tree().quit()
 
 
 func _parse_args() -> void:
@@ -84,6 +115,19 @@ func _parse_args() -> void:
 				_shot_dists.append(float(v))
 
 
+func _build_body() -> void:
+	_body = CharacterBody3D.new()
+	var shape := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = PLAYER_RADIUS
+	cap.height = 1.7
+	shape.shape = cap
+	shape.position.y = 0.9
+	_body.add_child(shape)
+	_body.safe_margin = 0.02
+	add_child(_body)
+
+
 func _build_overlay(holder: Node) -> void:
 	var layer := CanvasLayer.new()
 	holder.add_child(layer)
@@ -98,20 +142,59 @@ func _build_overlay(holder: Node) -> void:
 
 
 func _process(delta: float) -> void:
-	if not _frames_dir.is_empty() or not _shots_dir.is_empty():
-		return                                           # 캡처 모드는 아래 함수가 직접 한 걸음씩 진행
+	if not _frames_dir.is_empty() or not _shots_dir.is_empty() or "--sim" in OS.get_cmdline_user_args():
+		return                                           # 캡처·통과 검사는 아래 함수가 직접 한 걸음씩 진행
 	_step(delta)
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
-		_dist = 0.0
-		_x = 0.0
-	_label.text = "%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()]   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
+		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
+		return
+	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
 
-# 한 걸음 진행: 앞으로 달리고, 장애물을 보고 좌우로 비키고, 카메라를 흔든다
+# 플레이 테스트 조작: 누른 채 좌우로 끌기 (폰) / 마우스 끌기 (PC)
+func _unhandled_input(event: InputEvent) -> void:
+	if not _play:
+		return
+	var w := get_viewport().get_visible_rect().size.x
+	if event is InputEventScreenTouch:
+		if event.pressed and _touch_id == -1:
+			_touch_id = event.index
+			_touch_x0 = event.position.x
+			_steer_x0 = _steer_target
+		elif not event.pressed and event.index == _touch_id:
+			_touch_id = -1
+	elif event is InputEventScreenDrag and event.index == _touch_id:
+		_steer_target = _steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_touch_id = 0 if event.pressed else -1
+		_touch_x0 = event.position.x
+		_steer_x0 = _steer_target
+	elif event is InputEventMouseMotion and _touch_id == 0:
+		_steer_target = _steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M
+	_steer_target = clampf(_steer_target, -_lane(), _lane())
+
+
+func _lane() -> float:
+	return StageBuilderV2.LANE_HALF - PLAYER_RADIUS
+
+
+# 한 걸음 진행: 앞으로 달리고, 좌우로 비키고(사용자 조작 또는 자동), 차·소품에 막히면 멈칫, 카메라를 흔든다
 func _step(delta: float) -> void:
 	_time += delta
-	_dist += RUN_SPEED * delta
-	_x = move_toward(_x, _target_x(), STEER_SPEED * delta)
+	var vx := 0.0
+	if _play:
+		var key := 0.0
+		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
+			key -= 1.0
+		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
+			key += 1.0
+		if key != 0.0:
+			_steer_target = clampf(_x + key * 1.2, -_lane(), _lane())
+		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
+	else:
+		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
+	_move_body(Vector3(vx, 0.0, -RUN_SPEED) * delta)
+	_bump = maxf(_bump - delta * 3.0, 0.0)
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
 	if _showcase:
@@ -119,43 +202,85 @@ func _step(delta: float) -> void:
 	_label.text = "%dm" % StageBuilderV2.remaining(_dist)
 
 
-# 앞에 있는 가장 가까운 장애물을 보고, 그 옆으로 비켜설 x를 정한다
+# 자동 달리기: 앞에 있는 가장 가까운 장애물 "줄"(앞뒤 7m 안에 모인 것들)의 막힌 구간을 모아,
+# 빈 틈 가운데 지금 위치에서 가장 가까운 곳으로 비킨다 (차 두 대가 벽을 쌓고 틈이 하나뿐인 카드도 통과)
 func _target_x() -> float:
-	var nearest: Dictionary = {}
-	for ob in _builder.obstacles:
-		var ahead: float = ob["z"] - _dist
-		if ahead > -2.0 and ahead < LOOK_AHEAD:
-			if nearest.is_empty() or ob["z"] < nearest["z"]:
-				nearest = ob
+	if "--straight" in OS.get_cmdline_user_args():
+		return 0.0                                        # 충돌 검사용: 피하지 않고 가운데로만 (--sim --straight)
 	var wander := sin(_time * 0.35) * 1.2              # 장애물이 없으면 길 안에서 천천히 좌우로
-	if nearest.is_empty():
+	var near_z := INF
+	for ob in _builder.obstacles:
+		var hd: float = ob.get("half_depth", 1.0)
+		if ob["z"] + hd - _dist > -0.3 and ob["z"] - hd - _dist < LOOK_AHEAD:
+			near_z = minf(near_z, ob["z"])
+	if near_z == INF:
 		return wander
-	var ox: float = nearest["x"]
-	var clear: float = nearest["half_width"] + DODGE_MARGIN
-	if absf(_x - ox) >= clear:
-		return _x                                       # 이미 비켜서 있으면 그대로
-	var left := ox - clear
-	var right := ox + clear
-	var lane := StageBuilderV2.LANE_HALF - 0.5
-	if left < -lane:
-		return right
-	if right > lane:
-		return left
-	return left if absf(_x - left) < absf(_x - right) else right
+	var best := _gap_x(near_z, 7.0)
+	if is_nan(best):                                        # 7m 줄에 틈이 없으면(엇갈린 배치) 가장 가까운 것만 보고 비킨다
+		best = _gap_x(near_z, 1.5)
+	return _x if is_nan(best) else best
+
+
+# near_z 앞뒤 reach 안의 장애물이 막은 구간을 빼고, 남은 틈 중 지금 위치에서 가장 가까운 x (틈이 없으면 NAN)
+func _gap_x(near_z: float, reach: float) -> float:
+	var blocked: Array = []
+	for ob in _builder.obstacles:
+		var hd2: float = ob.get("half_depth", 1.0)
+		if absf(ob["z"] - near_z) < reach + hd2 and ob["z"] + hd2 - _dist > -0.3:
+			var m: float = ob["half_width"] + PLAYER_RADIUS + 0.35
+			blocked.append([ob["x"] - m, ob["x"] + m])
+	blocked.sort_custom(func(a, b): return a[0] < b[0])
+	var lane := _lane()
+	var best := NAN
+	var best_cost := INF
+	var start := -lane
+	for bl in blocked + [[lane, lane]]:
+		if bl[0] > start:                                  # [start, bl[0]] 이 빈 틈
+			var e0: float = bl[0]
+			var tx: float = clampf(_x, start + 0.1, e0 - 0.1) if e0 - start > 0.2 else (start + e0) * 0.5
+			var cost: float = absf(tx - _x)
+			if cost < best_cost:
+				best_cost = cost
+				best = tx
+		start = maxf(start, bl[1])
+	return best
+
+
+# 몸을 움직이고 부딪히면 벽을 따라 미끄러진다 (move_and_slide 는 물리 틱 간격을 써서, 영상의 1/30초 걸음과 맞지 않아 직접 계산)
+func _move_body(motion: Vector3) -> void:
+	var before := _body.position
+	var want := -motion.z
+	for i in 3:
+		var col := _body.move_and_collide(motion)
+		if col == null:
+			break
+		var n := col.get_normal()
+		n.y = 0.0
+		motion = col.get_remainder().slide(n.normalized()) if n.length() > 0.01 else Vector3.ZERO
+	_body.position.x = clampf(_body.position.x, -_lane(), _lane())
+	_body.position.y = 0.0
+	var moved := before.z - _body.position.z
+	if moved < want * 0.3 and _time > 0.5 and _bump <= 0.0:
+		_bump = 1.0                                       # 정면으로 막혔다 → 화면을 흔든다
+		print("[bump] %.1fm x=%.2f" % [-_body.position.z, _body.position.x])
+	_dist = -_body.position.z
+	_x = _body.position.x
 
 
 func _apply_camera(t: float) -> void:
 	# 발걸음 흔들림 + 살짝 좌우로 흔들리는 시선 (달리는 느낌)
 	var step := sin(t * TAU * BOB_FREQ)
 	var sway := sin(t * TAU * BOB_FREQ * 0.5)
-	_camera.position = Vector3(_x + sway * 0.04, EYE_HEIGHT + absf(step) * BOB_AMP, -_dist)
-	_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(sin(t * 0.35) * -4.0), deg_to_rad(sway * 0.6))
+	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
+	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + absf(step) * BOB_AMP, -_dist)
+	var look := 0.0 if _play else sin(t * 0.35) * -4.0      # 플레이 중에는 시선이 멋대로 돌지 않게
+	_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(look), deg_to_rad(sway * 0.6 + shake * 40.0))
 
 
 # 영상용: 1/30초씩 진행하며 한 장이 그려질 때마다 JPG로 저장 (창이 가려져 느려져도 프레임이 빠지거나 겹치지 않음)
 func _capture_frames() -> void:
 	DirAccess.make_dir_recursive_absolute(_frames_dir)
-	var total := int(StageBuilderV2.STAGE_LENGTH / RUN_SPEED * FRAME_FPS)
+	var total := int(StageBuilderV2.STAGE_LENGTH / RUN_SPEED * FRAME_FPS * 1.5)   # 부딪혀 멈칫한 만큼 길어진다 → 끝에 닿으면 멈춤
 	if _frame_count > 0:
 		total = _frame_count
 	for i in _frame_start:                               # 이어 찍기: 앞부분은 이동만 계산 (같은 경로가 되도록)
@@ -164,6 +289,9 @@ func _capture_frames() -> void:
 		await get_tree().process_frame
 	for i in range(_frame_start, total):
 		_step(1.0 / FRAME_FPS)
+		if _dist >= StageBuilderV2.STAGE_LENGTH and _frame_count <= 0:
+			total = i
+			break
 		# 카메라 이동은 다음 엔진 프레임에 렌더러로 전달된다 → 그 프레임이 다 그려질 때까지 기다린 뒤 저장
 		# (강제 그리기 force_draw는 옮기기 전 장면을 그려서 같은 장면이 반복 저장됐다)
 		await RenderingServer.frame_post_draw
@@ -183,6 +311,7 @@ func _capture_shots() -> void:
 	for d in _shot_dists:
 		_dist = d
 		_x = 0.0
+		_body.position = Vector3(0, 0, -d)
 		_builder.update_atmosphere(d)
 		_apply_camera(0.3)
 		_label.text = "%dm" % StageBuilderV2.remaining(d)
