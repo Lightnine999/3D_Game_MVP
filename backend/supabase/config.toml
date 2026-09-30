@@ -1,0 +1,26 @@
+# MVP Supabase CLI project. This is local configuration, not a Cloud deployment.
+project_id = "yh_3d_game_mvp"
+
+[functions.ensure-profile]
+verify_jwt = true
+
+[functions.sync-progress]
+verify_jwt = true
+
+[functions.create-toss-order]
+verify_jwt = true
+
+[functions.confirm-toss-payment]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.support-chat]
+verify_jwt = true
+
+[functions.admin-overview]
+verify_jwt = true
+
+[functions.admin-support-reply]
+verify_jwt = true
