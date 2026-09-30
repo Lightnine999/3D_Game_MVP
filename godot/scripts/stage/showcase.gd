@@ -12,6 +12,8 @@ const MUZZLE := Vector3(0, 0.08, -0.166)       # weapon_pistol.glb 총구 위치
 const SHOOT_RANGE := 10.0                     # 이 거리 안에 들어온 좀비를 쏜다 (손 뻗고 다가오는 모습이 보이게 가까이)
 const SHOT_GAP := 0.45                        # 연사 간격 (초)
 
+const FIRST_ZOMBIE := 70.0                    # 첫 좀비 지점 (2026-09-30 "초반에 좀 더 걷다가") — 25 → 70m, 약 7초 걷고 나서 멀리 보인다
+const INTRO_SAFE := 3                         # 처음 이만큼은 풀숲에 엎드린 매복을 넣지 않는다 (안 보이다 갑자기 튀어나와 잡던 문제)
 const ZOMBIE_COUNT := 100                     # 스테이지(500m)에 100마리 (약 5m 마다 한 마리), 4종을 25마리씩 골고루
 const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
@@ -101,9 +103,10 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		var t = bag[i]
 		bag[i] = bag[j]
 		bag[j] = t
+	_intro_order(bag)
 	for i in ZOMBIE_COUNT:
-		var gap := (StageBuilderV2.STAGE_LENGTH - 45.0) / ZOMBIE_COUNT
-		_plan.append([25.0 + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
+		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
+		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
 	_pistol = load("res://assets/models/weapon_pistol.glb").instantiate()
 	_pistol.position = Vector3(0.03, -0.2, -0.46)       # 1인칭: 화면 가운데 아래 (살짝 틀어 총 옆모습이 보이게)
 	_pistol.rotation_degrees = Vector3(6, 14, -4)
@@ -260,6 +263,7 @@ func _spawn_wave(w: Array, dist: float, cam_x: float) -> void:
 		if kind == "runner":
 			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(10.0, 14.0)   # 옆에서 대각선으로 (F-41)
 		add_child(z)
+		_add_rim(z)
 		var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
 		var e := {"node": z, "ap": ap, "kind": kind, "hp": HP[kind], "state": "move", "x": x, "d": dist + ahead + i * 1.8, "t": 0.0,
 			"spd": _rng.randf_range(SPEED[kind][0], SPEED[kind][1])}
@@ -275,9 +279,43 @@ func _spawn_wave(w: Array, dist: float, cam_x: float) -> void:
 		_place(e)
 
 
+# 달빛 테두리를 입힌다 (scenes/fx/zombie_rim.gdshader). 같은 모델끼리 재질을 같이 쓰므로 재질마다 한 번만
+var _rim: ShaderMaterial
+
+
+func _add_rim(z: Node3D) -> void:
+	if _rim == null:
+		_rim = ShaderMaterial.new()
+		_rim.shader = load("res://scenes/fx/zombie_rim.gdshader")
+	for mi in z.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		for i in m.mesh.get_surface_count():
+			var mat := m.get_active_material(i)
+			if mat and mat.next_pass == null:
+				mat.next_pass = _rim
+
+
+# 첫 좀비는 눈에 잘 띄는 워커, 처음 INTRO_SAFE 마리에는 매복이 없게 순서만 바꾼다 (종류별 25마리는 그대로)
+func _intro_order(bag: Array) -> void:
+	var w := bag.find("walker")
+	if w > 0:
+		bag[w] = bag[0]
+		bag[0] = "walker"
+	for i in INTRO_SAFE:
+		if bag[i] == "ambusher":
+			for j in range(INTRO_SAFE, bag.size()):
+				if bag[j] != "ambusher":
+					bag[i] = bag[j]
+					bag[j] = "ambusher"
+					break
+
+
 # 속도에 맞는 동작: 빠르면 달리기, 느리면 걷기 — 재생 속도도 발이 미끄러져 보이지 않게 맞춘다
 func _move_anim(e: Dictionary, spd: float) -> void:
 	var ap: AnimationPlayer = e["ap"]
+	for a in ["walk", "run"]:                             # 가져온 동작은 한 번만 재생하고 멈춘다 → 반복으로 (굳은 채 미끄러져 오던 버그)
+		if ap.has_animation(a):
+			ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
 	if spd >= RUN_ANIM_FROM and ap.has_animation("run"):
 		ap.play("run")
 		ap.speed_scale = clampf(spd / 4.8, 0.55, 1.3)

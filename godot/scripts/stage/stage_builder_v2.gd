@@ -194,11 +194,11 @@ const GRASS_TUFTS := [
 # 가지가 조각나거나 삼각형 판자처럼 깎인 모델(tree_dead_01·04, tree_old_02, tree_dead_real)은 뺐다 (2026-09-29 확대 점검)
 # tree_fantasy_dead: 줄기가 공중에서 끝나고 가는 가지만 땅까지 늘어져, 세우면 떠 보이고 묻으면 잘려 보여서 뺐다
 const TREES_3D := ["tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01", "tree_old_01"]
-# car_scan_07(파란 뒤집힌 차)은 뺐다 — 2026-09-30 "퀄리티가 너무 떨어짐" (출발 22m 지점에 나오던 차)
-const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "car_scan_01", "car_scan_02", "car_scan_03",
+# car_scan_07(파란 뒤집힌 차)·car_scan_01(지붕 없이 찢긴 은색 차)은 뺐다 — 2026-09-30 "퀄리티가 너무 떨어짐" (출발 22m·30m 에 나오던 차)
+const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "car_scan_02", "car_scan_03",
 	"car_scan_06", "car_scan_red", "car_scan_barricade"]
 const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)
-const WRECKS_SCAN := ["car_scan_01", "car_scan_02", "car_scan_03", "car_scan_06", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
+const WRECKS_SCAN := ["car_scan_02", "car_scan_03", "car_scan_06", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
 const HOUSES_3D := ["house_abandoned_01", "house_abandoned_02", "house_shack_01", "house_slum_01"]
 const TREE_3D_NEAR := 16.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능). 22 → 16: 양옆이 너무 벌어져 보여 가운데 쪽으로
 const TREE_3D_RANGE := 60.0    # 3D 나무를 그리는 거리
