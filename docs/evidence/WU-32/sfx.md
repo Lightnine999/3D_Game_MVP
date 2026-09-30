@@ -66,3 +66,16 @@ Zombies Sound Pack 의 24개는 이름이 번호뿐이라, 길이·평균 크기
 
 - `sfx_zombie_groan_random.tres`: 4가지 중 무작위 + 음 높이 ±8%·크기 ±2 dB
   - **B:** 좀비마다 `AudioStreamPlayer3D.stream = preload("res://assets/audio/sfx_zombie_groan_random.tres")` (SFX 버스)
+
+
+## 2026-09-30 좀비 비명 소름 끼치게 — 3가지 + 무작위 재생
+- 원본 zombie-9·10·11·12 번 (밝은 비명). 신음과 달리 **날카롭고 사람 같지 않게**:
+  높은 비명(1.3 - 1.4배) + 낮은 으르렁(0.5배) 겹침 + 떨림 + 링 변조(61 - 88 Hz, 금속성) + 살짝 찢어짐(tanh) + 짧은 잔향
+- `sfx_zombie_scream.ogg`(이름 그대로), `_2`, `_3` — 2.1 - 2.4초, 최고 -1 dB, 잘림 0%
+
+| | 길이 | 300 Hz 아래 으르렁 | 2.5 kHz 위 날카로움 |
+|---|---|---|---|
+| 이전 scream | 0.65초 | 6% | 1.9% |
+| 새 scream 1 - 3 | 2.1 - 2.4초 | 19 - 32% | 2.2 - 4.2% |
+
+- `sfx_zombie_scream_random.tres`: 3가지 중 무작위 + 음 높이 ±7%·크기 ±1.5 dB

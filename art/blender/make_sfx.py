@@ -56,7 +56,19 @@ RECIPES = {
     "sfx_zombie_groan_4": {"src": "oga_zombies/zombies/zombie-21.wav", "pitch": 0.7, "peak_db": -3, "bitrate": 80000,
                            "mix": [{"src": "oga_zombies/zombies/zombie-21.wav", "pitch": 0.45, "at": 0.05, "gain": 0.4}],
                            "eerie": {"tremolo": 6.5, "depth": 0.32, "cutoff": 2800, "reverb": 0.45}},
-    "sfx_zombie_scream": {"src": "oga_zombies/zombies/zombie-10.wav", "peak_db": -1},   # 크고 밝은 소리 (-13.3 dB, 1885 Hz)
+    # 좀비 비명 3가지 — 소름 끼치게 (높은 비명 + 낮은 으르렁 겹침 + 금속성 떨림(링 변조) + 살짝 찢어짐 + 짧은 잔향)
+    "sfx_zombie_scream":   {"src": "oga_zombies/zombies/zombie-10.wav", "pitch": 1.05, "peak_db": -1, "bitrate": 96000,
+                            "mix": [{"src": "oga_zombies/zombies/zombie-10.wav", "pitch": 0.55, "at": 0.0, "gain": 0.38},
+                                    {"src": "oga_zombies/zombies/zombie-9.wav", "pitch": 1.35, "at": 0.06, "gain": 0.65}],
+                            "eerie": {"tremolo": 11.0, "depth": 0.2, "cutoff": 9000, "reverb": 0.16, "ring": 73.0, "ring_mix": 0.3, "drive": 2.2, "tail": 0.9, "dark": 5000}},
+    "sfx_zombie_scream_2": {"src": "oga_zombies/zombies/zombie-12.wav", "pitch": 1.0, "peak_db": -1, "bitrate": 96000,
+                            "mix": [{"src": "oga_zombies/zombies/zombie-12.wav", "pitch": 0.5, "at": 0.02, "gain": 0.38},
+                                    {"src": "oga_zombies/zombies/zombie-11.wav", "pitch": 1.4, "at": 0.1, "gain": 0.65}],
+                            "eerie": {"tremolo": 13.0, "depth": 0.22, "cutoff": 9000, "reverb": 0.16, "ring": 61.0, "ring_mix": 0.35, "drive": 2.5, "tail": 0.9, "dark": 5000}},
+    "sfx_zombie_scream_3": {"src": "oga_zombies/zombies/zombie-9.wav", "pitch": 0.95, "peak_db": -1, "bitrate": 96000,
+                            "mix": [{"src": "oga_zombies/zombies/zombie-10.wav", "pitch": 0.52, "at": 0.03, "gain": 0.38},
+                                    {"src": "oga_zombies/zombies/zombie-12.wav", "pitch": 1.3, "at": 0.12, "gain": 0.65}],
+                            "eerie": {"tremolo": 9.5, "depth": 0.2, "cutoff": 9000, "reverb": 0.16, "ring": 88.0, "ring_mix": 0.28, "drive": 2.0, "tail": 0.9, "dark": 5000}},
     "sfx_supply_pickup": {"src": "kenney_rpg-audio/Audio/handleCoins.ogg", "peak_db": -4},  # 탄약이 짤랑이는 느낌
     "sfx_knife":         {"src": "kenney_rpg-audio/Audio/knifeSlice.ogg", "peak_db": -3},
     "sfx_bite":          {"src": "oga_zombies/zombies/zombie-24.wav", "peak_db": -2,      # 가장 짧은 좀비 소리 (0.33초)
@@ -119,7 +131,7 @@ def synth_pistol(seed=7, boom_hz=180):
     return np.tanh(x * 1.6).astype(np.float32)                                         # 살짝 거칠게
 
 
-def reverb(x, wet, tail=1.3):
+def reverb(x, wet, tail=1.3, dark=2500):
     """들판 잔향 (Schroeder: 빗살 필터 4개 + 올패스 2개). wet = 잔향 비율, tail = 꼬리 길이(초)."""
     n = len(x) + int(RATE * tail)
     dry = np.zeros(n, dtype=np.float32)
@@ -139,17 +151,23 @@ def reverb(x, wet, tail=1.3):
             yd = y[i - d] if i >= d else 0.0
             y[i] = -g * out[i] + xd + g * yd
         out = y
-    out = lowpass(out, 2500)                               # 멀리서 울리는 소리는 둔하다
+    out = lowpass(out, dark)                               # 멀리서 울리는 소리는 둔하다
     return dry * (1 - wet) + out * wet * 2.2
 
 
 def eerie(x, e):
-    """음산하게: 떨림(꾸르륵) → 고음 깎기 → 들판 잔향."""
+    """음산하게: 떨림(꾸르륵) → [링 변조(사람 목소리 같지 않은 금속성) → 찢어짐] → 고음 깎기 → 들판 잔향."""
     t = np.arange(len(x)) / RATE
     wob = 1 - e.get("depth", 0.3) * (0.5 + 0.5 * np.sin(2 * np.pi * e.get("tremolo", 7.0) * t + np.sin(2 * np.pi * 1.3 * t)))
     x = (x * wob).astype(np.float32)
+    if e.get("ring"):
+        m = e.get("ring_mix", 0.3)
+        x = (x * (1 - m) + x * np.sin(2 * np.pi * e["ring"] * t) * m).astype(np.float32)
+    if e.get("drive"):
+        k = e["drive"]
+        x = (np.tanh(x / max(np.max(np.abs(x)), 1e-9) * k) / np.tanh(k)).astype(np.float32)
     x = lowpass(x, e.get("cutoff", 3200))
-    return reverb(x, e.get("reverb", 0.35))
+    return reverb(x, e.get("reverb", 0.35), e.get("tail", 1.3), e.get("dark", 2500))
 
 
 def build(name, r):

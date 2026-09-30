@@ -1,0 +1,20 @@
+[gd_resource type="AudioStreamRandomizer" load_steps=4 format=3]
+
+; 좀비 비명 무작위 — 3가지 중 하나를, 음 높이·크기를 조금씩 바꿔 낸다
+; B: 매복 좀비가 일어날 때·붙잡을 때 등 AudioStreamPlayer3D.stream = preload("res://assets/audio/sfx_zombie_scream_random.tres") (SFX 버스)
+
+[ext_resource type="AudioStream" path="res://assets/audio/sfx_zombie_scream.ogg" id="1"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx_zombie_scream_2.ogg" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx_zombie_scream_3.ogg" id="3"]
+
+[resource]
+playback_mode = 0
+random_pitch = 1.07
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("3")
+stream_2/weight = 1.0
