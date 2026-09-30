@@ -29,12 +29,14 @@ const PLAYER_RADIUS := 0.35
 const SLIDE_SPEED := 3.2    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
 const SLIDE_HOLD := 0.35    # 한 번 막히면 이 시간 동안 미끄러짐을 이어 간다 (초)
 const SLIDE_FORWARD := 0.25 # 미끄러지는 동안 앞으로 가는 속도 비율
-const JUMP_MAX := 1.0       # 이보다 낮은 장애물(타이어·가방·상자 더미·납작한 차)은 저절로 뛰어 올라탔다가 내려온다 (m)
+const JUMP_MAX := 0.7       # 이보다 낮은 장애물(타이어·가방·낮은 짐)은 저절로 뛰어 올라탔다가 내려온다 (m). 1.0 → 0.7: 차는 오르지 않고 미끄러져 피한다
 const JUMP_LOOK := 1.0      # 낮은 장애물이 이만큼 앞에 오면 뛴다 (m)
-const PASS_LOW := 0.6       # 틈을 고를 때 이보다 낮은 것만 "넘어갈 수 있다"고 본다 (드럼통 0.9m 는 막힘으로)
+const PASS_LOW := 0.5       # 틈을 고를 때 이보다 낮은 것만 "넘어갈 수 있다"고 본다 (드럼통 0.9m 는 막힘으로)
+const UNSTUCK_TIME := 1.2   # 이만큼 끼어 있으면 가장 가까운 빈자리로 몸을 옮긴다 (최후 수단 — 절대 갇히지 않게)
 const STUCK_TIME := 0.6     # 이만큼 못 나아가면 반대쪽 틈으로 + 한 번 뛴다
-const JUMP_CLEAR := 0.12   # 장애물 윗면보다 이만큼만 더 뛴다 (2026-09-30 "점프가 너무 세다" → 딱 넘을 만큼)
-const JUMP_MIN := 0.35      # 최소 점프 높이 (m)
+const JUMP_CLEAR := 0.05   # 장애물 윗면보다 이만큼만 더 뛴다 (2026-09-30 "아직 높다" 0.12 → 0.05)
+const JUMP_MIN := 0.22      # 최소 점프 높이 (m)
+const JUMP_CAM := 0.5       # 뛸 때 카메라는 몸 높이의 절반만 따라 올라간다 (눈높이가 크게 튀지 않게)
 const GRAVITY := 18.0       # 14 → 18: 짧고 가볍게 뛰었다 내려온다 (타이어 넘기 체공 약 0.5초)
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
@@ -65,6 +67,7 @@ var _slide_x := 0.0                 # 미끄러져 갈 x (가장 가까운 틈)
 var _jumps := 0                     # 자동 점프 횟수 (통과 검사 기록용)
 var _grounded := true               # 땅이나 낮은 물건(가방·상자) 위에 서 있다
 var _stuck_t := 0.0                 # 앞으로 못 나아간 시간
+var _stuck_total := 0.0             # 끼인 채 흐른 전체 시간 (반대쪽 틈 시도와 상관없이 쌓인다)
 var _fire_held := false             # 폰 FIRE 버튼을 누르고 있다
 var _stun_t := 0.0                  # 칼로 벗어나는 동안 잠깐 멈춤
 var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
@@ -329,6 +332,15 @@ func _step(delta: float) -> void:
 # 자동 달리기: 앞에 있는 가장 가까운 장애물 "줄"(앞뒤 7m 안에 모인 것들)의 막힌 구간을 모아,
 # 빈 틈 가운데 지금 위치에서 가장 가까운 곳으로 비킨다 (차 두 대가 벽을 쌓고 틈이 하나뿐인 카드도 통과)
 func _target_x() -> float:
+	if "--into" in OS.get_cmdline_user_args():           # 끼임 검사: 일부러 가장 가까운 장애물 한가운데로 파고든다 (--sim --into)
+		var nz := INF
+		var nx := _x
+		for ob in _builder.obstacles:
+			var a: float = ob["z"] - _dist
+			if a > 0.5 and a < 12.0 and a < nz:
+				nz = a
+				nx = ob["x"]
+		return clampf(nx, -_lane(), _lane())
 	if "--straight" in OS.get_cmdline_user_args():
 		return _x                                         # 손 놓고 달리기 검사: 조작 없이 미끄러짐·점프만으로 빠져나가는지 (--sim --straight)
 	var wander := sin(_time * 0.35) * 1.2              # 장애물이 없으면 길 안에서 천천히 좌우로
@@ -422,8 +434,13 @@ func _move_body(motion: Vector3) -> void:
 	var moved := before.z - _body.position.z
 	if want > 0.0 and moved < want * 0.3:
 		_stuck_t += want / RUN_SPEED
-	else:
+		_stuck_total += want / RUN_SPEED
+	elif moved > want * 0.6:
 		_stuck_t = 0.0
+		_stuck_total = 0.0
+	if _stuck_total > UNSTUCK_TIME:                      # 최후 수단: 몸이 들어갈 수 있는 가장 가까운 빈자리로 옮긴다
+		_stuck_total = 0.0
+		_unstuck()
 	if _stuck_t > STUCK_TIME:                            # 오래 끼었다 → 반대쪽 틈으로 방향을 바꾸고 한 번 뛴다
 		_stuck_t = 0.0
 		var far := -signf(_slide_x - _x) * _lane() if absf(_slide_x - _x) > 0.05 else -signf(_x if _x != 0.0 else 1.0) * _lane()
@@ -437,6 +454,42 @@ func _move_body(motion: Vector3) -> void:
 		print("[bump] %.1fm x=%.2f" % [-_body.position.z, _body.position.x])
 	_dist = -_body.position.z
 	_x = _body.position.x
+
+
+# 끼임 탈출 (2026-09-30 "장애물에 걸려 못 빠져나온다"): 캡슐이 아무것과도 안 겹치는 자리를
+# 지금 줄(좌우) → 1m씩 앞 줄 순서로 찾아 가장 가까운 곳으로 옮긴다. 어떤 배치에서도 갇히지 않는다
+func _unstuck() -> void:
+	var here := _body.position
+	for ahead in [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0]:
+		var best := INF
+		var best_x := 0.0
+		var x := -_lane()
+		while x <= _lane():
+			var p := Vector3(x, 0.0, here.z - ahead)
+			var cost: float = absf(x - here.x) + ahead * 0.8
+			if cost < best and _free_at(p):
+				best = cost
+				best_x = x
+			x += 0.25
+		if best < INF:
+			_body.position = Vector3(best_x, 0.0, here.z - ahead)
+			_vy = 0.0
+			_grounded = true
+			_slide_t = 0.0
+			_steer_target = best_x
+			print("[unstuck] %.1fm x %.2f → %.2f (앞 %.0fm)" % [-here.z, here.x, best_x, ahead])
+			return
+
+
+func _free_at(p: Vector3) -> bool:
+	var q := PhysicsShapeQueryParameters3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = PLAYER_RADIUS + 0.05
+	cap.height = 1.7
+	q.shape = cap
+	q.transform = Transform3D(Basis(), p + Vector3(0, 0.9, 0))
+	q.exclude = [_body.get_rid()]
+	return _body.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
 # 높이 top(m) 인 것 위로 올라설 만큼 뛴다 → 길면 그 위를 달리다가 끝에서 떨어져 내려온다
@@ -478,7 +531,7 @@ func _apply_camera(t: float) -> void:
 	var step := sin(t * TAU * BOB_FREQ)
 	var sway := sin(t * TAU * BOB_FREQ * 0.5)
 	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
-	var air := _body.position.y
+	var air := _body.position.y * JUMP_CAM
 	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
 	if _play:                                              # 플레이: 항상 정면. 좌우로 돌거나 기울지 않는다 (위아래 발걸음만)
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), 0.0, 0.0)

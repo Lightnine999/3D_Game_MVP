@@ -45,6 +45,8 @@ var _grace_t := 0.0
 var _hud_knife: TextureRect
 var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
 var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
+const SFX_DB := -6.0                          # 효과음 절반 크기 (2026-09-30 "소리가 크다")
+const BGM_DB := -12.0                         # 배경음도 절반 (-6 → -12)
 const FIRE_RANGE := 30.0                      # 직접 쏠 때 닿는 거리
 const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서 옆으로 이만큼(+거리 × 0.06) 안에 있으면 맞는다
 var _builder: StageBuilderV2
@@ -333,6 +335,7 @@ func _sfx(name: String) -> void:
 		return
 	var p := AudioStreamPlayer.new()
 	p.stream = load("res://assets/audio/%s.ogg" % name)
+	p.volume_db = SFX_DB
 	if AudioServer.get_bus_index("SFX") >= 0:
 		p.bus = "SFX"
 	add_child(p)
@@ -347,7 +350,7 @@ func start_bgm() -> void:
 	if st is AudioStreamOggVorbis:
 		(st as AudioStreamOggVorbis).loop = true
 	p.stream = st
-	p.volume_db = -6.0
+	p.volume_db = BGM_DB
 	if AudioServer.get_bus_index("BGM") >= 0:
 		p.bus = "BGM"
 	add_child(p)

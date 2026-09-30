@@ -482,7 +482,7 @@ func _build_zone_objective() -> void:
 	for i in range(1, 6):
 		for side in [-1.0, 1.0]:
 			_spawn("v2_wall", Vector3(side * (3.0 + i * 12.0), 0, -wall_d), 0.0, 1.0, true, 160.0)
-	for x in [-14.0, 14.0, -34.0, 34.0]:
+	for x in [-14.0, 14.0]:                               # 바깥쪽(±34m) 투광등은 뺐다: 기둥이 안개에 묻혀 등만 나무 사이에 떠 보였다 (2026-09-30)
 		_floodlight(Vector3(x, 0, -(wall_d - 3.0)))
 
 
