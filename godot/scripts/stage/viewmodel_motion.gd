@@ -29,6 +29,7 @@ const SLIDE_BACK := 0.028                       # 쏠 때 슬라이드가 밀리
 var running := true
 var muzzle: Node3D          # 총구 위치 (총구 섬광을 여기에 붙인다)
 var busy := false           # 장전 중
+var speed := 1.0            # 재장전 빠르기 (1 = 약 1.2초). 게임이 재장전 시간에 맞춰 늦춘다 (stage showcase, 2026-09-30)
 
 var _model: Node3D
 var _slide: Node3D
@@ -90,6 +91,7 @@ func reload() -> void:
 	busy = true
 	var down := _mag_rest + GRIP_DOWN * 0.14
 	var tw := create_tween()
+	tw.set_speed_scale(speed)
 	# 1) 총을 왼쪽으로 기울이고 살짝 들어 올린다
 	tw.tween_property(self, "_tilt", Vector3(deg_to_rad(22), deg_to_rad(10), deg_to_rad(38)), 0.2).set_trans(Tween.TRANS_SINE)
 	tw.parallel().tween_property(self, "_lift", Vector3(-0.05, 0.05, 0.03), 0.2).set_trans(Tween.TRANS_SINE)

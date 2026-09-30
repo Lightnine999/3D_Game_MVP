@@ -95,9 +95,20 @@ var _stun_t := 0.0                  # 칼로 벗어나는 동안 잠깐 멈춤
 var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
 var _dead_t := 0.0
 var _killer: Node3D
+var _killer_tall := false           # 탱커처럼 키가 크면 얼굴이 더 위에 있다
+const BITE_END := 2.6               # 사망 연출: 물어뜯기가 끝나고 쓰러지기 시작하는 시각 (초)
 var _fall_from := Vector3.ZERO      # 쓰러지기 시작할 때의 카메라 각도
 var _lean := 0.0                    # 좌우 기울기 (-1 왼쪽 ~ +1 오른쪽, 옆 속도를 부드럽게 따라간다)
 var _lean_x := 0.0
+var _km: KnifeMotion                # 칼 근접전 1인칭 칼 (scripts/stage/knife_motion.gd — 팀원 동작)
+var _melee := false                 # 칼 근접전 중: 멈춰 서서 좀비와 마주 본다
+var _melee_t := 0.0
+var _melee_z: Node3D
+var _melee_stabbed := false
+var _unmelee_t := 0.0               # 근접전이 끝나고 시선이 정면으로 돌아오는 남은 시간
+var _unmelee_rot := Vector3.ZERO
+const MELEE_STAB_AT := 0.55         # 좀비가 붙잡으려 손을 뻗는 걸 이만큼 보여 준 뒤 칼을 든다 (초)
+const KNIFE_SPEED := 0.55           # 칼 찌르기를 원래의 0.55배 빠르기로 (약 1.6초 — 찌르는 게 보이게)
 var _fall_hit := false              # 사망 연출: 넘어가는 순간 (피 튐 + 짧은 흔들림) 을 한 번만
 var _lie_pos := Vector3.ZERO        # 바닥에 누운 카메라 자리·각도 (땅에 닿는 흔들림 기준)
 var _lie_rot := Vector3.ZERO
@@ -144,7 +155,12 @@ func _ready() -> void:
 		_label.visible = _play
 		if _play:
 			_showcase.catching = true                     # 좀비에게 잡힐 수 있다 (칼 1번, 그다음은 사망)
-			_showcase.knifed.connect(_on_knifed)
+			_showcase.melee_start.connect(_on_melee_start)
+			_km = KnifeMotion.new()
+			_camera.add_child(_km)
+			_km.speed = KNIFE_SPEED
+			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
+			_km.finished.connect(_on_melee_end)
 			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.caught.connect(_on_caught)
 			_showcase.auto_fire = false                   # 사격은 스페이스바·FIRE 버튼으로 직접
@@ -196,9 +212,43 @@ func _parse_args() -> void:
 				_shot_dists.append(float(v))
 
 
-func _on_knifed() -> void:
-	_stun_t = 0.45
-	_bump = 1.0
+# 칼 근접전 (2026-09-30): 달리기를 멈추고 좀비를 마주 본다 → 좀비가 붙잡으려는 사이 칼이 천천히 올라와 목을 찌른다
+# → 좀비가 죽는 동작으로 쓰러진다 → 칼을 거두고 시선이 정면으로 돌아와 다시 달린다
+func _on_melee_start(z: Node3D) -> void:
+	_melee = true
+	_melee_t = 0.0
+	_melee_z = z
+	_melee_stabbed = false
+	_bump = 0.8
+	if _showcase:
+		_showcase._pistol.visible = false               # 오른손이 칼을 쥔다 → 권총은 잠깐 내린다
+
+
+func _on_melee_end() -> void:
+	_melee = false
+	_unmelee_t = 0.35
+	_unmelee_rot = _camera.rotation
+	if _showcase:
+		_showcase._pistol.visible = true
+		_showcase.melee_end()
+
+
+func _melee_cam(delta: float) -> void:
+	_melee_t += delta
+	if not _melee_stabbed and _melee_t > MELEE_STAB_AT and is_instance_valid(_melee_z):
+		_melee_stabbed = true
+		_km.stab(_showcase.head_pos(_melee_z) + Vector3(0, -0.15, 0))   # 목을 찌른다
+	var eye := Vector3(_x, EYE_HEIGHT - 0.08, -_dist)
+	var hh := _handheld(_melee_t * 1.3)
+	_camera.position = eye + Vector3(hh.x * 0.02, hh.y * 0.015, 0.0)
+	if is_instance_valid(_melee_z):                      # 좀비 얼굴 쪽으로 천천히 고개를 돌린다
+		var from := _camera.rotation
+		_camera.look_at(_showcase.head_pos(_melee_z) + Vector3(0, -0.2, 0), Vector3.UP)   # 얼굴과 뻗은 손이 같이 보이게 목쯤
+		var to := _camera.rotation
+		_camera.rotation = Vector3(lerp_angle(from.x, to.x, minf(delta * 6.0, 1.0)), lerp_angle(from.y, to.y, minf(delta * 6.0, 1.0)), deg_to_rad(1.2 * hh.z))
+	_bump = maxf(_bump - delta * 3.0, 0.0)
+	if _showcase:
+		_showcase.update(_dist, _x, delta)                  # 좀비·보급·HUD 는 계속 움직인다 (나만 멈춤)
 
 
 func _on_caught(z: Node3D) -> void:
@@ -206,49 +256,62 @@ func _on_caught(z: Node3D) -> void:
 	_dead = true
 	_dead_t = 0.0
 	_killer = z
+	_killer_tall = "tank" in z.scene_file_path
+	_melee = false
 
 
 # 사망 연출 (2026-09-30 피드백): ① 1.4초 동안 코앞의 좀비가 물어뜯는 모습을 본다 → ② 1.1초 동안 뒤로 넘어지며
 #            하늘을 올려다보고 바닥에 눕는다 → ③ 누운 채 잠깐 → 블랙아웃 + 굵은 빨간 "DEAD" → 6초 뒤 처음부터
 func _death_cam(delta: float) -> void:
 	_dead_t += delta
+	if _showcase and _dead_t < BITE_END:
+		_showcase.update(_dist, _x, delta)                  # 좀비가 붙잡았다가 무는 동작으로 넘어가게 (세상도 계속 움직인다)
 	var eye := Vector3(_x, EYE_HEIGHT, -_dist)
-	_blood.modulate.a = clampf(_dead_t / 0.25, 0.0, 1.0) * (0.9 + 0.1 * sin(_dead_t * 9.0))   # 물리는 순간 화면에 피가 튄다
-	if _dead_t < 1.4:                                     # ① 물린다: 손에 든 카메라처럼 느리게 흔들린다 (핸드헬드)
-		var head := _killer.global_position + Vector3(0, 1.35, 0) if is_instance_valid(_killer) else eye + Vector3(0, 0, -1)
-		var hh := _handheld(_dead_t)
-		_camera.position = eye + Vector3(hh.x * 0.035, hh.y * 0.025, 0.0)
+	# 시간표 (2026-09-30 "물어뜯는 게 잘 안 보인다"): 0-0.9 붙잡힘 → 0.9-2.6 물어뜯김 → 2.6-3.7 쓰러짐 → 블랙아웃 → DEAD → Retry
+	var b0 := 0.9                                          # 무는 순간 (showcase GRAB_TIME)
+	var f0 := BITE_END                                     # 쓰러지기 시작
+	# 화면 피: 붙잡는 동안은 없고, 물 때부터 서서히 (무는 얼굴을 가리지 않게) → 쓰러질 때 짙게
+	var bl := clampf((_dead_t - b0) / 1.2, 0.0, 1.0) * 0.45 + clampf((_dead_t - f0) / 0.4, 0.0, 1.0) * 0.5
+	_blood.modulate.a = bl * (0.92 + 0.08 * sin(_dead_t * 9.0))
+	if _dead_t < f0:                                      # ①② 붙잡혀 끌려가며 시선이 좀비 얼굴로 내려가고, 물 때 덜컥덜컥 흔들린다
+		var head := _showcase.head_pos(_killer) if is_instance_valid(_killer) else eye + Vector3(0, 0, -1)   # 머리 뼈를 따라간다 (무는 동작은 몸을 숙인다)
+		var pull := clampf(_dead_t / 0.6, 0.0, 1.0)
+		var hh := _handheld(_dead_t) * (1.0 + clampf(_dead_t - b0, 0.0, 1.0))
+		var jolt := _decay_shake(_dead_t, 0.35, 3.0) + _decay_shake(_dead_t - b0, 0.3, 2.2)
+		if _dead_t > b0:                                  # 물어뜯는 박자마다 작게 덜컥
+			jolt += Vector3(sin(_dead_t * 31.0), sin(_dead_t * 23.0), 0) * 0.6 * absf(sin(_dead_t * 4.5))
+		_camera.position = eye + Vector3(hh.x * 0.03, hh.y * 0.02 - 0.14 * pull, 0.0)
 		_camera.look_at(head, Vector3.UP)
-		_camera.rotation += Vector3(deg_to_rad(1.4 * hh.z), deg_to_rad(1.0 * hh.x), deg_to_rad(2.0 * hh.y))
+		_camera.rotation += Vector3(deg_to_rad(1.2 * hh.z), deg_to_rad(0.9 * hh.x), deg_to_rad(1.8 * hh.y)) + jolt * PI / 180.0
 		_fall_from = _camera.rotation
-	elif _dead_t < 2.5:                                   # ② 피가 튀며 뒤로 넘어진다: 넘어가는 순간 짧게 흔들리고 잦아든다
+	elif _dead_t < f0 + 1.1:                              # ③ 피가 튀며 뒤로 넘어진다: 넘어가는 순간 짧게 흔들리고 잦아든다
 		if not _fall_hit:
 			_fall_hit = true
 			CardFX.blood_splash(self, _camera.global_position + (-_camera.global_transform.basis.z) * 0.7, 1.3)
 			_bump = 1.0
-		var k := smoothstep(0.0, 1.0, (_dead_t - 1.4) / 1.1)
-		var sh := _decay_shake(_dead_t - 1.4, 0.55, 2.6)
-		_camera.position = eye.lerp(Vector3(_x + 0.1, 0.22, -_dist + 0.9), k * k) + Vector3(sh.x, sh.y, 0.0) * 0.015   # 뒤로 넘어지며 바닥으로
+		var k := smoothstep(0.0, 1.0, (_dead_t - f0) / 1.1)
+		var sh := _decay_shake(_dead_t - f0, 0.55, 2.6)
+		_camera.position = (eye + Vector3(0, -0.14, 0)).lerp(Vector3(_x + 0.1, 0.22, -_dist + 0.9), k * k) + Vector3(sh.x, sh.y, 0.0) * 0.015
 		_camera.rotation = Vector3(lerpf(_fall_from.x, deg_to_rad(80.0), k), lerpf(_fall_from.y, 0.0, k), lerpf(_fall_from.z, deg_to_rad(10.0), k)) + sh * PI / 180.0
 		_lie_pos = Vector3(_x + 0.1, 0.22, -_dist + 0.9)
 		_lie_rot = Vector3(deg_to_rad(80.0), 0.0, deg_to_rad(10.0))
-	else:                                                 # ③ 땅에 닿는 "쿵" 한 번 → 자연스럽게 멈춘다
-		var sh2 := _decay_shake(_dead_t - 2.5, 0.4, 1.6)
+	else:                                                 # ④ 땅에 닿는 "쿵" 한 번 → 자연스럽게 멈춘다
+		var sh2 := _decay_shake(_dead_t - f0 - 1.1, 0.4, 1.6)
 		_camera.position = _lie_pos + Vector3(sh2.x, sh2.y, 0.0) * 0.012
 		_camera.rotation = _lie_rot + sh2 * PI / 180.0
-	var black := clampf((_dead_t - 3.0) / 0.6, 0.0, 1.0)  # 누워서 하늘을 본 채 블랙아웃
+	var black := clampf((_dead_t - f0 - 1.6) / 0.6, 0.0, 1.0)  # 누워서 하늘을 본 채 블랙아웃
 	_fade.color.a = black
-	if _dead_t > 3.3:
+	if _dead_t > f0 + 1.9:
 		_dead_label.visible = true
-		var pop := clampf((_dead_t - 3.3) / 0.25, 0.0, 1.0)  # 글자가 크게 찍혔다가 제 크기로
+		var pop := clampf((_dead_t - f0 - 1.9) / 0.25, 0.0, 1.0)  # 글자가 크게 찍혔다가 제 크기로
 		_dead_label.scale = Vector2.ONE * lerpf(1.35, 1.0, pop)
 		_dead_label.modulate.a = pop
-	if _dead_t > 4.0 and not _retry.visible:              # 자동으로 넘어가지 않는다 — Retry 를 눌러야 다시 시작 (2026-09-30 피드백)
+	if _dead_t > f0 + 2.6 and not _retry.visible:         # 자동으로 넘어가지 않는다 — Retry 를 눌러야 다시 시작 (2026-09-30 피드백)
 		_retry.visible = true
 		_retry.modulate.a = 0.0
 		_retry.grab_focus()                               # 엔터·스페이스로도 누를 수 있게
 	if _retry.visible:
-		_retry.modulate.a = clampf((_dead_t - 4.0) / 0.6, 0.0, 1.0)   # DEAD 가 찍힌 뒤 한 번 서서히 나타난다
+		_retry.modulate.a = clampf((_dead_t - f0 - 2.6) / 0.6, 0.0, 1.0)   # DEAD 가 찍힌 뒤 한 번 서서히 나타난다
 
 
 # 핸드헬드: 서로 다른 느린 박자 몇 개를 겹쳐 손떨림처럼 (-1 ~ 1 쯤)
@@ -454,6 +517,9 @@ func _process(delta: float) -> void:
 		return                                           # 캡처·통과 검사는 아래 함수가 직접 한 걸음씩 진행
 	if _dead:
 		_death_cam(delta)
+		return
+	if _melee:
+		_melee_cam(delta)
 		return
 	_step(delta)
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
@@ -824,6 +890,10 @@ func _apply_camera(t: float) -> void:
 		# 좌우로 움직이면 그쪽으로 기운다 (오른쪽으로 가면 오른쪽 어깨가 내려가듯) + 시선도 살짝 그쪽
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4 - _bump * _bump * 1.2),
 			deg_to_rad(-BUMP_YAW * jolt - LEAN_YAW * _lean), deg_to_rad(-BUMP_ROLL * jolt - LEAN_ROLL * _lean))
+		if _unmelee_t > 0.0:                              # 칼 근접전 뒤: 좀비를 보던 시선이 정면으로 부드럽게 돌아온다
+			_unmelee_t -= 1.0 / 60.0
+			var k := smoothstep(0.0, 1.0, 1.0 - clampf(_unmelee_t / 0.35, 0.0, 1.0))
+			_camera.rotation = Vector3(lerp_angle(_unmelee_rot.x, _camera.rotation.x, k), lerp_angle(_unmelee_rot.y, _camera.rotation.y, k), lerp_angle(_unmelee_rot.z, _camera.rotation.z, k))
 	else:
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(sin(t * 0.35) * -4.0), deg_to_rad(sway * 0.6 + shake * 40.0))
 

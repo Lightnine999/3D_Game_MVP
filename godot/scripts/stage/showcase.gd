@@ -38,15 +38,16 @@ const PICK_Z := 1.6
 # 좀비 행동 (2026-09-30 "액션·스피드·모션을 다양하게"): 모델 4종은 그대로, 한 마리마다 행동 스타일을 무작위로 고른다
 #   shamble 비틀비틀 걷기 / jog 뛰어오기 / sprint 전력 질주 / idle 서 있다가 가까워지면 출발 / crawl 기어 오기
 #   crawl_run 빠르게 기어 오기 / rise 누워 있다가 일어나 달려오기 / stomp 탱커(가까워지면 포효 후 돌진)
+#   feed 길가에 쭈그려 시체를 뜯어먹다가 가까워지면 비명을 지르고 달려온다
 #   무게·크기에 따라 강·중·약: 러너(가볍다) 빠른 스타일 위주, 워커·매복(보통) 중간, 탱커(무겁다) 느림
 const STYLES := {
-	"walker": [["shamble", 40], ["jog", 25], ["idle", 15], ["crawl", 20]],
+	"walker": [["shamble", 36], ["jog", 22], ["idle", 14], ["crawl", 16], ["feed", 12]],
 	"runner": [["sprint", 50], ["jog", 25], ["crawl_run", 25]],
 	"tank": [["stomp", 100]],
-	"ambusher": [["rise", 55], ["jog", 25], ["crawl", 20]],
+	"ambusher": [["rise", 50], ["jog", 20], ["crawl", 18], ["feed", 12]],
 }
 const STYLE_SPEED := {"shamble": [1.6, 2.6], "jog": [2.6, 3.8], "sprint": [4.2, 5.8], "idle": [1.8, 3.2], "crawl": [0.9, 1.4],
-	"crawl_run": [2.2, 3.2], "rise": [3.8, 5.0], "stomp": [1.3, 1.9], "event": [5.4, 6.6]}
+	"crawl_run": [2.2, 3.2], "rise": [3.8, 5.0], "stomp": [1.3, 1.9], "event": [5.4, 6.6], "feed": [2.8, 3.8]}
 const TANK_CHARGE := 1.8                      # 탱커 돌진 배율
 const RISE_AT := 28.0                         # 누운 좀비가 일어나기 시작하는 거리 (일어나는 데 약 2.7초 — 멀리서 보인다)
 const IDLE_WAKE := [13.0, 20.0]               # 서 있던 좀비가 출발하는 거리
@@ -59,14 +60,18 @@ const SCREAM_TIME := 0.9                      # 달려들기 전에 비명을 �
 const ANIM_PACK := "res://assets/models/zombie_anims.glb"
 const PACK_HIPS := 96.29514                   # 팩 뼈대의 엉덩이 높이 (뼈대 좌표, cm) — 좀비마다 키 비율로 맞춘다
 const PACK_LOOPS := ["p_walk", "p_run", "p_crawl", "p_crawl_run", "p_idle", "p_bite", "p_bite2", "p_neck_bite", "p_attack"]
-const GRAB_ANIMS := ["attack", "pack/p_attack", "pack/p_bite", "pack/p_bite2", "pack/p_neck_bite"]
+# 붙잡은 뒤 무는 동작: 머리가 얼굴 높이(1.3-1.5m)에 머무는 것만 (2026-09-30 측정 — p_bite·p_bite2 는 바닥의 시체를 뜯는 동작이라 feed 스타일에 쓴다)
+const BITE_ANIMS := ["bite", "pack/p_neck_bite"]
+const FEED_ANIMS := ["pack/p_bite", "pack/p_bite2"]
+const GRAB_TIME := 0.9                        # 붙잡는 동작을 보여 주는 시간 (그다음 문다)
 const DEATH_ANIMS := ["death", "pack/p_death", "pack/p_dying"]
 const BLEND := 0.25                           # 동작이 바뀔 때 섞는 시간 (초) — 뚝 바뀌면 몸이 순간 튀어 끊겨 보인다 (2026-09-30)
 const HOMING_LOCK := 3.0                      # 이만큼 가까워지면 더는 방향을 틀지 않는다 → 옆으로 비키면 피할 수 있다
 const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 → 2발 (2026-09-30 "너무 세다")
 
 signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 연출 (stage_preview)
-signal knifed                                 # 칼로 잡은 좀비를 죽이고 벗어났다
+signal knifed                                 # (옛 즉시 칼) — 지금은 melee_start 로 합을 맞춘다
+signal melee_start(zombie: Node3D)            # 칼 근접전 시작: 멈춰 서서 좀비와 마주 본다 (stage_preview 가 칼 동작·카메라)
 signal tripped                                # 기는 좀비가 발목을 잡았다 → 잠깐 휘청 (풀에 묻혀 안 보이니 죽이지는 않는다)
 
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
@@ -81,6 +86,7 @@ const KNIVES := 1                             # 칼은 한 스테이지에 한 �
 var _knife_left := KNIVES
 const KNIFE_GRACE := 1.5                      # 칼로 벗어난 직후 이 시간은 다시 잡히지 않는다 (연달아 잡히던 문제)
 var _grace_t := 0.0
+var _melee_e: Dictionary = {}                 # 칼 근접전 상대
 var _hud_knife: TextureRect
 var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
 var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
@@ -92,6 +98,8 @@ const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서
 var _builder: StageBuilderV2
 var _camera: Camera3D
 var _pistol: Node3D
+var _vm: ViewmodelMotion
+const VM_RELOAD_LEN := 1.21                   # 권총 재장전 동작의 원래 길이 (초) — 게임 재장전 시간에 맞춰 늘린다
 var _zombies: Array = []                      # {node, ap, kind, hp, state, x, d, t}
 var _crates: Array = []                       # {node, d, x, y, landed, taken, smoke}
 var _plan: Array = []                         # [나타날 지점(달린 거리), 종류]
@@ -107,7 +115,6 @@ var _reserve := 0                             # 예비탄
 var _gun_name := "권총"
 var _reload_left := 0.0                       # 재장전 남은 시간 (0 이면 재장전 중 아님)
 var _reload_total := 0.0
-var _pistol_rest := Vector3.ZERO
 var _shot_cd := 0.0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -141,12 +148,10 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
 	_prewarm()
-	_pistol = load("res://assets/models/weapon_pistol.glb").instantiate()
-	_pistol.position = Vector3(0.03, -0.2, -0.46)       # 1인칭: 화면 가운데 아래 (살짝 틀어 총 옆모습이 보이게)
-	_pistol.rotation_degrees = Vector3(6, 14, -4)
-	_pistol.scale = Vector3.ONE * 0.95
-	_pistol_rest = _pistol.position
-	camera.add_child(_pistol)
+	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
+	_vm = ViewmodelMotion.new()
+	camera.add_child(_vm)
+	_pistol = _vm
 	_build_hud(hud_holder)
 
 
@@ -298,21 +303,17 @@ func reload() -> void:
 	_reload_total = RELOAD_TIME + RELOAD_PER_ROUND * _mag_cap
 	_reload_left = _reload_total
 	_refresh_ammo()
+	_vm.speed = VM_RELOAD_LEN / _reload_total            # 탄창 빼기·끼우기·슬라이드가 재장전 시간 동안 이어지게
+	_vm.reload()
 	_sfx("sfx_ui_click")                                 # 탄창 빼는 소리
 	print("[reload] 시작 %.1f초 (탄창 %d / 예비 %d)" % [_reload_total, _mag, _reserve])
 
 
 func _update_reload(delta: float) -> void:
 	if _reload_left <= 0.0:
-		_pistol.position = _pistol.position.lerp(_pistol_rest, minf(delta * 12.0, 1.0))
-		_pistol.rotation_degrees.x = lerpf(_pistol.rotation_degrees.x, 6.0, minf(delta * 12.0, 1.0))
 		return
 	_reload_left -= delta
 	_hud_bullets.queue_redraw()
-	var k := 1.0 - _reload_left / _reload_total
-	var dip := sin(clampf(k, 0.0, 1.0) * PI)            # 총을 아래로 내렸다가 (탄창 갈고) 다시 올린다
-	_pistol.position = _pistol_rest + Vector3(0.02, -0.16, 0.05) * dip
-	_pistol.rotation_degrees.x = 6.0 - 35.0 * dip
 	if _reload_left <= 0.0:
 		var take := mini(_mag_cap - _mag, _reserve)
 		_mag += take
@@ -388,6 +389,15 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 			ap.seek(0.0, true)
 			ap.pause()
 			e["state"] = "lie"
+		"feed":
+			var fa: String = FEED_ANIMS[_rng.randi() % FEED_ANIMS.size()]
+			ap.get_animation(fa).loop_mode = Animation.LOOP_LINEAR
+			ap.play(fa)
+			ap.seek(_rng.randf() * 2.0, true)
+			e["state"] = "feed"
+			e["wake"] = _rng.randf_range(14.0, 18.0)
+			x = clampf(x + (1.0 if x >= 0.0 else -1.0) * 2.5, -5.5, 5.5)   # 길 가장자리 쪽에서 뜯어먹는다
+			e["x"] = x
 		"idle":
 			ap.play("pack/p_idle")
 			ap.speed_scale = _rng.randf_range(0.8, 1.2)
@@ -644,11 +654,22 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					_move_anim(e)
 					if _rng.randf() < 0.4:
 						_sfx("sfx_zombie_groan")
-			"scream":                                      # 사이드 질주 전: 멈춰서 비명
+			"feed":                                        # 뜯어먹다가 가까워지면 고개를 들고 비명 → 달려온다
+				_place(e)
+				if ahead < e["wake"]:
+					e["state"] = "scream"
+					e["t"] = 0.0
+					e["after"] = "jog"
+					ap.play("pack/p_scream", BLEND)
+					ap.speed_scale = 1.0
+					_sfx("sfx_zombie_scream")
+				elif ahead < -2.0:
+					_despawn(e)
+			"scream":                                      # 사이드 질주 전·뜯어먹다 일어날 때: 멈춰서 비명
 				_place(e)
 				if e["t"] > SCREAM_TIME:
 					e["state"] = "move"
-					e["style"] = "sprint"
+					e["style"] = e.get("after", "sprint")
 					_move_anim(e)
 			"roar":                                        # 탱커 돌진 전 포효
 				_place(e)
@@ -714,8 +735,19 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						CardFX.blood_pool(self, Vector3(z.global_position.x, 0.0, z.global_position.z), _rng.randf_range(1.3, 1.9))
 				if ahead < -4.0:
 					_despawn(e)
-			"grab":
-				pass                                       # 사망 연출 중: 제자리에서 물어뜯는다
+			"grab":                                        # 사망 연출: 붙잡았다가 → 문다
+				_place(e)
+				if e["t"] > GRAB_TIME and not e.get("biting", false):
+					e["biting"] = true
+					var b: String = e["bite"]
+					if ap.has_animation(b):
+						ap.get_animation(b).loop_mode = Animation.LOOP_LINEAR
+						ap.play(b, 0.25)
+					_sfx("sfx_bite")
+					var mouth: Vector3 = z.global_position + Vector3(0, 1.45, 0)
+					CardFX.blood_splash(self, _camera.global_position.lerp(mouth, 0.55) + Vector3(0.18, -0.25, 0), 0.7)
+			"melee":                                       # 칼 근접전: 코앞에서 붙잡으려 한다 (칼에 찔리면 melee_hit)
+				_place(e)
 
 
 # 잡혔다: 칼이 남았으면 칼로 죽이고 벗어난다, 없으면 사망 (stage_preview 가 카메라 연출)
@@ -727,34 +759,69 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 		_knife_left -= 1
 		if _hud_knife:
 			_hud_knife.modulate = Color(1, 1, 1, 0.2)      # 칼 다 씀
-		_sfx("sfx_knife")
-		BulletHitFX.spawn(self, z.global_position + Vector3(0, 1.3, 0), z.global_position - _camera.global_position, 1.6)
-		_kill(e, z.global_position + Vector3(0, 1.3, 0), 1.6)
-		e["passed"] = true
-		_grace_t = KNIFE_GRACE
-		print("[knife] %.0fm 칼로 벗어남" % dist)
-		knifed.emit()
+		# 칼 근접전 (2026-09-30 "멈춰서 좀비와 합을 맞춰야"): 좀비가 코앞에서 붙잡으려는 사이 칼이 천천히 올라와 목을 찌른다
+		e["state"] = "melee"
+		e["d"] = dist + (1.35 if e["kind"] == "tank" else 1.0)
+		e["x"] = cam_x
+		e["low"] = false
+		_place(e)
+		ap.play("grab", 0.15)
+		_melee_e = e
+		_grace_t = 99.0                                     # 근접전 중에는 다른 좀비가 잡지 않는다
+		_sfx("sfx_zombie_scream")
+		print("[knife] %.0fm 칼 근접전 (%s)" % [dist, e["kind"]])
+		melee_start.emit(z)
 		return
 	e["state"] = "grab"
-	e["d"] = dist + (1.6 if e["kind"] == "tank" else 1.15)   # 코앞에 붙는다 (너무 붙으면 몸통만 화면을 덮는다 — 큰 탱커는 조금 떨어져)
+	e["t"] = 0.0
+	e["d"] = dist + (1.35 if e["kind"] == "tank" else 0.95)   # 코앞에 붙는다 — 붙잡고 무는 얼굴·손이 보일 만큼 (탱커는 커서 조금 떨어져)
 	_pistol.visible = false                                # 쓰러질 때 총이 허공에 떠 보이지 않게
 	_hud_layer.visible = false                             # 사망 연출에는 HUD 를 치운다 (블랙아웃 + DEAD 만)
 	e["x"] = cam_x
 	_place(e)
-	var bite: String = GRAB_ANIMS[_rng.randi() % GRAB_ANIMS.size()]   # 무는 동작 5가지 중 하나
-	if ap.has_animation(bite):
-		ap.get_animation(bite).loop_mode = Animation.LOOP_LINEAR
-		ap.play(bite, BLEND)
+	# 물어뜯기 (2026-09-30 "잘 안 보인다"): ① 붙잡기(0.9초) → ② 물어뜯기 (_update_zombies 의 grab). 피는 무는 순간에
+	ap.play("grab", 0.15)
+	e["bite"] = BITE_ANIMS[_rng.randi() % BITE_ANIMS.size()]
 	e["low"] = false
-	_sfx("sfx_bite")
-	CardFX.blood_splash(self, _camera.global_position + (z.global_position + Vector3(0, 1.4, 0) - _camera.global_position) * 0.6, 1.4)
+	_sfx("sfx_zombie_scream")
 	print("[caught] %.0fm %s 에게 잡힘 (칼 없음)" % [dist, e["kind"]])
 	caught.emit(z)
 
 
+# 좀비 머리의 실제 위치 (동작에 따라 숙이거나 기울어도 따라간다) — 사망·근접전 카메라가 얼굴을 놓치지 않게
+func head_pos(z: Node3D) -> Vector3:
+	var sk: Skeleton3D = z.get_meta("sk") if z.has_meta("sk") else null
+	if sk == null:
+		sk = z.find_children("*", "Skeleton3D", true, false)[0]
+		z.set_meta("sk", sk)
+		z.set_meta("head", sk.find_bone("mixamorig_Head"))
+	var i: int = z.get_meta("head")
+	if i < 0:
+		return z.global_position + Vector3(0, 1.4, 0)
+	return sk.global_transform * sk.get_bone_global_pose(i).origin
+
+
+# 칼이 목에 박힌 순간 (stage_preview 의 칼 동작 hit): 피 + 죽는 동작
+func melee_hit() -> void:
+	if _melee_e.is_empty():
+		return
+	var z: Node3D = _melee_e["node"]
+	var neck := head_pos(z) + Vector3(0, -0.15, 0)
+	_sfx("sfx_knife")
+	BulletHitFX.spawn(self, neck, neck - _camera.global_position, 1.4)
+	_kill(_melee_e, neck, 1.1)
+	_melee_e["passed"] = true
+
+
+# 칼을 거두고 다시 달린다
+func melee_end() -> void:
+	_melee_e = {}
+	_grace_t = KNIFE_GRACE
+
+
 # 플레이 테스트 사격 (스페이스바·FIRE 버튼): 화면 가운데 조준선 앞의 가장 가까운 좀비를 쏜다. 없으면 허공에 쏜다
 func fire() -> void:
-	if _shot_cd > 0.0 or _reload_left > 0.0:
+	if _shot_cd > 0.0 or _reload_left > 0.0 or not _melee_e.is_empty():
 		return
 	if _mag <= 0 and not INFINITE_AMMO:
 		_shot_cd = 0.3
@@ -814,8 +881,8 @@ func _shoot(e: Dictionary) -> void:
 	_refresh_ammo()
 	_sfx("sfx_pistol")
 	var flash: Node3D = load("res://scenes/fx/muzzle_flash.tscn").instantiate()
-	_pistol.add_child(flash)
-	flash.position = MUZZLE
+	_vm.muzzle.add_child(flash)                           # 손 달린 권총의 총구 (make_pistol.py)
+	_vm.fire()                                           # 반동 + 슬라이드가 뒤로
 	flash.play()
 	if e.is_empty():
 		return                                            # 빗나감 (조준선 앞에 좀비 없음)
