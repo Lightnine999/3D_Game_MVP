@@ -72,7 +72,7 @@ static func flare(parent: Node3D, green: bool) -> CardFX:
 
 
 # 총구 불꽃 (2026-09-30 "카메라 앞인데 디테일이 구리다"): 별 모양 8칸을 0.07초에 넘긴다 + 아주 짧은 빛. 매번 각도·크기를 달리한다
-static func muzzle(parent: Node3D, size := 0.24) -> CardFX:
+static func muzzle(parent: Node3D, size := 0.38) -> CardFX:
 	var fx := CardFX.new()
 	parent.add_child(fx)
 	var m := _mat("muzzle", "card_flipbook_add.gdshader", "fx_muzzle_4x2.png", Color(1, 1, 1, 1), 1.6, 0.0, false)

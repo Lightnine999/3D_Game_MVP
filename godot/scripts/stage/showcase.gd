@@ -134,6 +134,7 @@ var _camera: Camera3D
 var _pistol: Node3D
 var _vm: ViewmodelMotion
 const VM_OFFSET := Vector3(0.005, -0.013, 0.055)   # 총을 살짝 뒤(카메라 쪽)·아래로 → 오른쪽 소매가 덜 보인다 (2026-09-30)
+const GUN_SCALE := 1.18                       # 권총만 18% 크게 (손·팔은 그대로, 2026-09-30)
 const VM_RELOAD_LEN := 1.21                   # 권총 재장전 동작의 원래 길이 (초) — 게임 재장전 시간에 맞춰 늘린다
 var _zombies: Array = []                      # {node, ap, kind, hp, state, x, d, t}
 var _crates: Array = []                       # {node, d, x, y, landed, taken, smoke}
@@ -191,6 +192,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
 	_vm = ViewmodelMotion.new()
 	_vm.rest_offset = VM_OFFSET
+	_vm.gun_scale = GUN_SCALE
 	_vm.process_mode = Node.PROCESS_MODE_PAUSABLE          # 카메라는 일시정지 중에도 도는 노드 아래 → 권총은 따로 멈추게 (2026-09-30 "일시정지해도 손이 움직인다")
 	camera.add_child(_vm)
 	_pistol = _vm
