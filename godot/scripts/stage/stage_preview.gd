@@ -96,6 +96,7 @@ var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
 var _dead_t := 0.0
 var _killer: Node3D
 var _killer_tall := false           # 탱커처럼 키가 크면 얼굴이 더 위에 있다
+const FACE_MIN := 0.4               # 물릴 때 좀비 얼굴까지 최소 거리 (m) — 카메라가 얼굴 속으로 들어가지 않게
 const BITE_END := 1.8               # 사망 연출: 물어뜯기가 끝나고 쓰러지기 시작하는 시각 (초) — 2.6 → 1.8 (물고 바로 쓰러진다)
 var _fall_from := Vector3.ZERO      # 쓰러지기 시작할 때의 카메라 각도
 var _lean := 0.0                    # 좌우 기울기 (-1 왼쪽 ~ +1 오른쪽, 옆 속도를 부드럽게 따라간다)
@@ -281,7 +282,12 @@ func _death_cam(delta: float) -> void:
 		var jolt := _decay_shake(_dead_t, 0.35, 3.0) + _decay_shake(_dead_t - b0, 0.3, 2.2)
 		if _dead_t > b0:                                  # 물어뜯는 박자마다 작게 덜컥
 			jolt += Vector3(sin(_dead_t * 31.0), sin(_dead_t * 23.0), 0) * 0.6 * absf(sin(_dead_t * 4.5))
-		_camera.position = eye + Vector3(hh.x * 0.03, hh.y * 0.02 - 0.14 * pull, 0.0)
+		var base := eye + Vector3(hh.x * 0.03, hh.y * 0.02 - 0.14 * pull, 0.0)
+		# 물 때 얼굴 쪽으로 끌려 들어간다 (얼굴이 화면을 채우게). 얼굴과 FACE_MIN 보다는 가까워지지 않는다 (잘려 보이지 않게)
+		var drag := smoothstep(0.0, 1.0, clampf((_dead_t - b0 + 0.2) / 0.5, 0.0, 1.0))
+		var to_face := head - base
+		var keep := maxf(FACE_MIN, to_face.length() * 0.45)
+		_camera.position = base.lerp(head - to_face.normalized() * keep, drag)
 		_camera.look_at(head, Vector3.UP)
 		_camera.rotation += Vector3(deg_to_rad(1.2 * hh.z), deg_to_rad(0.9 * hh.x), deg_to_rad(1.8 * hh.y)) + jolt * PI / 180.0
 		_fall_from = _camera.rotation

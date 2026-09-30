@@ -67,7 +67,13 @@ const BERSERK_AT := [165.0, 295.0, 420.0, 560.0, 690.0]
 const BERSERK_SPEED := 10.0                   # = 사람 달리기(5m/s) × 2
 const BERSERK_AHEAD := 42.0
 const BERSERK_LOCK := 8.0
-const POUNCE_AT := [120.0, 235.0, 360.0, 470.0, 610.0, 740.0]
+const POUNCE_AT := [120.0, 235.0, 360.0, 470.0, 610.0, 700.0]   # 마지막 매복은 740 → 700m (끝의 광전사 둘과 겹치지 않게)
+# 끝 반전 (2026-09-30 "다 깼다 싶을 때"): 남은 32m 에서 왼쪽 광전사 → 0.7초 뒤 오른쪽 광전사. 시간차가 있어 하나씩 피할 수 있다
+const FINALE_AT := 718.0
+const FINALE_GAP := 0.7
+const FINALE_AHEAD := 26.0
+const FINALE_SIDE := 10.0
+const FINALE_LOCK := 6.0                      # 끝의 둘은 6m 앞에서 방향 고정 → 비킬 틈 약 0.4초, 피해도 아슬아슬하게 스친다
 const POUNCE_AHEAD := 8.5
 const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
@@ -125,6 +131,8 @@ var _next_green := 0
 var _next_event := EVENT_FROM
 var _next_berserk := 0
 var _next_pounce := 0
+var _finale := 0                              # 0 아직 / 1 왼쪽 나옴 (오른쪽 기다림) / 2 끝
+var _finale_t := 0.0
 static var _libs := {}                        # 종류 → 동작 라이브러리 (한 번만 만든다)
 static var _pack: AnimationPlayer
 var _mag := START_MAG                         # 탄창에 든 총알
@@ -378,6 +386,19 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
 		_pouncer(dist, cam_x)
 		_next_pounce += 1
+	if _finale == 0 and dist >= FINALE_AT * sc750:
+		_finale = 1
+		_finale_t = FINALE_GAP
+		_berserker(dist, cam_x, -FINALE_SIDE, FINALE_AHEAD)
+		_zombies[-1]["lock"] = FINALE_LOCK
+		print("[finale] %.0fm 끝 반전 — 왼쪽 광전사" % dist)
+	elif _finale == 1:
+		_finale_t -= delta
+		if _finale_t <= 0.0:
+			_finale = 2
+			_berserker(dist, cam_x, FINALE_SIDE, FINALE_AHEAD - 2.0)
+			_zombies[-1]["lock"] = FINALE_LOCK
+			print("[finale] %.0fm 오른쪽 광전사" % dist)
 	if dist >= _next_event and dist < StageBuilderV2.STAGE_LENGTH - 60.0:
 		_sprint_event(dist, cam_x)
 		_next_event += _rng.randf_range(EVENT_GAP[0], EVENT_GAP[1])
@@ -523,9 +544,25 @@ func _prewarm() -> void:
 		load("res://assets/audio/%s.ogg" % n)
 
 
+# 앞질러 달려들 자리: 나(초속 RUN_SPEED 로 앞으로)와 속도 spd 인 좀비가 만나는 곳
+# (spd² - u²)T² - 2u·dD·T - (dx² + dD²) = 0 을 T 에 대해 푼다 (dD = 내 거리 - 좀비 거리, 음수)
+func _intercept(z: Vector2, me: Vector2, spd: float) -> Vector2:
+	var u := 5.0
+	var dx := me.x - z.x
+	var dd := me.y - z.y
+	var a := spd * spd - u * u
+	if a <= 0.01:
+		return me
+	var disc := 4.0 * u * u * dd * dd + 4.0 * a * (dx * dx + dd * dd)
+	var tt := (2.0 * u * dd + sqrt(disc)) / (2.0 * a)
+	return Vector2(me.x, me.y + u * maxf(tt, 0.0))
+
+
 # 광전사: 42m 앞 길 안쪽에서 비명 → 초속 10m 돌진 (8m 앞부터 방향 고정)
-func _berserker(dist: float, cam_x: float) -> void:
-	var e := _spawn("runner", "berserk", BERSERK_AHEAD, clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5), dist, cam_x)
+func _berserker(dist: float, cam_x: float, x := NAN, ahead := BERSERK_AHEAD) -> void:
+	if is_nan(x):
+		x = clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5)
+	var e := _spawn("runner", "berserk", ahead, x, dist, cam_x)
 	e["lock"] = BERSERK_LOCK
 	e["state"] = "scream"
 	e["after"] = "berserk"
@@ -762,6 +799,8 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 				if ahead > e.get("lock", HOMING_LOCK) or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
 					var target := Vector2(cam_x, dist)
 					var here := Vector2(e["x"], e["d"])
+					if e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
+						target = _intercept(here, target, spd)
 					e["dir"] = (target - here).normalized()
 				var step: Vector2 = e["dir"] * spd * delta
 				e["x"] += step.x
@@ -834,7 +873,7 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 		return
 	e["state"] = "grab"
 	e["t"] = 0.0
-	e["d"] = dist + (1.35 if e["kind"] == "tank" else 0.95)   # 코앞에 붙는다 — 붙잡고 무는 얼굴·손이 보일 만큼 (탱커는 커서 조금 떨어져)
+	e["d"] = dist + (1.1 if e["kind"] == "tank" else 0.8)   # 코앞에 붙는다 (2026-09-30 "더 붙어서 얼굴이 혐오스럽게") — 카메라도 얼굴 쪽으로 끌려간다 (stage_preview)
 	_pistol.visible = false                                # 쓰러질 때 총이 허공에 떠 보이지 않게
 	_hud_layer.visible = false                             # 사망 연출에는 HUD 를 치운다 (블랙아웃 + DEAD 만)
 	e["x"] = cam_x
