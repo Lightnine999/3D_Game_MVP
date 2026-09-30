@@ -99,14 +99,17 @@ def paper_panel(size, seed):
     return img
 
 
-def field(d, x, y, w, label, value, dark, error=None, password=False):
+def field(d, x, y, w, label, value, dark, error=None, password=False, hint=""):
     lab = (230, 220, 210) if dark else (40, 20, 15)
     box_bg = (18, 16, 16, 220) if dark else (245, 238, 222, 230)
     box_line = (120, 35, 28) if dark else (70, 40, 30)
     txt = (235, 228, 220) if dark else (30, 20, 15)
     d.text((x, y), label, font=f(28, True), fill=lab)
     d.rounded_rectangle((x, y + 42, x + w, y + 110), 8, fill=box_bg, outline=(200, 40, 30) if error else box_line, width=3)
-    d.text((x + 20, y + 76), "●" * len(value) if password else value, font=f(28), fill=txt, anchor="lm")
+    if value:
+        d.text((x + 20, y + 76), "●" * len(value) if password else value, font=f(28), fill=txt, anchor="lm")
+    else:                                                  # 빈칸: 흐린 안내 글
+        d.text((x + 20, y + 76), hint, font=f(28), fill=(150, 135, 120) if not dark else (120, 110, 105), anchor="lm")
     if error:
         d.text((x, y + 118), "※ " + error, font=f(24, True), fill=(190, 25, 18))
         return y + 160
@@ -175,7 +178,7 @@ def sign_up(bg):
     d.text((px + pw // 2, y + 56), "지금까지의 게스트 기록이 그대로 이어집니다", font=f(22), fill=(70, 45, 35), anchor="mt")
     y += 98
     x, w = px + 60, pw - 120
-    y = field(d, x, y, w, "닉네임", "마지막생존자", False)
+    y = field(d, x, y, w, "닉네임", "", False, hint="닉네임을 입력하세요")
     y = field(d, x, y, w, "이메일", "survivor@mail.com", False, error="이미 가입된 이메일입니다 (오류 안내 예)")
     y = field(d, x, y, w, "비밀번호 (8자 이상)", "safehouse", False, password=True)
     y = field(d, x, y, w, "비밀번호 확인", "safehouse", False, password=True)
