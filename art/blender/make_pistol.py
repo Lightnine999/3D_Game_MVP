@@ -49,6 +49,9 @@ def parse_args():
                    help="손가락 관절을 더 구부리는 각도. '뼈이름=x,y,z;...' (도). 예: RightHandIndex1=0,0,-20")
     p.add_argument("--gun-nudge", default="-0.023,0,0,0,0,0",   # 2026-09-30 사용자가 조정 화면에서 맞춘 값 (엄지 쪽으로 23 mm)
                    help="조정 화면(grip_tuner)에서 찾은 값: 총을 손에 대해 옮긴 거리(m)·각도(도), Godot 기준 x,y,z,위아래,좌우,기울임")
+    p.add_argument("--knife-from", default="",
+                   help="칼 모드: 칼만 든 glb (make_knife.py 출력) 에 권총 쥔 오른손 주먹을 옮겨 붙인다 → weapon_knife.glb")
+    p.add_argument("--knife-roll", type=float, default=-35.0, help="칼 모드: 손을 칼 축으로 돌리는 각도 (도) — 손등이 보이게")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",
                    help="소매(원래 SWAT 파란색) 를 바꿀 색 (선형 RGB). 기본 짙은 올리브. 빈 값이면 그대로")
@@ -453,10 +456,34 @@ def limit_tris(limit, keep_names):
     return count()
 
 
+def knife_main(a):
+    """칼을 쥔 오른손: 권총 쥔 주먹을 그대로 가져와, 주먹 구멍(손잡이 축)이 칼 손잡이 축(앞 = Godot -Z)과 맞게 돌린다.
+    칼 원점 = 손잡이, 칼끝 = Godot -Z (TECH_SPEC 13.3.1) 는 그대로."""
+    bpy.ops.import_scene.gltf(filepath=a.knife_from)
+    knife = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    for o in knife:
+        o.name = "Knife"
+    build_mixamo_hands(a)
+    hl = bpy.context.scene.objects.get("HandLeft")
+    if hl:
+        bpy.data.objects.remove(hl, do_unlink=True)                       # 칼은 오른손 하나로
+    hr = bpy.context.scene.objects["HandRight"]
+    axis = (GRIP_ROT @ Vector((0, 0, 1, 0))).to_3d().normalized()        # 주먹 구멍 방향 (권총 손잡이 축, 위쪽)
+    q = axis.rotation_difference(Vector((0, 1, 0)))                      # → 칼 손잡이 축 (앞)
+    roll = Matrix.Rotation(math.radians(a.knife_roll), 4, "Y")
+    center = grip_point(0, 0.002, 0.0)
+    hr.data.transform(roll @ q.to_matrix().to_4x4() @ Matrix.Translation(-center))
+    tris = limit_tris(a.max_tris, {"HandRight"})
+    bpy.ops.export_scene.gltf(filepath=a.out, export_format="GLB", export_yup=True, export_apply=True)
+    print("MAKE_KNIFE_HAND tris %d, objects %s -> %s" % (tris, sorted(o.name for o in bpy.context.scene.objects), a.out))
+
+
 def main():
     a = parse_args()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     mats()
+    if a.knife_from:
+        return knife_main(a)
     frame = build_frame()
     slide = build_slide()
     trig = build_trigger()

@@ -712,12 +712,12 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 ##### ①-2 모델 목록
 | 경로 (`godot/assets/models/`) | 용도 | 크기 | 애니메이션 이름 | 쓰는 곳 |
 |---|---|---|---|---|
-| `zombie_walker.glb` | 워커 | 키 1.8m | `idle` `walk` `attack` `hit` `death` + `run` `grab` `bite` (WU-20b) | B `scenes/actors/zombie.tscn` |
-| `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` + `walk` `grab` `bite` (WU-20b) | B |
-| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `run`(돌진, B 가 느리게 재생) `attack` `hit` `death` + `grab` `bite` (WU-20b) | B |
-| `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) + `scream` `grab` `bite` `crouch_idle`(풀속에 쭈그려 앉음, 반복) `crouch_rise`(쭈그린 채 → 일어섬 1.2초) (WU-20b) | B |
+| `zombie_walker.glb` | 워커 | 키 1.8m | `idle` `walk` `attack` `hit` `death` + `run` `grab` `bite` `stabbed` (WU-20b) | B `scenes/actors/zombie.tscn` |
+| `zombie_runner.glb` | 러너 | 키 1.8m | `idle` `run` `attack` `hit` `death` + `walk` `grab` `bite` `stabbed` (WU-20b) | B |
+| `zombie_tank.glb` | 탱커 | 키 2.3m | `idle` `walk` `run`(돌진, B 가 느리게 재생) `attack` `hit` `death` + `grab` `bite` `stabbed` (WU-20b) | B |
+| `zombie_ambusher.glb` | 매복 | 키 1.8m | `idle` `walk` `attack` `hit` `death` `getup` (누운 상태 → 일어남) + `scream` `grab` `bite` `stabbed` `crouch_idle`(풀속에 쭈그려 앉음, 반복) `crouch_rise`(쭈그린 채 → 일어섬 1.2초) (WU-20b) | B |
 | `weapon_pistol.glb` | 1인칭 권총 + 총을 쥔 장갑 손 | 총 길이 0.2m(손 제외, ±10%), 원점 = 손잡이. 물체 `Frame` `Slide`(자식 `Optic`) `Magazine`(원점 = 탄창 위, 손잡이 축 (0, -0.951, 0.309) 방향으로 빠짐) `Trigger` `HandRight` `HandLeft`. 총구 = 원점에서 (0, 0.055, -0.16) | 없음 (반동·장전은 B가 코드로 — 물체를 이름으로 찾아 움직인다) | B `scenes/weapons/pistol.tscn` |
-| `weapon_knife.glb` | 칼 탈출 연출 (PRD F-32) | 길이 0.25m, 원점 = 손잡이, 칼끝 = -Z | 없음 (찌르는 동작은 B가 코드로) | B `scripts/core/grab_system.gd` (WU-25) |
+| `weapon_knife.glb` | 칼 탈출 연출 (PRD F-32) + 칼을 쥔 오른손 | 칼 길이 0.25m(손 제외), 원점 = 손잡이, 칼끝 = -Z. 물체 `Knife` `HandRight` (D6) | 없음 (찌르는 동작은 B가 코드로 — A 시범 `scripts/stage/knife_motion.gd`) | B `scripts/core/grab_system.gd` (WU-25) |
 | `prop_supply_crate.glb` | 낙하산 보급 상자 | 0.6m 정육면체 + 낙하산. 물체 이름 `Crate`·`Parachute` 두 부분 (착지하면 B 가 `Parachute` 만 숨긴다) | 없음 | B `scenes/weapons/supply_drop.tscn` |
 | `obs_wreck_car.glb` | 장애물: 폐차 | 4.2 × 1.8 × 1.5m | 없음 | B 스포너 |
 | `obs_drum.glb` | 장애물: 폐드럼통 | 지름 0.6m, 높이 0.9m | 없음 | B 스포너 |
