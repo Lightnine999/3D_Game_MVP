@@ -52,3 +52,17 @@ Zombies Sound Pack 의 24개는 이름이 번호뿐이라, 길이·평균 크기
 - `sfx_pistol_random.tres` (AudioStreamRandomizer): 3가지 중 하나를 고르고 음 높이 ±6%, 크기 ±1.5 dB 로 바꿔 낸다
   - **B:** `player.stream = preload("res://assets/audio/sfx_pistol_random.tres")` — `sfx_pistol.ogg` 대신 쓰면 된다 (SFX 버스)
 - 원본은 모두 CC0 (Kenney RPG Audio · Impact Sounds, 이미 기록됨)
+
+
+## 2026-09-30 좀비 신음 음산하게 — 4가지 + 무작위 재생
+- 원본(OGA Zombies Sound Pack, CC0)의 길고 낮은 신음 16·17·18·21 번을 골라 `make_sfx.py` 의 `eerie` 처리:
+  음 낮춤(0.7 - 0.8배) + 한 옥타브 아래 같은 소리 겹침(목울림) + 떨림(5 - 9 Hz, 꾸르륵) + 고음 깎기(2.8 - 3.4 kHz) + 들판 잔향(Schroeder)
+- `sfx_zombie_groan.ogg`(이름 그대로), `sfx_zombie_groan_2/3/4.ogg` — 3.7 - 4.5초 (잔향 꼬리 포함), 최고 -3 dB, 잘림 0%
+
+| | 길이 | 밝기(평균 주파수) | 250 Hz 아래 저음 비율 |
+|---|---|---|---|
+| 이전 groan | 1.41초 | 890 Hz | 7% |
+| 새 groan 1 - 4 | 3.7 - 4.5초 | 540 - 650 Hz | 18 - 69% |
+
+- `sfx_zombie_groan_random.tres`: 4가지 중 무작위 + 음 높이 ±8%·크기 ±2 dB
+  - **B:** 좀비마다 `AudioStreamPlayer3D.stream = preload("res://assets/audio/sfx_zombie_groan_random.tres")` (SFX 버스)

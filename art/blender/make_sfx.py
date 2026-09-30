@@ -43,7 +43,19 @@ RECIPES = {
     "sfx_step":          {"src": "kenney_impact-sounds/Audio/footstep_grass_000.ogg", "peak_db": -12},  # 0.36초마다 반복돼 -6 dB 는 배경음을 덮었다 (시뮬레이션)
     "sfx_breath":        {"src": "oga_breathing_tired.wav", "peak_db": -8},
     "sfx_empty_click":   {"src": "kenney_rpg-audio/Audio/metalClick.ogg", "peak_db": -6},
-    "sfx_zombie_groan":  {"src": "oga_zombies/zombies/zombie-16.wav", "peak_db": -3},   # 가장 낮고 긴 소리 (1.44초, 밝기 890 Hz)
+    # 좀비 신음 4가지 — 음산하게 (음 낮춤 + 한 옥타브 아래 목울림 + 떨림 + 고음 깎기 + 들판 잔향). sfx_zombie_groan_random.tres 가 무작위로
+    "sfx_zombie_groan":   {"src": "oga_zombies/zombies/zombie-16.wav", "pitch": 0.8, "peak_db": -3, "bitrate": 80000,   # 가장 낮고 긴 소리
+                           "mix": [{"src": "oga_zombies/zombies/zombie-16.wav", "pitch": 0.5, "at": 0.03, "gain": 0.45}],
+                           "eerie": {"tremolo": 7.0, "depth": 0.3, "cutoff": 3200, "reverb": 0.35}},
+    "sfx_zombie_groan_2": {"src": "oga_zombies/zombies/zombie-17.wav", "pitch": 0.75, "peak_db": -3, "bitrate": 80000,
+                           "mix": [{"src": "oga_zombies/zombies/zombie-17.wav", "pitch": 0.48, "at": 0.04, "gain": 0.4}],
+                           "eerie": {"tremolo": 5.5, "depth": 0.35, "cutoff": 3000, "reverb": 0.4}},
+    "sfx_zombie_groan_3": {"src": "oga_zombies/zombies/zombie-18.wav", "pitch": 0.72, "peak_db": -3, "bitrate": 80000,
+                           "mix": [{"src": "oga_zombies/zombies/zombie-16.wav", "pitch": 0.55, "at": 0.1, "gain": 0.35}],
+                           "eerie": {"tremolo": 8.5, "depth": 0.28, "cutoff": 3400, "reverb": 0.35}},
+    "sfx_zombie_groan_4": {"src": "oga_zombies/zombies/zombie-21.wav", "pitch": 0.7, "peak_db": -3, "bitrate": 80000,
+                           "mix": [{"src": "oga_zombies/zombies/zombie-21.wav", "pitch": 0.45, "at": 0.05, "gain": 0.4}],
+                           "eerie": {"tremolo": 6.5, "depth": 0.32, "cutoff": 2800, "reverb": 0.45}},
     "sfx_zombie_scream": {"src": "oga_zombies/zombies/zombie-10.wav", "peak_db": -1},   # 크고 밝은 소리 (-13.3 dB, 1885 Hz)
     "sfx_supply_pickup": {"src": "kenney_rpg-audio/Audio/handleCoins.ogg", "peak_db": -4},  # 탄약이 짤랑이는 느낌
     "sfx_knife":         {"src": "kenney_rpg-audio/Audio/knifeSlice.ogg", "peak_db": -3},
@@ -107,8 +119,41 @@ def synth_pistol(seed=7, boom_hz=180):
     return np.tanh(x * 1.6).astype(np.float32)                                         # 살짝 거칠게
 
 
+def reverb(x, wet, tail=1.3):
+    """들판 잔향 (Schroeder: 빗살 필터 4개 + 올패스 2개). wet = 잔향 비율, tail = 꼬리 길이(초)."""
+    n = len(x) + int(RATE * tail)
+    dry = np.zeros(n, dtype=np.float32)
+    dry[:len(x)] = x
+    out = np.zeros(n, dtype=np.float32)
+    for ms, fb in ((29.7, 0.80), (37.1, 0.79), (41.1, 0.78), (43.7, 0.77)):
+        d = int(RATE * ms / 1000)
+        y = dry.copy()
+        for i in range(d, n):                             # y[i] = x[i] + fb·y[i-d]
+            y[i] += fb * y[i - d]
+        out += y * 0.25
+    for ms, g in ((5.0, 0.7), (1.7, 0.7)):
+        d = int(RATE * ms / 1000)
+        y = np.zeros(n, dtype=np.float32)
+        for i in range(n):
+            xd = out[i - d] if i >= d else 0.0
+            yd = y[i - d] if i >= d else 0.0
+            y[i] = -g * out[i] + xd + g * yd
+        out = y
+    out = lowpass(out, 2500)                               # 멀리서 울리는 소리는 둔하다
+    return dry * (1 - wet) + out * wet * 2.2
+
+
+def eerie(x, e):
+    """음산하게: 떨림(꾸르륵) → 고음 깎기 → 들판 잔향."""
+    t = np.arange(len(x)) / RATE
+    wob = 1 - e.get("depth", 0.3) * (0.5 + 0.5 * np.sin(2 * np.pi * e.get("tremolo", 7.0) * t + np.sin(2 * np.pi * 1.3 * t)))
+    x = (x * wob).astype(np.float32)
+    x = lowpass(x, e.get("cutoff", 3200))
+    return reverb(x, e.get("reverb", 0.35))
+
+
 def build(name, r):
-    x = synth_pistol(r.get("seed", 7), r.get("boom", 180)) if r.get("synth") == "pistol" else load_mono(r["src"])
+    x = synth_pistol(r.get("seed", 7), r.get("boom", 180)) if r.get("synth") == "pistol" else load_mono(r["src"], r.get("pitch", 1.0))
     if "start" in r or "end" in r:
         x = x[int(r.get("start", 0) * RATE): int(r["end"] * RATE) if "end" in r else None]
     x = trim_silence(x)
@@ -120,6 +165,8 @@ def build(name, r):
         out[:len(x)] += x
         out[off:off + len(y)] += y
         x = out
+    if "eerie" in r:
+        x = eerie(x, r["eerie"])
     x = x / max(np.max(np.abs(x)), 1e-9) * 10 ** (r["peak_db"] / 20)
     n_in, n_out = int(RATE * 0.003), min(len(x) // 4, int(RATE * 0.02))
     x[:n_in] *= np.linspace(0, 1, n_in)
