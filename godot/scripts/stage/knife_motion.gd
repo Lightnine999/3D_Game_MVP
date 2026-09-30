@@ -20,6 +20,7 @@ const READY_ROT := Vector3(70, 25, -20)          # 도: 칼끝이 앞·위, 팔�
 const REACH := 0.55                               # 찌를 때 카메라에서 칼 손잡이까지 최대 거리 (m)
 
 var busy := false
+var speed := 1.0            # 찌르기 빠르기 (1 = 약 0.9초). 게임은 잘 보이게 늦춘다 (stage showcase, 2026-09-30)
 
 
 func _ready() -> void:
@@ -38,6 +39,7 @@ func stab(target_world: Vector3) -> void:
 	var local: Vector3 = cam.global_transform.affine_inverse() * target_world
 	var thrust := local.normalized() * minf(REACH, local.length() - 0.12) + Vector3(0.04, -0.08, 0)
 	var tw := create_tween()
+	tw.set_speed_scale(speed)
 	# 1) 아래에서 칼을 치켜듦
 	tw.tween_property(self, "position", READY_POS, 0.18).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 	tw.parallel().tween_property(self, "rotation_degrees", READY_ROT, 0.18)

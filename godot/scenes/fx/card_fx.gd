@@ -18,6 +18,8 @@ var _oneshot: GeometryInstance3D
 var _oneshot_len := 0.0
 var _light: OmniLight3D
 var _light_e := 0.0
+var _oneshot_frames := 15.0      # 한 번 재생할 칸 수 - 1
+var _flash_light := false        # 빛이 불꽃처럼 일렁이지 않고 한 번 번쩍 줄어든다
 
 
 static func _mat(key: String, shader: String, tex: String, tint: Color, energy: float, fps: float, y_bb: bool) -> ShaderMaterial:
@@ -69,6 +71,29 @@ static func flare(parent: Node3D, green: bool) -> CardFX:
 	return fx
 
 
+# 총구 불꽃 (2026-09-30 "카메라 앞인데 디테일이 구리다"): 별 모양 8칸을 0.07초에 넘긴다 + 아주 짧은 빛. 매번 각도·크기를 달리한다
+static func muzzle(parent: Node3D, size := 0.38) -> CardFX:
+	var fx := CardFX.new()
+	parent.add_child(fx)
+	var m := _mat("muzzle", "card_flipbook_add.gdshader", "fx_muzzle_4x2.png", Color(1, 1, 1, 1), 1.6, 0.0, false)
+	m.set_shader_parameter("rows", 2.0)
+	m.set_shader_parameter("frames", 8.0)
+	fx._oneshot = fx._card(m, Vector2.ONE * size * randf_range(0.85, 1.2), Vector3(0, 0, -0.03))
+	fx._oneshot.set_instance_shader_parameter("frame_override", 0.0)
+	fx._oneshot.set_instance_shader_parameter("spin", randf() * TAU)
+	fx._oneshot_len = 0.07
+	fx._oneshot_frames = 7.0
+	fx._life = 0.08
+	fx._light = OmniLight3D.new()                       # 번쩍 (손·총·주변 풀을 순간 밝힌다)
+	fx._light.light_color = Color(1.0, 0.72, 0.4)
+	fx._light_e = 2.5
+	fx._light.light_energy = fx._light_e
+	fx._light.omni_range = 3.0
+	fx._flash_light = true
+	fx.add_child(fx._light)
+	return fx
+
+
 static func blood_splash(parent: Node, pos: Vector3, size := 1.1) -> CardFX:
 	var fx := CardFX.new()
 	parent.add_child(fx)
@@ -110,10 +135,12 @@ static func blood_pool(parent: Node, pos: Vector3, size := 1.6) -> CardFX:
 
 func _process(delta: float) -> void:
 	_t += delta
-	if _light:
+	if _light and _flash_light:
+		_light.light_energy = _light_e * maxf(1.0 - _t / 0.06, 0.0)
+	elif _light:
 		_light.light_energy = _light_e * (0.85 + 0.15 * sin(_t * 23.0) * sin(_t * 7.3))
 	if _oneshot and _oneshot_len > 0.0:                  # 피 튐: 칸을 차례로
-		_oneshot.set_instance_shader_parameter("frame_override", clampf(_t / _oneshot_len, 0.0, 1.0) * 15.0)
+		_oneshot.set_instance_shader_parameter("frame_override", clampf(_t / _oneshot_len, 0.0, 1.0) * _oneshot_frames)
 	elif _oneshot and _fade_len > 0.0:                   # 핏자국: 번지고 → 옅어진다
 		_oneshot.scale = Vector3.ONE * lerpf(0.2, 1.0, clampf(_t / 0.5, 0.0, 1.0))
 		var a := 1.0 - clampf((_t - _fade_from) / _fade_len, 0.0, 1.0)

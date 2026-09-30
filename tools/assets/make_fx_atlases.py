@@ -140,3 +140,29 @@ for _ in range(26):
 a = np.clip((c - 0.3) * 2.2, 0, 0.9)
 rgb = np.stack([0.38 + 0.2 * np.clip(c, 0, 1), np.full_like(c, 0.01), np.full_like(c, 0.01)], -1)
 save(np.concatenate([rgb, a[..., None]], -1), "fx_blood_screen.png")
+
+# 6) 총구 불꽃 (한 번 8칸, 128px — 4x2): 작고 하얀 심지 + 길고 가는 5-7갈래 불꽃 → 노랑·주황으로 식으며 사라진다 (더하기 섞기, 색까지 그려 둔다)
+S6 = 128
+frames = []
+spikes = [(rng.uniform(0, math.tau), rng.uniform(0.6, 1.0), rng.uniform(0.8, 1.2)) for _ in range(7)]
+for f in range(8):
+    u = f / 7                                              # 0 → 1 (번쩍 → 사라짐)
+    c = np.zeros((S6, S6), np.float32)
+    ox = oy = S6 * 0.5
+    grow = 0.6 + 0.4 * min(u * 3.0, 1.0)                   # 처음 두 칸에 확 퍼지고
+    fade = (1.0 - u) ** 1.5
+    blob(c, ox, oy, 7 * grow, 1.8 * fade, 1.6)              # 작은 심지
+    blob(c, ox, oy, 26 * grow, 0.22 * fade, 1.0)            # 옅은 빛무리
+    for k, (ang, L, wdt) in enumerate(spikes[:5 + (f % 3)]):
+        a = ang + rng.uniform(-0.1, 0.1)
+        length = 60 * L * grow
+        for j in range(22):                                 # 갈래: 길고 가늘게, 끝으로 갈수록 약하게
+            t = j / 21
+            blob(c, ox + math.cos(a) * length * t, oy + math.sin(a) * length * t, (3.2 - 2.4 * t) * wdt, 0.75 * fade * (1 - t) ** 0.9, 2.0)
+    heat = np.clip(c, 0, 1.8)
+    r = np.clip(heat * 1.3, 0, 1)
+    g = np.clip(heat * 0.85 - 0.12, 0, 1)
+    b = np.clip(heat * 0.8 - 0.75, 0, 1)
+    a = np.clip(heat * 1.1, 0, 1)
+    frames.append(np.stack([r, g, b, a], -1))
+save(sheet(frames, 4), "fx_muzzle_4x2.png")
