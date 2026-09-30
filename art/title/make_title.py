@@ -97,7 +97,8 @@ def blood_fill(size, seed):
     return Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"), "RGB")
 
 
-def title_layer(size, text, font, seed):
+def title_layer(size, text, font, seed, depth=0):
+    """depth > 0 이면 글자를 뒤쪽 아래로 밀어낸 두께(입체)를 깐다."""
     m, bbox = rough_mask(size, text, font, seed)
     m = drips(m, bbox, seed + 1)
     m = scratches(m, bbox, seed + 2)
@@ -117,7 +118,26 @@ def title_layer(size, text, font, seed):
     out = Image.new("RGBA", size, (0, 0, 0, 0))
     g = Image.new("RGBA", size, (200, 10, 0, 255)); g.putalpha(glow.point(lambda v: v * 0.55))
     e = Image.new("RGBA", size, (8, 2, 2, 255)); e.putalpha(edge)
-    for layer in (g, e, fill):
+    layers = [g]
+    if depth:
+        # 입체: 글자 모양을 오른쪽 아래로 한 칸씩 밀며 겹쳐 두께를 만든다 (앞쪽은 검붉게, 뒤쪽은 거의 검게)
+        solid = m.filter(ImageFilter.MaxFilter(5))
+        for i in range(depth, 0, -1):
+            k = i / depth
+            col = (int(70 * (1 - k) + 12 * k), int(4 * (1 - k)), int(4 * (1 - k)), 255)
+            sh = Image.new("RGBA", size, col)
+            sh.putalpha(ImageChops.offset(solid, int(round(i * 0.55)), int(round(i * 1.0))))
+            layers.append(sh)
+        # 바닥에 떨어지는 그림자
+        drop = ImageChops.offset(solid, int(depth * 0.9), int(depth * 1.6)).filter(ImageFilter.GaussianBlur(18))
+        ds = Image.new("RGBA", size, (0, 0, 0, 255)); ds.putalpha(drop.point(lambda v: v * 0.75))
+        layers.insert(1, ds)
+        # 앞면 윗가장자리에 빛 (모서리가 깎인 느낌)
+        bev = ImageChops.subtract(m, ImageChops.offset(m, 0, 3)).filter(ImageFilter.GaussianBlur(1))
+        bv = Image.new("RGBA", size, (255, 150, 120, 255)); bv.putalpha(bev.point(lambda v: v * 0.6))
+        fill = Image.alpha_composite(fill, bv)
+    layers += [e, fill]
+    for layer in layers:
         out = Image.alpha_composite(out, layer)
     return out
 
@@ -138,15 +158,18 @@ def main():
     arr[..., 0] *= 1.06
     bg = Image.fromarray(np.clip(arr, 0, 255).astype("uint8"), "RGBA")
 
-    font = ImageFont.truetype(FONT, 240)
-    t = title_layer((W, 520), TITLE, font, seed=13)
-    bg.alpha_composite(t, (0, 40))
+    # 제목: 글자 크기 2배(240 → 480). 그대로면 폭이 화면을 넘어서 가로만 80% 로 눌러 맞춘다. 두께(입체) 26 칸
+    font = ImageFont.truetype(FONT, 480)
+    big_w = int(W / 0.8)
+    t = title_layer((big_w, 900), TITLE, font, seed=13, depth=26)
+    t = t.resize((W, 900), Image.LANCZOS)
+    bg.alpha_composite(t, (0, -95))
     # 부제 (영문) — 작고 가는 흰 글씨, 살짝 긁힘
     sub = Image.new("RGBA", (W, 120), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sub)
     sfont = ImageFont.truetype(FONT, 50)
     sd.text((W // 2, 60), " ".join(SUB), font=sfont, fill=(225, 215, 205, 235), anchor="mm", stroke_width=3, stroke_fill=(10, 5, 5, 230))
-    bg.alpha_composite(sub, (0, 480))
+    bg.alpha_composite(sub, (0, 700))
     # 아래: "화면을 눌러 시작" 자리 표시 (C 가 실제 버튼으로 바꾼다)
     hint = Image.new("RGBA", (W, 90), (0, 0, 0, 0))
     ImageDraw.Draw(hint).text((W // 2, 45), "화면을 눌러 시작", font=ImageFont.truetype(FONT, 42), fill=(235, 225, 215, 210),
