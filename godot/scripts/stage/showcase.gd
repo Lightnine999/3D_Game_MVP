@@ -699,8 +699,10 @@ func _retarget(src: Animation, ratio: float, prefix: String, loop: bool) -> Anim
 # ① 좀비만 비추는 조명(ZOMBIE_LIGHT_LAYER) — 카메라에서 앞으로 은은하게, 풀·나무는 비추지 않는다
 # ② 재질을 조금 번들거리게 (거칠기 낮춤·반사 올림) → 빛을 받으면 피부·옷에 반짝임이 살아 풀 사이에서 몸이 읽힌다
 const ZOMBIE_LIGHT_LAYER := 2                 # 렌더 레이어 2번 (좀비 전용 조명의 cull_mask)
-const ZOMBIE_ROUGH := 0.5
-const ZOMBIE_SPEC := 0.75
+# 3차 (같은 날 "스펙을 너무 올렸다 — 약간만, 채도 조금, 톤은 분위기에"): 광택은 원래 값에서 조금만, 색은 살짝 진하게, 조명은 노을빛
+const ZOMBIE_ROUGH_MIX := 0.3                 # 거칠기를 원래 값에서 0.55 쪽으로 이만큼만 당긴다
+const ZOMBIE_SPEC := 0.6
+const ZOMBIE_TINT := Color(1.1, 1.0, 0.94)    # 채도·붉은 기를 살짝 (피부·피가 조금 더 진하게)
 var _dressed := {}                            # 이미 손본 재질 (같은 모델끼리 재질을 같이 쓴다)
 
 
@@ -712,16 +714,17 @@ func _dress_zombie(z: Node3D) -> void:
 			var mat := m.get_active_material(i) as BaseMaterial3D
 			if mat and not _dressed.has(mat):
 				_dressed[mat] = true
-				mat.roughness = minf(mat.roughness, ZOMBIE_ROUGH)
+				mat.roughness = lerpf(mat.roughness, minf(mat.roughness, 0.55), ZOMBIE_ROUGH_MIX)
 				mat.metallic_specular = ZOMBIE_SPEC
+				mat.albedo_color = mat.albedo_color * ZOMBIE_TINT
 
 
 func _build_zombie_light(camera: Camera3D) -> void:
 	var l := SpotLight3D.new()
 	l.light_cull_mask = ZOMBIE_LIGHT_LAYER               # 좀비만
-	l.light_color = Color(0.86, 0.9, 1.0)                # 차가운 달빛 톤
-	l.light_energy = 2.2
-	l.light_specular = 1.4                               # 반짝임을 조금 더
+	l.light_color = Color(1.0, 0.84, 0.8)                # 노을빛 (배경 하늘 톤에 맞춤)
+	l.light_energy = 1.4
+	l.light_specular = 0.8                               # 반짝임은 약하게
 	l.spot_range = 34.0
 	l.spot_angle = 42.0
 	l.spot_attenuation = 0.6
