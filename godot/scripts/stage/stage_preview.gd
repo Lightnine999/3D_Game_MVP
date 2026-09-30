@@ -2,7 +2,9 @@
 # 1인칭 시점으로 초속 5m(PRD F-01) 자동 달리기를 하며 500m를 달린다.
 #
 # 플레이 테스트 (2026-09-30, 기본): 사용자가 직접 좌우로 피한다 — 레벨 디자인 확인용 (진짜 조작·판정은 B 담당)
-#   폰: 화면을 누른 채 좌우로 끌기 / PC: A·D 또는 ←·→ (마우스 끌기도 됨)
+#   PC: A·D 또는 ←·→ 로 좌우, 스페이스바로 사격 (마우스는 쓰지 않는다 — 시선은 항상 정면)
+#   폰: 화면을 누른 채 좌우로 끌기, 오른쪽 아래 FIRE 버튼으로 사격
+#   전진은 자동. 낮은 장애물(1m 이하)은 저절로 뛰어 올라탔다가 내려온다
 #   차·소품은 뚫고 지나가지 못한다. 정면으로 막히면 가까운 틈으로 저절로 미끄러지고, 낮은 것은 저절로 뛰어넘는다. 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
 #   --auto: 예전처럼 알아서 피해 가는 자동 달리기 / --no-showcase: 좀비 없이 맵만
 # 영상 프레임: godot --path godot --resolution 1560x720 -- --frames=<폴더>
@@ -27,9 +29,9 @@ const PLAYER_RADIUS := 0.35
 const SLIDE_SPEED := 3.2    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
 const SLIDE_HOLD := 0.35    # 한 번 막히면 이 시간 동안 미끄러짐을 이어 간다 (초)
 const SLIDE_FORWARD := 0.25 # 미끄러지는 동안 앞으로 가는 속도 비율
-const JUMP_MAX := 0.8       # 이보다 낮은 장애물(타이어·가방·잔해)은 자동으로 뛰어넘는다 (m)
+const JUMP_MAX := 1.0       # 이보다 낮은 장애물(타이어·가방·상자 더미·납작한 차)은 저절로 뛰어 올라탔다가 내려온다 (m)
 const JUMP_LOOK := 1.3      # 낮은 장애물이 이만큼 앞에 오면 뛴다 (m)
-const JUMP_SPEED := 5.2     # 뛰어오르는 속도 (m/s) → 최고 약 0.97m, 체공 약 0.74초
+const JUMP_SPEED := 5.2     # 뛰어오르는 기본 속도 (m/s) → 최고 약 0.97m. 높은 것은 _jump_to() 가 높이에 맞춰 더 세게
 const GRAVITY := 14.0
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
@@ -59,6 +61,7 @@ var _slide_t := 0.0                 # 미끄러짐 남은 시간
 var _slide_x := 0.0                 # 미끄러져 갈 x (가장 가까운 틈)
 var _jumps := 0                     # 자동 점프 횟수 (통과 검사 기록용)
 var _grounded := true               # 땅이나 낮은 물건(가방·상자) 위에 서 있다
+var _fire_held := false             # 폰 FIRE 버튼을 누르고 있다
 
 
 func _ready() -> void:
@@ -92,6 +95,12 @@ func _ready() -> void:
 		_label.position = Vector2(48, 640)          # 시연 HUD 가 남은 거리를 보여 준다 → 구석에 FPS 만
 		_label.add_theme_font_size_override("font_size", 28)
 		_label.visible = _play
+		if _play:
+			_showcase.auto_fire = false                   # 사격은 스페이스바·FIRE 버튼으로 직접
+			_showcase.live_audio = true
+			_showcase.start_bgm()
+			if DisplayServer.is_touchscreen_available():
+				_build_fire_button(holder)
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
@@ -126,6 +135,26 @@ func _parse_args() -> void:
 			_shot_dists.clear()
 			for v in arg.trim_prefix("--dist=").split(","):
 				_shot_dists.append(float(v))
+
+
+func _build_fire_button(holder: Node) -> void:
+	var layer := CanvasLayer.new()
+	holder.add_child(layer)
+	var b := Button.new()
+	b.text = "FIRE"
+	b.add_theme_font_size_override("font_size", 40)
+	b.anchor_left = 1.0
+	b.anchor_top = 1.0
+	b.anchor_right = 1.0
+	b.anchor_bottom = 1.0
+	b.offset_left = -230
+	b.offset_top = -190
+	b.offset_right = -40
+	b.offset_bottom = -40
+	b.modulate = Color(1, 1, 1, 0.75)
+	b.button_down.connect(func(): _fire_held = true)
+	b.button_up.connect(func(): _fire_held = false)
+	layer.add_child(b)
 
 
 func _build_body() -> void:
@@ -164,7 +193,8 @@ func _process(delta: float) -> void:
 	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
 
-# 플레이 테스트 조작: 누른 채 좌우로 끌기 (폰) / 마우스 끌기 (PC)
+# 플레이 테스트 조작: 폰은 누른 채 좌우로 끌기 (FIRE 버튼 위는 제외). PC 는 키보드만 (_step 에서 읽는다)
+# 마우스는 쓰지 않는다: 마우스를 움직여 시선이 돌아가거나 기울지 않게 (2026-09-30 피드백)
 func _unhandled_input(event: InputEvent) -> void:
 	if not _play:
 		return
@@ -177,14 +207,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif not event.pressed and event.index == _touch_id:
 			_touch_id = -1
 	elif event is InputEventScreenDrag and event.index == _touch_id:
-		_steer_target = _steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_touch_id = 0 if event.pressed else -1
-		_touch_x0 = event.position.x
-		_steer_x0 = _steer_target
-	elif event is InputEventMouseMotion and _touch_id == 0:
-		_steer_target = _steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M
-	_steer_target = clampf(_steer_target, -_lane(), _lane())
+		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M, -_lane(), _lane())
 
 
 func _lane() -> float:
@@ -204,6 +227,8 @@ func _step(delta: float) -> void:
 			key += 1.0
 		if key != 0.0:
 			_steer_target = clampf(_x + key * 1.2, -_lane(), _lane())
+		if _showcase and (Input.is_physical_key_pressed(KEY_SPACE) or _fire_held):
+			_showcase.fire()                              # 누르고 있으면 연사 간격(0.45초)마다
 		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
@@ -300,8 +325,13 @@ func _move_body(motion: Vector3) -> void:
 		if col == null:
 			break
 		var n := col.get_normal()
-		if n.y > 0.3 and _grounded:                       # 낮은 것의 모서리·비탈(타이어·잔해)에 걸렸다 → 폴짝 넘는다
-			_vy = JUMP_SPEED
+		if _grounded and (n.y > 0.3 or n.z > 0.5):          # 낮은 것에 걸렸다 → 그 위로 올라탄다 (1m 이하만)
+			var top := _collider_top(col)
+			if top - _body.position.y < JUMP_MAX:
+				_jump_to(top)
+				_jumps += 1
+				_slide_t = 0.0
+				break                                         # 이번 걸음은 여기까지 — 다음 걸음부터 위로 올라간다
 		n.y = 0.0
 		n = n.normalized() if n.length() > 0.01 else Vector3.BACK
 		motion = col.get_remainder().slide(n)
@@ -328,6 +358,26 @@ func _move_body(motion: Vector3) -> void:
 	_x = _body.position.x
 
 
+# 높이 top(m) 인 것 위로 올라설 만큼 뛴다 → 길면 그 위를 달리다가 끝에서 떨어져 내려온다
+func _jump_to(top: float) -> void:
+	var h := maxf(top - _body.position.y + 0.25, 0.6)
+	_vy = maxf(JUMP_SPEED, sqrt(2.0 * GRAVITY * h))
+	_grounded = false
+
+
+# 부딪힌 충돌 상자의 윗면 높이
+func _collider_top(col: KinematicCollision3D) -> float:
+	var body := col.get_collider() as Node
+	if body == null:
+		return 99.0
+	for c in body.get_children():
+		var cs := c as CollisionShape3D
+		if cs and cs.shape is BoxShape3D:
+			var sz: Vector3 = (cs.shape as BoxShape3D).size
+			return (cs.global_transform * AABB(-sz * 0.5, sz)).end.y
+	return 99.0
+
+
 # 바로 앞(JUMP_LOOK 안)에 낮은 장애물이 몸과 겹치면 저절로 뛴다 — 사용자는 점프를 조작하지 않는다
 func _auto_jump() -> void:
 	if not _grounded:
@@ -337,8 +387,7 @@ func _auto_jump() -> void:
 			continue
 		var ahead: float = ob["z"] - ob.get("half_depth", 1.0) - _dist
 		if ahead > -0.3 and ahead < JUMP_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
-			_vy = JUMP_SPEED
-			_grounded = false
+			_jump_to(ob.get("top", 0.5))
 			_jumps += 1
 			return
 
@@ -350,8 +399,10 @@ func _apply_camera(t: float) -> void:
 	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
 	var air := _body.position.y
 	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
-	var look := 0.0 if _play else sin(t * 0.35) * -4.0      # 플레이 중에는 시선이 멋대로 돌지 않게
-	_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(look), deg_to_rad(sway * 0.6 + shake * 40.0))
+	if _play:                                              # 플레이: 항상 정면. 좌우로 돌거나 기울지 않는다 (위아래 발걸음만)
+		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), 0.0, 0.0)
+	else:
+		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(sin(t * 0.35) * -4.0), deg_to_rad(sway * 0.6 + shake * 40.0))
 
 
 # 영상용: 1/30초씩 진행하며 한 장이 그려질 때마다 JPG로 저장 (창이 가려져 느려져도 프레임이 빠지거나 겹치지 않음)

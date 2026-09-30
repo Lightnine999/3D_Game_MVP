@@ -29,6 +29,10 @@ const SPEED := {"walker": 1.2, "runner": 4.5, "tank": 0.8, "ambusher": 1.5}   # 
 const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 → 2발 (2026-09-30 "너무 세다")
 
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
+var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
+var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
+const FIRE_RANGE := 30.0                      # 직접 쏠 때 닿는 거리
+const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서 옆으로 이만큼(+거리 × 0.06) 안에 있으면 맞는다
 var _builder: StageBuilderV2
 var _camera: Camera3D
 var _pistol: Node3D
@@ -201,7 +205,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					e["state"] = "getup"
 					e["t"] = 0.0
 					ap.play("getup")
-					events.append([_time, "sfx_zombie_scream"])
+					_sfx("sfx_zombie_scream")
 			"getup":
 				if e["t"] > ap.current_animation_length * 0.9:
 					e["state"] = "move"
@@ -215,7 +219,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						ap.speed_scale = 0.6                   # 달리기를 느리게
 					else:
 						ap.speed_scale = 1.8                   # 아직 run 이 없으면 걷기를 빠르게 (WU-20b "못 구하면")
-					events.append([_time, "sfx_zombie_groan"])
+					_sfx("sfx_zombie_groan")
 				if e.get("charging", false):
 					spd = 2.5
 				var target := Vector2(cam_x, dist)
@@ -224,11 +228,62 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 				e["x"] += step.x
 				e["d"] += step.y
 				_place(e)
-				if ahead < SHOOT_RANGE and ahead > 1.5 and (_ammo > 0 or INFINITE_AMMO) and _shot_cd <= 0.0:
+				if auto_fire and ahead < SHOOT_RANGE and ahead > 1.5 and (_ammo > 0 or INFINITE_AMMO) and _shot_cd <= 0.0:
 					_shoot(e)
 			"dead":
 				if ahead < -4.0:
 					z.queue_free()
+
+
+# 플레이 테스트 사격 (스페이스바·FIRE 버튼): 화면 가운데 조준선 앞의 가장 가까운 좀비를 쏜다. 없으면 허공에 쏜다
+func fire() -> void:
+	if _shot_cd > 0.0:
+		return
+	if _ammo <= 0 and not INFINITE_AMMO:
+		_shot_cd = 0.3
+		_sfx("sfx_empty_click")                          # 빈 총 소리
+		return
+	var cam := _camera.global_position
+	var best: Dictionary = {}
+	var best_d := INF
+	for e in _zombies:
+		if not is_instance_valid(e["node"]) or e["state"] == "dead":
+			continue
+		var rel: Vector3 = (e["node"] as Node3D).global_position - cam
+		var ahead := -rel.z
+		if ahead < 1.0 or ahead > FIRE_RANGE:
+			continue
+		if absf(rel.x) < AIM_WIDTH + ahead * 0.06 and ahead < best_d:
+			best_d = ahead
+			best = e
+	_shoot(best)
+
+
+func _sfx(name: String) -> void:
+	events.append([_time, name])
+	if not live_audio:
+		return
+	var p := AudioStreamPlayer.new()
+	p.stream = load("res://assets/audio/%s.ogg" % name)
+	if AudioServer.get_bus_index("SFX") >= 0:
+		p.bus = "SFX"
+	add_child(p)
+	p.finished.connect(p.queue_free)
+	p.play()
+
+
+# 배경음 (플레이 테스트)
+func start_bgm() -> void:
+	var p := AudioStreamPlayer.new()
+	var st: AudioStream = load("res://assets/audio/bgm_field.ogg")
+	if st is AudioStreamOggVorbis:
+		(st as AudioStreamOggVorbis).loop = true
+	p.stream = st
+	p.volume_db = -6.0
+	if AudioServer.get_bus_index("BGM") >= 0:
+		p.bus = "BGM"
+	add_child(p)
+	p.play()
 
 
 func _shoot(e: Dictionary) -> void:
@@ -236,11 +291,13 @@ func _shoot(e: Dictionary) -> void:
 	if not INFINITE_AMMO:
 		_ammo -= 1
 	_refresh_ammo()
-	events.append([_time, "sfx_pistol"])
+	_sfx("sfx_pistol")
 	var flash: Node3D = load("res://scenes/fx/muzzle_flash.tscn").instantiate()
 	_pistol.add_child(flash)
 	flash.position = MUZZLE
 	flash.play()
+	if e.is_empty():
+		return                                            # 빗나감 (조준선 앞에 좀비 없음)
 	var z: Node3D = e["node"]
 	# 착탄 섬광·불똥 + 핏방울·피 안개 (엔진에서 만든 이펙트, scenes/fx/bullet_hit.gd)
 	var hit_at := z.global_position + Vector3(_rng.randf_range(-0.12, 0.12), (1.35 if e["kind"] != "tank" else 1.75) + _rng.randf_range(-0.15, 0.15), 0)
@@ -306,7 +363,7 @@ func _update_crates(dist: float, cam_x: float, delta: float) -> void:
 			c["taken"] = true
 			_ammo += AMMO_PER_CRATE
 			_refresh_ammo()
-			events.append([_time, "sfx_supply_pickup"])
+			_sfx("sfx_supply_pickup")
 			print("[supply] %s %.0fm 줍기 → 총알 %d" % ["초록" if c["green"] else "빨강", c["d"], _ammo])
 			n.queue_free()
 
