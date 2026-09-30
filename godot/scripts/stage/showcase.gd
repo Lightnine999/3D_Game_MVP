@@ -18,12 +18,13 @@ const ZOMBIE_COUNT := 150                     # 스테이지(750m)에 150마리 
 const SPAWN_AHEAD := 36.0                     # 이만큼 앞에서 나타난다 (달빛 테두리로 멀리서도 보인다)
 const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
-# 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 글록 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
+# 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 권총 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
 # 새 탄창 크기가 된다. 받은 총알은 예비탄으로 쟁여 두고 R(폰 RELOAD)로 재장전한다 — 재장전은 시간이 걸린다
 const LINE_W := 200.0                         # 진행 실선 길이 (px) — 왼쪽 위 거리 숫자 아래
 const HUD_WHITE := Color(0.96, 0.95, 0.93)    # HUD 흰색 (살짝 따뜻한 흰색 — 순백은 노을 화면에서 튄다)
 const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
-const GLOCKS := [["G43", 6], ["G26", 10], ["G19", 15], ["G17", 17], ["G17 확장탄창", 24], ["G18 롱탄창", 30]]   # [모델, 탄창]
+# [이름, 탄창] — 실제 총 모델명(상표)은 쓰지 않는다 (2026-09-30 저작권·상표 점검). 탄창 크기로만 구분
+const PISTOLS := [["소형 권총", 6], ["컴팩트 권총", 10], ["표준 권총", 15], ["풀사이즈 권총", 17], ["확장 탄창 권총", 24], ["롱 탄창 권총", 30]]
 const RELOAD_TIME := 1.5                      # 재장전 기본 시간 (초) + 탄창이 클수록 조금 더 (30발 = 2.1초)
 const RELOAD_PER_ROUND := 0.02
 # 보급 계획 (2026-09-30 "보급이 너무 많다" 11개 → 9개, 약 20% 줄임): [달린 거리(750m 기준), 초록?] — 빨강·초록을 번갈아 약 80m 간격
@@ -896,19 +897,19 @@ func _update_crates(dist: float, cam_x: float, delta: float) -> void:
 				var chute := n.find_child("Parachute", true, false)
 				if chute:
 					chute.visible = false                  # 착지하면 낙하산만 숨긴다 (TECH_SPEC 13.3.1)
-		# 땅에 놓인 상자 앞(옆 PICK_X 안)을 지나가면 줍는다 → 글록 한 정 (탄창 크기 무작위). 멀리 비켜 가면 못 줍는다
+		# 땅에 놓인 상자 앞(옆 PICK_X 안)을 지나가면 줍는다 → 권총 한 정 (탄창 크기 무작위). 멀리 비켜 가면 못 줍는다
 		elif absf(c["d"] - dist) < PICK_Z and absf(c["x"] - cam_x) < PICK_X:
 			c["taken"] = true
-			_pick_glock()
+			_pick_pistol()
 			_sfx("sfx_supply_pickup")
 			print("[supply] %s %.0fm 줍기 → %s 탄창 %d / 예비 %d" % ["초록" if c["green"] else "빨강", c["d"], _gun_name, _mag, _reserve])
 			n.queue_free()
 
 
-# 보급 글록: 그 모델로 바꿔 든다. 탄창 크기가 바뀌고, 탄창 하나 분량이 예비탄으로 들어온다
+# 보급 권총: 그 모델로 바꿔 든다. 탄창 크기가 바뀌고, 탄창 하나 분량이 예비탄으로 들어온다
 # (지금 탄창에 새 탄창보다 많이 들어 있으면 넘치는 만큼은 예비탄으로)
-func _pick_glock() -> void:
-	var g: Array = GLOCKS[_rng.randi() % GLOCKS.size()]
+func _pick_pistol() -> void:
+	var g: Array = PISTOLS[_rng.randi() % PISTOLS.size()]
 	_gun_name = g[0]
 	_mag_cap = g[1]
 	if _mag > _mag_cap:
