@@ -38,12 +38,14 @@ def parse_args():
     p.add_argument("--arms-fbx", default="", help="Mixamo 캐릭터 FBX — 주면 스크립트 손 대신 이 캐릭터의 팔(팔꿈치 아래)을 쓴다")
     p.add_argument("--arms-anim", default="", help="두 손으로 권총을 쥔 Mixamo 동작 FBX (예: pistol idle)")
     p.add_argument("--arms-frame", type=int, default=10, help="그 동작에서 손 모양을 가져올 프레임")
-    p.add_argument("--grip", default="0.100,-0.014,-0.002,-9",  # 손잡이가 엄지·검지 사이에 끼고, 엄지 쪽으로 붙이고, 총구가 손 방향과 일직선
+    p.add_argument("--grip", default="0.100,0.002,-0.004,-9",  # 손잡이가 엄지·검지 사이에 끼고, 엄지 쪽으로 붙이고, 총구가 손 방향과 일직선
                    help="오른손 손목에서 손잡이까지: 손끝 방향 m, 위 m, 오른쪽 m, 총구 좌우 각도(도)")
     p.add_argument("--left-thumb", default="0,0,-55",
                    help="왼손 엄지 첫 마디를 더 돌리는 각도 (x,y,z 도) — 위로 선 엄지를 총 옆면을 따라 앞으로 눕힐 때")
-    p.add_argument("--bend", default="RightHandIndex1=35,0,0;RightHandIndex2=35,0,0;RightHandIndex3=20,0,0;"
-                                     "RightHandThumb2=30,0,0;RightHandThumb3=25,0,0",   # 오른손 검지·엄지를 총 쪽으로 감아 쥐게
+    p.add_argument("--bend", default="RightHandIndex1=22,0,0;RightHandIndex2=22,0,0;RightHandIndex3=12,0,0;"
+                                     "RightHandThumb2=18,0,0;RightHandThumb3=15,0,0;"
+                                     "RightHandMiddle1=-10,0,0;RightHandRing1=-10,0,0;RightHandPinky1=-10,0,0",
+                   # 검지·엄지는 총 쪽으로 감되 손잡이 속으로 파고들지 않게, 나머지 세 손가락은 살짝 펴 손잡이 표면에 닿게
                    help="손가락 관절을 더 구부리는 각도. '뼈이름=x,y,z;...' (도). 예: RightHandIndex1=0,0,-20")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",
@@ -216,7 +218,7 @@ def build_frame():
     parts = [
         box((0, 0.055, 0.035), (0.022, 0.180, 0.018), "frame", bevel=0.0025),       # 몸통 (앞 끝까지)
         box((0, 0.112, 0.0235), (0.019, 0.050, 0.007), "frame", bevel=0.001),       # 아래 레일
-        box(grip_point(0, 0, 0), (0.028, 0.050, 0.108), "frame", rot=GRIP_ROT, bevel=0.006),  # 손잡이 뼈대
+        box(grip_point(0, 0.002, 0), (0.024, 0.044, 0.108), "frame", rot=GRIP_ROT, bevel=0.006),  # 손잡이 뼈대 (Mixamo 손이 감쌀 수 있게 날씬하게)
         box((0, 0.043, 0.006), (0.010, 0.005, 0.030), "frame"),                     # 방아쇠울 앞 (각지게)
         box((0, 0.020, -0.0085), (0.010, 0.050, 0.005), "frame"),                   # 방아쇠울 아래
         box((0, -0.040, 0.049), (0.020, 0.018, 0.012), "frame", bevel=0.003),       # 비버테일
@@ -227,9 +229,9 @@ def build_frame():
     for i in range(3):                                                              # 레일 홈
         parts.append(box((0, 0.096 + i * 0.012, 0.0195), (0.0195, 0.004, 0.002), "bore"))
     for side in (1, -1):                                                            # 손잡이 판 양쪽 (오돌토돌)
-        parts.append(box(grip_point(side * 0.0152, 0.004, -0.010), (0.0026, 0.040, 0.090), "grip", rot=GRIP_ROT, bevel=0.001))
+        parts.append(box(grip_point(side * 0.0132, 0.004, -0.010), (0.0024, 0.036, 0.090), "grip", rot=GRIP_ROT, bevel=0.001))
         for gz in (0.024, -0.042):                                                  # 나사 위·아래
-            parts.append(cyl(grip_point(side * 0.0160, 0.004, gz), grip_point(side * 0.0172, 0.004, gz), 0.0026, "steel", segs=8))
+            parts.append(cyl(grip_point(side * 0.0140, 0.004, gz), grip_point(side * 0.0152, 0.004, gz), 0.0024, "steel", segs=8))
     return join(parts, "Frame")
 
 
@@ -242,8 +244,8 @@ def build_trigger():
 
 def build_magazine():
     top = grip_point(0, 0.002, 0.050)
-    body = box(grip_point(0, 0.002, -0.004), (0.022, 0.034, 0.108), "frame", rot=GRIP_ROT)
-    base = box(grip_point(0, 0.004, -0.062), (0.034, 0.052, 0.010), "frame", rot=GRIP_ROT, bevel=0.0025)   # 넓은 바닥판
+    body = box(grip_point(0, 0.003, -0.004), (0.020, 0.032, 0.108), "frame", rot=GRIP_ROT)
+    base = box(grip_point(0, 0.004, -0.062), (0.030, 0.048, 0.010), "frame", rot=GRIP_ROT, bevel=0.0025)   # 넓은 바닥판
     lip = box(grip_point(0, 0.006, 0.052), (0.010, 0.020, 0.004), "steel", rot=GRIP_ROT)
     mag = join([body, base, lip], "Magazine")
     set_origin(mag, top)
