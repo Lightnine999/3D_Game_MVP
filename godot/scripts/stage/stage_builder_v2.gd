@@ -423,7 +423,7 @@ func _build_zone_woods() -> void:
 	_ruin("v2_shack", 330.0 * DS, 13.5, 22.5)
 	for i in 8:                                           # 숲 속에 쓰러져 가는 나무 울타리
 		if _rng.randf() < 0.6:
-			_spawn("v2_fence", Vector3(-9.5, 0, -(232.0 * DS + i * 3.1)), 90.0 + _rng.randf_range(-15, 15))
+			_rng.randf_range(-15, 15)                     # 나무 사이 판자 울타리는 뺐다 (2026-09-30 "나무 중간 사각판자") — 뒤 배치가 바뀌지 않게 난수는 그대로 쓴다
 
 
 func _build_zone_village() -> void:
@@ -433,8 +433,7 @@ func _build_zone_village() -> void:
 		var h: Array = houses[n]
 		_spawn(HOUSES_3D[n % HOUSES_3D.size()], Vector3(h[2] * 0.9 + signf(h[2]) * 2.0 + _rng.randf_range(-2, 2), 0, -h[1] * DS), _rng.randf_range(0, 360), 1.0, true, 110.0)   # 폭 10m 폐허가 달리는 폭에 붙지 않게
 	_spawn("v2_water_tower", Vector3(30.0, 0, -500 * DS), 15.0)
-	_spawn("v2_stall", Vector3(-9.0, 0, -480 * DS), 100.0)
-	_spawn("v2_stall", Vector3(8.5, 0, -522 * DS), -70.0)
+	# 노점 2채(기둥 위 붉은 사각 지붕판)는 뺐다 — 나무 사이에 사각판자가 떠 보였다 (2026-09-30)
 	_ruin("v2_shack", 420.0 * DS, 15.0, 24.0)
 	_ruin("v2_shack", 585.0 * DS, 15.0, 24.0)
 

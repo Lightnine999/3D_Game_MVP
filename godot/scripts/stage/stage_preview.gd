@@ -44,6 +44,9 @@ const JUMP_MIN := 0.22      # 최소 점프 높이 (m)
 const JUMP_CAM := 0.45      # 뛸 때 카메라는 몸 높이의 절반쯤만 따라 올라간다 ("점프"보다 살짝 올라탔다 내려앉는 느낌)
 const BUMP_ROLL := 5.0      # 어깨빵: 부딪힌 쪽 반대로 기우는 각도 (도)
 const BUMP_YAW := 2.5       # 어깨빵: 고개가 살짝 돌아가는 각도 (도)
+const LEAN_ROLL := 4.0      # 좌우로 움직일 때 그쪽으로 기우는 각도 (도) — 2026-09-30 "좀 더 활동적인 느낌"
+const LEAN_YAW := 1.2       # 좌우로 움직일 때 시선도 그쪽으로 살짝 (도)
+const LEAN_EASE := 7.0      # 기울기가 따라오는 빠르기 (클수록 즉각)
 const GRAVITY := 18.0       # 14 → 18: 짧고 가볍게 뛰었다 내려온다 (타이어 넘기 체공 약 0.5초)
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
@@ -93,6 +96,11 @@ var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
 var _dead_t := 0.0
 var _killer: Node3D
 var _fall_from := Vector3.ZERO      # 쓰러지기 시작할 때의 카메라 각도
+var _lean := 0.0                    # 좌우 기울기 (-1 왼쪽 ~ +1 오른쪽, 옆 속도를 부드럽게 따라간다)
+var _lean_x := 0.0
+var _fall_hit := false              # 사망 연출: 넘어가는 순간 (피 튐 + 짧은 흔들림) 을 한 번만
+var _lie_pos := Vector3.ZERO        # 바닥에 누운 카메라 자리·각도 (땅에 닿는 흔들림 기준)
+var _lie_rot := Vector3.ZERO
 var _fade: ColorRect
 var _blood: TextureRect             # 물릴 때 화면 가장자리에 튄 피 (assets/textures/fx/fx_blood_screen.png)
 var _dead_label: Label
@@ -206,16 +214,28 @@ func _death_cam(delta: float) -> void:
 	_dead_t += delta
 	var eye := Vector3(_x, EYE_HEIGHT, -_dist)
 	_blood.modulate.a = clampf(_dead_t / 0.25, 0.0, 1.0) * (0.9 + 0.1 * sin(_dead_t * 9.0))   # 물리는 순간 화면에 피가 튄다
-	if _dead_t < 1.4:
+	if _dead_t < 1.4:                                     # ① 물린다: 손에 든 카메라처럼 느리게 흔들린다 (핸드헬드)
 		var head := _killer.global_position + Vector3(0, 1.35, 0) if is_instance_valid(_killer) else eye + Vector3(0, 0, -1)
-		var shake := Vector3(sin(_dead_t * 47.0), sin(_dead_t * 61.0), 0) * 0.03
-		_camera.position = eye + shake
+		var hh := _handheld(_dead_t)
+		_camera.position = eye + Vector3(hh.x * 0.035, hh.y * 0.025, 0.0)
 		_camera.look_at(head, Vector3.UP)
+		_camera.rotation += Vector3(deg_to_rad(1.4 * hh.z), deg_to_rad(1.0 * hh.x), deg_to_rad(2.0 * hh.y))
 		_fall_from = _camera.rotation
-	elif _dead_t < 2.5:
+	elif _dead_t < 2.5:                                   # ② 피가 튀며 뒤로 넘어진다: 넘어가는 순간 짧게 흔들리고 잦아든다
+		if not _fall_hit:
+			_fall_hit = true
+			CardFX.blood_splash(self, _camera.global_position + (-_camera.global_transform.basis.z) * 0.7, 1.3)
+			_bump = 1.0
 		var k := smoothstep(0.0, 1.0, (_dead_t - 1.4) / 1.1)
-		_camera.position = eye.lerp(Vector3(_x + 0.1, 0.22, -_dist + 0.9), k * k)   # 뒤로 넘어지며 바닥으로
-		_camera.rotation = Vector3(lerpf(_fall_from.x, deg_to_rad(80.0), k), lerpf(_fall_from.y, 0.0, k), lerpf(_fall_from.z, deg_to_rad(10.0), k))
+		var sh := _decay_shake(_dead_t - 1.4, 0.55, 2.6)
+		_camera.position = eye.lerp(Vector3(_x + 0.1, 0.22, -_dist + 0.9), k * k) + Vector3(sh.x, sh.y, 0.0) * 0.015   # 뒤로 넘어지며 바닥으로
+		_camera.rotation = Vector3(lerpf(_fall_from.x, deg_to_rad(80.0), k), lerpf(_fall_from.y, 0.0, k), lerpf(_fall_from.z, deg_to_rad(10.0), k)) + sh * PI / 180.0
+		_lie_pos = Vector3(_x + 0.1, 0.22, -_dist + 0.9)
+		_lie_rot = Vector3(deg_to_rad(80.0), 0.0, deg_to_rad(10.0))
+	else:                                                 # ③ 땅에 닿는 "쿵" 한 번 → 자연스럽게 멈춘다
+		var sh2 := _decay_shake(_dead_t - 2.5, 0.4, 1.6)
+		_camera.position = _lie_pos + Vector3(sh2.x, sh2.y, 0.0) * 0.012
+		_camera.rotation = _lie_rot + sh2 * PI / 180.0
 	var black := clampf((_dead_t - 3.0) / 0.6, 0.0, 1.0)  # 누워서 하늘을 본 채 블랙아웃
 	_fade.color.a = black
 	if _dead_t > 3.3:
@@ -229,6 +249,21 @@ func _death_cam(delta: float) -> void:
 		_retry.grab_focus()                               # 엔터·스페이스로도 누를 수 있게
 	if _retry.visible:
 		_retry.modulate.a = clampf((_dead_t - 4.0) / 0.6, 0.0, 1.0)   # DEAD 가 찍힌 뒤 한 번 서서히 나타난다
+
+
+# 핸드헬드: 서로 다른 느린 박자 몇 개를 겹쳐 손떨림처럼 (-1 ~ 1 쯤)
+func _handheld(t: float) -> Vector3:
+	return Vector3(sin(t * 1.9) * 0.6 + sin(t * 4.3 + 1.1) * 0.4,
+		sin(t * 2.3 + 0.7) * 0.6 + sin(t * 5.1 + 2.0) * 0.4,
+		sin(t * 1.3 + 2.4) * 0.7 + sin(t * 3.7) * 0.3)
+
+
+# 짧게 흔들리다 잦아드는 흔들림 (도 단위 각도): t 가 0 에서 dur 까지, 처음 amp → 0 으로 부드럽게 줄어든다
+func _decay_shake(t: float, dur: float, amp: float) -> Vector3:
+	if t < 0.0 or t > dur:
+		return Vector3.ZERO
+	var e := amp * pow(1.0 - t / dur, 2.0)
+	return Vector3(sin(t * 53.0), sin(t * 41.0 + 1.3), sin(t * 37.0 + 2.1) * 1.3) * e
 
 
 # 일시정지 (2026-09-30): 오른쪽 위 어두운 반투명 원 + 뼈색 아이콘 (❚❚ 진행 중 / ▶ 멈춤). P·Esc 키로도
@@ -510,6 +545,9 @@ func _step(delta: float) -> void:
 
 func _finish_step(delta: float) -> void:
 	_bump = maxf(_bump - delta * 3.0, 0.0)
+	var vx := (_x - _lean_x) / maxf(delta, 0.001)        # 이번 걸음의 옆 속도 → 기울기 (끼임 탈출로 휙 옮겨도 ±1 로 막는다)
+	_lean_x = _x
+	_lean = lerpf(_lean, clampf(vx / PLAY_STEER, -1.0, 1.0), minf(delta * LEAN_EASE, 1.0))
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
 	if _showcase:
@@ -785,7 +823,9 @@ func _apply_camera(t: float) -> void:
 	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
 	if _play:                                              # 플레이: 항상 정면 (위아래 발걸음만). 부딪히면 어깨빵처럼 잠깐 기울었다 돌아온다
 		var jolt := _bump * _bump * _bump_side
-		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4 - _bump * _bump * 1.2), deg_to_rad(-BUMP_YAW * jolt), deg_to_rad(-BUMP_ROLL * jolt))
+		# 좌우로 움직이면 그쪽으로 기운다 (오른쪽으로 가면 오른쪽 어깨가 내려가듯) + 시선도 살짝 그쪽
+		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4 - _bump * _bump * 1.2),
+			deg_to_rad(-BUMP_YAW * jolt - LEAN_YAW * _lean), deg_to_rad(-BUMP_ROLL * jolt - LEAN_ROLL * _lean))
 	else:
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(sin(t * 0.35) * -4.0), deg_to_rad(sway * 0.6 + shake * 40.0))
 

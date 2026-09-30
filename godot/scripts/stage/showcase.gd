@@ -25,14 +25,14 @@ const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
 const GLOCKS := [["G43", 6], ["G26", 10], ["G19", 15], ["G17", 17], ["G17 확장탄창", 24], ["G18 롱탄창", 30]]   # [모델, 탄창]
 const RELOAD_TIME := 1.5                      # 재장전 기본 시간 (초) + 탄창이 클수록 조금 더 (30발 = 2.1초)
 const RELOAD_PER_ROUND := 0.02
-# 초록 불빛 보급 (2026-09-30 추가): 하늘에서 초록 불을 뿜으며 낙하산으로 내려오고, 땅에 놓인 것 앞을 지나가면 총알 충전
-const GREEN_AT := [60.0, 140.0, 220.0, 300.0, 410.0]   # 달린 거리 (500m 기준 → × STAGE_LENGTH / 500)
+# 보급 계획 (2026-09-30 "보급이 너무 많다" 11개 → 9개, 약 20% 줄임): [달린 거리(750m 기준), 초록?] — 빨강·초록을 번갈아 약 80m 간격
+# 초록 불빛 보급은 하늘에서 초록 불을 뿜으며 내려온다. 강·다리(510-530m) 위에는 떨어뜨리지 않는다
+const SUPPLY_PLAN := [[26.0, false], [105.0, true], [185.0, false], [265.0, true], [345.0, false], [425.0, true], [480.0, false], [590.0, true], [675.0, false]]
 const DROP_AHEAD := 55.0                      # 이만큼 앞에서 떨어지기 시작 → 착지할 때 약 30m 앞 (PRD F-20: 40-60m 앞 착지에 가깝게)
 const DROP_HEIGHT := 20.0
 const DROP_SPEED := 4.0                       # 낙하 속도 (m/s)
 const PICK_X := 2.3                           # 옆으로 이 거리 안을 지나가면 줍는다
 const PICK_Z := 1.6
-const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자 지점 (1000m 기준 → × StageBuilderV2.DS, PRD F-22)
 # 좀비 행동 (2026-09-30 "액션·스피드·모션을 다양하게"): 모델 4종은 그대로, 한 마리마다 행동 스타일을 무작위로 고른다
 #   shamble 비틀비틀 걷기 / jog 뛰어오기 / sprint 전력 질주 / idle 서 있다가 가까워지면 출발 / crawl 기어 오기
 #   crawl_run 빠르게 기어 오기 / rise 누워 있다가 일어나 달려오기 / stomp 탱커(가까워지면 포효 후 돌진)
@@ -59,6 +59,7 @@ const PACK_HIPS := 96.29514                   # 팩 뼈대의 엉덩이 높이 (
 const PACK_LOOPS := ["p_walk", "p_run", "p_crawl", "p_crawl_run", "p_idle", "p_bite", "p_bite2", "p_neck_bite", "p_attack"]
 const GRAB_ANIMS := ["attack", "pack/p_attack", "pack/p_bite", "pack/p_bite2", "pack/p_neck_bite"]
 const DEATH_ANIMS := ["death", "pack/p_death", "pack/p_dying"]
+const BLEND := 0.25                           # 동작이 바뀔 때 섞는 시간 (초) — 뚝 바뀌면 몸이 순간 튀어 끊겨 보인다 (2026-09-30)
 const HOMING_LOCK := 3.0                      # 이만큼 가까워지면 더는 방향을 틀지 않는다 → 옆으로 비키면 피할 수 있다
 const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 → 2발 (2026-09-30 "너무 세다")
 
@@ -83,6 +84,7 @@ var auto_fire := true                         # 영상·통과 검사: 가까이
 var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
 const SFX_DB := -7.94                         # 효과음: 절반(-6dB) → 거기서 20% 더 줄임(×0.8 = -1.94dB) (2026-09-30 "아직 크다")
 const BGM_DB := -13.94                        # 배경음도 같은 비율로 (-12 → -13.94)
+const SFX_TRIM := {"sfx_pistol": -6.02}       # 소리별 추가 조정 (dB): 총소리만 절반 더 (×0.5 = -6.02dB, 2026-09-30 "총소리가 크다")
 const FIRE_RANGE := 30.0                      # 직접 쏠 때 닿는 거리
 const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서 옆으로 이만큼(+거리 × 0.06) 안에 있으면 맞는다
 var _builder: StageBuilderV2
@@ -137,6 +139,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	for i in ZOMBIE_COUNT:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
+	_prewarm()
 	_pistol = load("res://assets/models/weapon_pistol.glb").instantiate()
 	_pistol.position = Vector3(0.03, -0.2, -0.46)       # 1인칭: 화면 가운데 아래 (살짝 틀어 총 옆모습이 보이게)
 	_pistol.rotation_degrees = Vector3(6, 14, -4)
@@ -271,6 +274,17 @@ func sfx(name: String) -> void:
 # 매 걸음: 달린 거리 dist, 카메라 x, 경과 시간
 func update(dist: float, cam_x: float, delta: float) -> void:
 	_time += delta
+	if _warm and _time > 0.3:                              # 미리 그리기 끝: 풀 좀비는 숨겨서 남기고 나머지는 지운다
+		for kind in _pool:
+			for z in _pool[kind]:
+				z.reparent(self, false)
+				z.visible = false
+				z.position = Vector3(0, -50, 0)
+				(z.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer).stop()
+		_warm.queue_free()
+		_warm = null
+	elif _warm:
+		_warm.position = Vector3(cam_x, -2.2, -dist - 14.0)   # 카메라를 따라가며 화면 안(땅 밑)에 둔다
 	_hud_dist.text = "%dm" % StageBuilderV2.remaining(dist)
 	var k := clampf(dist / StageBuilderV2.STAGE_LENGTH, 0.0, 1.0)
 	_hud_line_done.size.x = LINE_W * k
@@ -283,12 +297,9 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	if dist >= _next_event and dist < StageBuilderV2.STAGE_LENGTH - 60.0:
 		_sprint_event(dist, cam_x)
 		_next_event += _rng.randf_range(EVENT_GAP[0], EVENT_GAP[1])
-	while _next_crate < SUPPLY_AT.size() and dist >= SUPPLY_AT[_next_crate] * StageBuilderV2.DS - DROP_AHEAD:
-		_drop_crate(SUPPLY_AT[_next_crate] * StageBuilderV2.DS, false)
+	while _next_crate < SUPPLY_PLAN.size() and dist >= SUPPLY_PLAN[_next_crate][0] * StageBuilderV2.STAGE_LENGTH / 750.0 - DROP_AHEAD:
+		_drop_crate(SUPPLY_PLAN[_next_crate][0] * StageBuilderV2.STAGE_LENGTH / 750.0, SUPPLY_PLAN[_next_crate][1])
 		_next_crate += 1
-	while _next_green < GREEN_AT.size() and dist >= GREEN_AT[_next_green] * StageBuilderV2.STAGE_LENGTH / 500.0 - DROP_AHEAD:
-		_drop_crate(GREEN_AT[_next_green] * StageBuilderV2.STAGE_LENGTH / 500.0, true)
-		_next_green += 1
 	_update_crates(dist, cam_x, delta)
 	_update_zombies(dist, cam_x, delta)
 	_shot_cd -= delta
@@ -302,13 +313,8 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, cam_x: float) -> Dictionary:
 	if style.is_empty():
 		style = _pick_style(kind)
-	var z: Node3D = load("res://assets/models/zombie_%s.glb" % kind).instantiate()
-	add_child(z)
-	_add_rim(z)
+	var z := _take(kind)
 	var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
-	var sk: Skeleton3D = z.find_children("*", "Skeleton3D", true, false)[0]
-	if not ap.has_animation_library("pack"):
-		ap.add_animation_library("pack", _lib_for(kind, sk))
 	for n in ["walk", "run", "idle"]:                    # 가져온 동작은 한 번만 재생하고 멈춘다 → 반복으로 (굳은 채 미끄러져 오던 버그)
 		if ap.has_animation(n):
 			ap.get_animation(n).loop_mode = Animation.LOOP_LINEAR
@@ -340,6 +346,40 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 	return e
 
 
+# 풀에서 한 마리 꺼낸다 (없으면 새로 만든다)
+func _take(kind: String) -> Node3D:
+	var list: Array = _pool.get(kind, [])
+	var z: Node3D = list.pop_back() if not list.is_empty() else _make_zombie(kind)
+	if z.get_parent() != self:
+		z.reparent(self, false)
+	z.visible = true
+	z.rotation = Vector3.ZERO
+	return z
+
+
+func _make_zombie(kind: String) -> Node3D:
+	var z: Node3D = load("res://assets/models/zombie_%s.glb" % kind).instantiate()
+	add_child(z)
+	_add_rim(z)
+	var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
+	ap.add_animation_library("pack", _lib_for(kind, z.find_children("*", "Skeleton3D", true, false)[0]))
+	return z
+
+
+# 다 쓴 좀비는 지우지 않고 숨겨서 풀에 돌려놓는다
+func _despawn(e: Dictionary) -> void:
+	e["gone"] = true
+	var z: Node3D = e["node"]
+	z.visible = false
+	z.position = Vector3(0, -50, 0)
+	var ap: AnimationPlayer = e["ap"]
+	ap.stop()
+	ap.speed_scale = 1.0
+	if not _pool.has(e["kind"]):
+		_pool[e["kind"]] = []
+	_pool[e["kind"]].append(z)
+
+
 func _pick_style(kind: String) -> String:
 	var total := 0
 	for st in STYLES[kind]:
@@ -350,6 +390,44 @@ func _pick_style(kind: String) -> String:
 		if r < 0:
 			return st[0]
 	return STYLES[kind][0][0]
+
+
+# 미리 불러오기 (2026-09-30 "프레임 끊긴다"): 좀비 4종 모델·동작 라이브러리·이펙트 그림을 스테이지를 만들 때 준비해 둔다
+# → 처음 나오는 순간 불러오느라 멈칫하던 것(첫 좀비 32ms, 처음 보는 것 50ms)을 없앤다
+# 좀비 풀 (2026-09-30 "프레임 끊긴다"): 나올 때마다 모델을 새로 만들고 지나가면 지우면, 만드는 순간 멈칫한다 (폰은 더 크게)
+# → 종류별로 미리 만들어 두고 숨겼다 꺼내 쓴다. 모자라면 그때만 새로 만든다
+const POOL_PER_KIND := 10
+var _pool := {}                               # 종류 → 숨겨 둔 좀비 노드들
+var _warm: Node3D                             # 미리 그려 두는 것들 (시작 직후 몇 프레임만 땅 밑에 있다가 지워진다)
+
+
+func _prewarm() -> void:
+	# 파일만 읽어 두면 처음 화면에 나올 때 그래픽 셰이더를 만드느라 멈칫한다 → 카메라 앞 땅 밑(보이지 않는 곳)에서 한 번 실제로 그린다
+	_warm = Node3D.new()
+	add_child(_warm)
+	_warm.position = Vector3(0, -2.2, -14.0)
+	var i := 0
+	for kind in KINDS:
+		_pool[kind] = []
+		for k in POOL_PER_KIND:
+			var z := _make_zombie(kind)
+			z.reparent(_warm, false)
+			z.position = Vector3(-4.0 + i * 0.6, 0, -k * 0.3)
+			var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
+			ap.play("pack/p_run")
+			_pool[kind].append(z)
+		i += 3
+	CardFX.flare(_warm, true)
+	CardFX.flare(_warm, false)
+	CardFX.blood_splash(_warm, _warm.global_position)
+	CardFX.blood_pool(_warm, _warm.global_position)
+	BulletHitFX.spawn(_warm, _warm.global_position, Vector3.FORWARD)
+	var crate: Node3D = load("res://assets/models/prop_supply_crate.glb").instantiate()
+	_warm.add_child(crate)
+	var flash: Node3D = load("res://scenes/fx/muzzle_flash.tscn").instantiate()
+	_warm.add_child(flash)
+	for n in ["sfx_pistol", "sfx_zombie_scream", "sfx_zombie_groan", "sfx_bite", "sfx_knife", "sfx_supply_pickup", "sfx_empty_click", "sfx_ui_click", "sfx_hit_obstacle"]:
+		load("res://assets/audio/%s.ogg" % n)
 
 
 # 사이드 질주: 양옆 멀리(8-11m)에서 2-3마리가 비명을 지르고 대각선으로 달려든다
@@ -453,17 +531,17 @@ func _move_anim(e: Dictionary, spd := -1.0) -> void:
 		spd = e["spd"]
 	match e["style"]:
 		"crawl":
-			ap.play("pack/p_crawl")
+			ap.play("pack/p_crawl", BLEND)
 			ap.speed_scale = clampf(spd / 1.1, 0.7, 1.6)
 		"crawl_run":
-			ap.play("pack/p_crawl_run")
+			ap.play("pack/p_crawl_run", BLEND)
 			ap.speed_scale = clampf(spd / 2.6, 0.7, 1.4)
 		_:
 			if spd >= 2.5 and (e["kind"] != "tank"):
-				ap.play(e["run"])
+				ap.play(e["run"], BLEND)
 				ap.speed_scale = clampf(spd / 4.8, 0.6, 1.35)
 			else:
-				ap.play(e["walk"])
+				ap.play(e["walk"], BLEND)
 				ap.speed_scale = clampf(spd / 1.2, 0.8, 2.2)
 
 
@@ -475,6 +553,7 @@ func _place(e: Dictionary) -> void:
 
 
 func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
+	_zombies = _zombies.filter(func(q): return not q.get("gone", false))   # 풀로 돌아간 좀비는 목록에서 뺀다 (뒤로 갈수록 느려지지 않게)
 	for e in _zombies:
 		if not is_instance_valid(e["node"]):
 			continue
@@ -493,7 +572,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					ap.seek(ap.current_animation_length * 0.3, true)   # 가장 느린 앞부분은 건너뛴다
 					_sfx("sfx_zombie_groan")
 				elif ahead < -2.0:
-					z.queue_free()
+					_despawn(e)
 			"getup":
 				_place(e)
 				if ap.current_animation_position > ap.current_animation_length * 0.93 or not ap.is_playing():
@@ -530,7 +609,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					e["charging"] = true
 					e["state"] = "roar"
 					e["t"] = 0.0
-					ap.play("pack/p_scream")
+					ap.play("pack/p_scream", BLEND)
 					ap.speed_scale = 1.4
 					_sfx("sfx_zombie_groan")
 					continue
@@ -542,7 +621,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					e["d"] += dir.y * spd * delta
 					z.position = Vector3(e["x"], 0, -e["d"])
 					if ahead < -10.0:
-						z.queue_free()
+						_despawn(e)
 					continue
 				if ahead > HOMING_LOCK or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
 					var target := Vector2(cam_x, dist)
@@ -578,7 +657,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						e.erase("pool_t")
 						CardFX.blood_pool(self, Vector3(z.global_position.x, 0.0, z.global_position.z), _rng.randf_range(1.3, 1.9))
 				if ahead < -4.0:
-					z.queue_free()
+					_despawn(e)
 			"grab":
 				pass                                       # 사망 연출 중: 제자리에서 물어뜯는다
 
@@ -609,7 +688,7 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 	var bite: String = GRAB_ANIMS[_rng.randi() % GRAB_ANIMS.size()]   # 무는 동작 5가지 중 하나
 	if ap.has_animation(bite):
 		ap.get_animation(bite).loop_mode = Animation.LOOP_LINEAR
-		ap.play(bite)
+		ap.play(bite, BLEND)
 	e["low"] = false
 	_sfx("sfx_bite")
 	CardFX.blood_splash(self, _camera.global_position + (z.global_position + Vector3(0, 1.4, 0) - _camera.global_position) * 0.6, 1.4)
@@ -632,7 +711,7 @@ func fire() -> void:
 	var best: Dictionary = {}
 	var best_d := INF
 	for e in _zombies:
-		if not is_instance_valid(e["node"]) or e["state"] == "dead":
+		if e.get("gone", false) or e["state"] == "dead":
 			continue
 		var rel: Vector3 = (e["node"] as Node3D).global_position - cam
 		var ahead := -rel.z
@@ -650,7 +729,7 @@ func _sfx(name: String) -> void:
 		return
 	var p := AudioStreamPlayer.new()
 	p.stream = load("res://assets/audio/%s.ogg" % name)
-	p.volume_db = SFX_DB
+	p.volume_db = SFX_DB + SFX_TRIM.get(name, 0.0)
 	if AudioServer.get_bus_index("SFX") >= 0:
 		p.bus = "SFX"
 	add_child(p)
@@ -698,7 +777,7 @@ func _shoot(e: Dictionary) -> void:
 		e["state"] = "stagger"                             # 탱커 첫 발: 휘청
 		e["t"] = 0.0
 		if e["ap"].has_animation("hit"):
-			e["ap"].play("hit")
+			e["ap"].play("hit", 0.1)
 			e["ap"].speed_scale = 1.6
 
 
@@ -709,7 +788,7 @@ func _kill(e: Dictionary, at: Vector3, k: float) -> void:
 	e["state"] = "dead"
 	ap.speed_scale = 1.0
 	var dn: String = "death" if e.get("low", false) else DEATH_ANIMS[_rng.randi() % DEATH_ANIMS.size()]
-	ap.play(dn if ap.has_animation(dn) else "death")
+	ap.play(dn if ap.has_animation(dn) else "death", 0.15)
 	CardFX.blood_splash(self, at + Vector3(0, 0.1, 0), 1.7 * k)
 	e["pool_t"] = 0.9                                      # 쓰러지고 나서 바닥에 핏자국 (_update_zombies 의 dead)
 
