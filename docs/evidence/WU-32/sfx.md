@@ -44,3 +44,38 @@ Zombies Sound Pack 의 24개는 이름이 번호뿐이라, 길이·평균 크기
 - 고친 문제: 최고 크기 -1 dB 로 만들면 Ogg 압축 뒤 순간값이 1.0 을 넘어 찌그러졌다 (0.175%). -3 dB 로 낮춰도 1.096 → 파열음의 7 kHz 위를 깎고 압축 품질을 96 kbps 로 올려 **찌그러짐 0%** (최고 0.994)
 - Godot 4.7.2 에서 13개 모두 열림
 - 👤 진짜 녹음보다 덜 사실적일 수 있으니 들어 보고, 필요하면 나중에 CC0 녹음(Free Firearm Sound Library)으로 바꾼다
+
+
+## 2026-09-30 총성 다시 만들기 — 3가지 + 무작위 재생
+- 한 가지 소리만 반복되면 연사할 때 기계처럼 들려서, **합성 총성(매번 다른 난수·낮은 음) + 슬라이드 철컥(Kenney metalLatch) + 탄피가 땅에 떨어지는 소리(Kenney impactMetal_light, 음을 높여 작은 금속처럼)** 를 겹친 3가지를 만들었다
+  - `sfx_pistol.ogg` (이름 그대로 — 기존 코드는 바뀌지 않음), `sfx_pistol_2.ogg`, `sfx_pistol_3.ogg` — 각 0.9초, 최고 -3 dB, 압축 뒤 잘림 0%
+- `sfx_pistol_random.tres` (AudioStreamRandomizer): 3가지 중 하나를 고르고 음 높이 ±6%, 크기 ±1.5 dB 로 바꿔 낸다
+  - **B:** `player.stream = preload("res://assets/audio/sfx_pistol_random.tres")` — `sfx_pistol.ogg` 대신 쓰면 된다 (SFX 버스)
+- 원본은 모두 CC0 (Kenney RPG Audio · Impact Sounds, 이미 기록됨)
+
+
+## 2026-09-30 좀비 신음 음산하게 — 4가지 + 무작위 재생
+- 원본(OGA Zombies Sound Pack, CC0)의 길고 낮은 신음 16·17·18·21 번을 골라 `make_sfx.py` 의 `eerie` 처리:
+  음 낮춤(0.7 - 0.8배) + 한 옥타브 아래 같은 소리 겹침(목울림) + 떨림(5 - 9 Hz, 꾸르륵) + 고음 깎기(2.8 - 3.4 kHz) + 들판 잔향(Schroeder)
+- `sfx_zombie_groan.ogg`(이름 그대로), `sfx_zombie_groan_2/3/4.ogg` — 3.7 - 4.5초 (잔향 꼬리 포함), 최고 -3 dB, 잘림 0%
+
+| | 길이 | 밝기(평균 주파수) | 250 Hz 아래 저음 비율 |
+|---|---|---|---|
+| 이전 groan | 1.41초 | 890 Hz | 7% |
+| 새 groan 1 - 4 | 3.7 - 4.5초 | 540 - 650 Hz | 18 - 69% |
+
+- `sfx_zombie_groan_random.tres`: 4가지 중 무작위 + 음 높이 ±8%·크기 ±2 dB
+  - **B:** 좀비마다 `AudioStreamPlayer3D.stream = preload("res://assets/audio/sfx_zombie_groan_random.tres")` (SFX 버스)
+
+
+## 2026-09-30 좀비 비명 소름 끼치게 — 3가지 + 무작위 재생
+- 원본 zombie-9·10·11·12 번 (밝은 비명). 신음과 달리 **날카롭고 사람 같지 않게**:
+  높은 비명(1.3 - 1.4배) + 낮은 으르렁(0.5배) 겹침 + 떨림 + 링 변조(61 - 88 Hz, 금속성) + 살짝 찢어짐(tanh) + 짧은 잔향
+- `sfx_zombie_scream.ogg`(이름 그대로), `_2`, `_3` — 2.1 - 2.4초, 최고 -1 dB, 잘림 0%
+
+| | 길이 | 300 Hz 아래 으르렁 | 2.5 kHz 위 날카로움 |
+|---|---|---|---|
+| 이전 scream | 0.65초 | 6% | 1.9% |
+| 새 scream 1 - 3 | 2.1 - 2.4초 | 19 - 32% | 2.2 - 4.2% |
+
+- `sfx_zombie_scream_random.tres`: 3가지 중 무작위 + 음 높이 ±7%·크기 ±1.5 dB

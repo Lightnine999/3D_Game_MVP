@@ -27,12 +27,48 @@ RATE = 44100
 # 이름: 원본, 최고 크기(dBFS), 그 밖의 설정 — 원본은 모두 CC0 (ASSETS_LICENSE.md)
 RECIPES = {
     # 게임 효과음 (B 가 재생, SFX 버스)
-    "sfx_pistol":        {"synth": "pistol", "peak_db": -3, "bitrate": 96000},   # 직접 합성 (-1 dB 는 압축 뒤 순간값이 1.0 을 넘어 -3 dB) (받은 녹음은 라이선스가 불분명해 쓰지 않음)
+    # 총성 3가지 — 쏠 때마다 다른 소리(sfx_pistol_random.tres 가 무작위로 고름). 합성 총성 + 슬라이드 철컥 + 탄피 떨어지는 소리
+    # (-1 dB 는 압축 뒤 순간값이 1.0 을 넘어 -3 dB) (받은 녹음은 라이선스가 불분명해 쓰지 않음)
+    "sfx_pistol":        {"synth": "pistol", "seed": 7, "boom": 180, "peak_db": -3, "bitrate": 96000,
+                          "mix": [{"src": "kenney_rpg-audio/Audio/metalLatch.ogg", "at": 0.035, "gain": 0.22, "pitch": 1.3},
+                                  {"src": "kenney_impact-sounds/Audio/impactMetal_light_000.ogg", "at": 0.42, "gain": 0.55, "pitch": 1.8},
+                                  {"src": "kenney_impact-sounds/Audio/impactMetal_light_002.ogg", "at": 0.55, "gain": 0.3, "pitch": 2.0}]},
+    "sfx_pistol_2":      {"synth": "pistol", "seed": 11, "boom": 165, "peak_db": -3, "bitrate": 96000,
+                          "mix": [{"src": "kenney_rpg-audio/Audio/metalLatch.ogg", "at": 0.03, "gain": 0.2, "pitch": 1.4},
+                                  {"src": "kenney_impact-sounds/Audio/impactMetal_light_001.ogg", "at": 0.38, "gain": 0.55, "pitch": 1.9},
+                                  {"src": "kenney_impact-sounds/Audio/impactMetal_light_003.ogg", "at": 0.5, "gain": 0.3, "pitch": 2.1}]},
+    "sfx_pistol_3":      {"synth": "pistol", "seed": 23, "boom": 195, "peak_db": -3, "bitrate": 96000,
+                          "mix": [{"src": "kenney_rpg-audio/Audio/metalLatch.ogg", "at": 0.04, "gain": 0.24, "pitch": 1.2},
+                                  {"src": "kenney_impact-sounds/Audio/impactMetal_light_004.ogg", "at": 0.45, "gain": 0.55, "pitch": 1.7}]},
     "sfx_step":          {"src": "kenney_impact-sounds/Audio/footstep_grass_000.ogg", "peak_db": -12},  # 0.36초마다 반복돼 -6 dB 는 배경음을 덮었다 (시뮬레이션)
     "sfx_breath":        {"src": "oga_breathing_tired.wav", "peak_db": -8},
     "sfx_empty_click":   {"src": "kenney_rpg-audio/Audio/metalClick.ogg", "peak_db": -6},
-    "sfx_zombie_groan":  {"src": "oga_zombies/zombies/zombie-16.wav", "peak_db": -3},   # 가장 낮고 긴 소리 (1.44초, 밝기 890 Hz)
-    "sfx_zombie_scream": {"src": "oga_zombies/zombies/zombie-10.wav", "peak_db": -1},   # 크고 밝은 소리 (-13.3 dB, 1885 Hz)
+    # 좀비 신음 4가지 — 음산하게 (음 낮춤 + 한 옥타브 아래 목울림 + 떨림 + 고음 깎기 + 들판 잔향). sfx_zombie_groan_random.tres 가 무작위로
+    "sfx_zombie_groan":   {"src": "oga_zombies/zombies/zombie-16.wav", "pitch": 0.8, "peak_db": -3, "bitrate": 80000,   # 가장 낮고 긴 소리
+                           "mix": [{"src": "oga_zombies/zombies/zombie-16.wav", "pitch": 0.5, "at": 0.03, "gain": 0.45}],
+                           "eerie": {"tremolo": 7.0, "depth": 0.3, "cutoff": 3200, "reverb": 0.35}},
+    "sfx_zombie_groan_2": {"src": "oga_zombies/zombies/zombie-17.wav", "pitch": 0.75, "peak_db": -3, "bitrate": 80000,
+                           "mix": [{"src": "oga_zombies/zombies/zombie-17.wav", "pitch": 0.48, "at": 0.04, "gain": 0.4}],
+                           "eerie": {"tremolo": 5.5, "depth": 0.35, "cutoff": 3000, "reverb": 0.4}},
+    "sfx_zombie_groan_3": {"src": "oga_zombies/zombies/zombie-18.wav", "pitch": 0.72, "peak_db": -3, "bitrate": 80000,
+                           "mix": [{"src": "oga_zombies/zombies/zombie-16.wav", "pitch": 0.55, "at": 0.1, "gain": 0.35}],
+                           "eerie": {"tremolo": 8.5, "depth": 0.28, "cutoff": 3400, "reverb": 0.35}},
+    "sfx_zombie_groan_4": {"src": "oga_zombies/zombies/zombie-21.wav", "pitch": 0.7, "peak_db": -3, "bitrate": 80000,
+                           "mix": [{"src": "oga_zombies/zombies/zombie-21.wav", "pitch": 0.45, "at": 0.05, "gain": 0.4}],
+                           "eerie": {"tremolo": 6.5, "depth": 0.32, "cutoff": 2800, "reverb": 0.45}},
+    # 좀비 비명 3가지 — 소름 끼치게 (높은 비명 + 낮은 으르렁 겹침 + 금속성 떨림(링 변조) + 살짝 찢어짐 + 짧은 잔향)
+    "sfx_zombie_scream":   {"src": "oga_zombies/zombies/zombie-10.wav", "pitch": 1.05, "peak_db": -1, "bitrate": 96000,
+                            "mix": [{"src": "oga_zombies/zombies/zombie-10.wav", "pitch": 0.55, "at": 0.0, "gain": 0.38},
+                                    {"src": "oga_zombies/zombies/zombie-9.wav", "pitch": 1.35, "at": 0.06, "gain": 0.65}],
+                            "eerie": {"tremolo": 11.0, "depth": 0.2, "cutoff": 9000, "reverb": 0.16, "ring": 73.0, "ring_mix": 0.3, "drive": 2.2, "tail": 0.9, "dark": 5000}},
+    "sfx_zombie_scream_2": {"src": "oga_zombies/zombies/zombie-12.wav", "pitch": 1.0, "peak_db": -1, "bitrate": 96000,
+                            "mix": [{"src": "oga_zombies/zombies/zombie-12.wav", "pitch": 0.5, "at": 0.02, "gain": 0.38},
+                                    {"src": "oga_zombies/zombies/zombie-11.wav", "pitch": 1.4, "at": 0.1, "gain": 0.65}],
+                            "eerie": {"tremolo": 13.0, "depth": 0.22, "cutoff": 9000, "reverb": 0.16, "ring": 61.0, "ring_mix": 0.35, "drive": 2.5, "tail": 0.9, "dark": 5000}},
+    "sfx_zombie_scream_3": {"src": "oga_zombies/zombies/zombie-9.wav", "pitch": 0.95, "peak_db": -1, "bitrate": 96000,
+                            "mix": [{"src": "oga_zombies/zombies/zombie-10.wav", "pitch": 0.52, "at": 0.03, "gain": 0.38},
+                                    {"src": "oga_zombies/zombies/zombie-12.wav", "pitch": 1.3, "at": 0.12, "gain": 0.65}],
+                            "eerie": {"tremolo": 9.5, "depth": 0.2, "cutoff": 9000, "reverb": 0.16, "ring": 88.0, "ring_mix": 0.28, "drive": 2.0, "tail": 0.9, "dark": 5000}},
     "sfx_supply_pickup": {"src": "kenney_rpg-audio/Audio/handleCoins.ogg", "peak_db": -4},  # 탄약이 짤랑이는 느낌
     "sfx_knife":         {"src": "kenney_rpg-audio/Audio/knifeSlice.ogg", "peak_db": -3},
     "sfx_bite":          {"src": "oga_zombies/zombies/zombie-24.wav", "peak_db": -2,      # 가장 짧은 좀비 소리 (0.33초)
@@ -45,8 +81,11 @@ RECIPES = {
 }
 
 
-def load_mono(path):
-    s = aud.Sound(os.path.join(SRC, path)).resample(RATE, False)
+def load_mono(path, pitch=1.0):
+    s = aud.Sound(os.path.join(SRC, path))
+    if pitch != 1.0:
+        s = s.pitch(pitch)                             # 높게 = 작은 물체 (탄피)
+    s = s.resample(RATE, False)
     d = s.data()
     return (d.mean(axis=1) if d.ndim > 1 else d).astype(np.float32)
 
@@ -72,15 +111,16 @@ def lowpass(x, cutoff):
     return y
 
 
-def synth_pistol():
-    """권총 소리 합성: 파열음(딱) + 몸통(쿵) + 들판 잔향 + 메아리 두 번. 난수 고정이라 매번 같다."""
-    rng = np.random.default_rng(7)
+def synth_pistol(seed=7, boom_hz=180):
+    """권총 소리 합성: 파열음(딱) + 몸통(쿵) + 들판 잔향 + 메아리 두 번. 난수 고정이라 매번 같다.
+    seed·boom_hz 를 바꾸면 조금씩 다른 총성이 된다 (연사할 때 똑같이 들리지 않게)."""
+    rng = np.random.default_rng(seed)
     n = int(RATE * 0.9)
     t = np.arange(n) / RATE
     noise = rng.standard_normal(n).astype(np.float32)
     crack = np.diff(noise, prepend=0.0) * np.exp(-t / 0.004) * (t < 0.02)            # 날카로운 파열음
     crack = lowpass(crack, 7000) * 2.0                                                 # 7 kHz 위를 깎아 압축 때 튀지 않게
-    freq = 60 + 120 * np.exp(-t / 0.03)                                               # 180 Hz → 60 Hz
+    freq = 60 + (boom_hz - 60) * np.exp(-t / 0.03)                                    # boom_hz → 60 Hz
     boom = np.sin(2 * np.pi * np.cumsum(freq) / RATE) * np.exp(-t / 0.06) * 0.9       # 낮게 떨어지는 쿵
     thud = lowpass(noise * np.exp(-t / 0.08), 900) * 2.5                               # 둔한 폭발 잡음
     tail = lowpass(noise * np.exp(-t / 0.3), 1800) * 0.35                              # 들판 잔향
@@ -91,19 +131,60 @@ def synth_pistol():
     return np.tanh(x * 1.6).astype(np.float32)                                         # 살짝 거칠게
 
 
+def reverb(x, wet, tail=1.3, dark=2500):
+    """들판 잔향 (Schroeder: 빗살 필터 4개 + 올패스 2개). wet = 잔향 비율, tail = 꼬리 길이(초)."""
+    n = len(x) + int(RATE * tail)
+    dry = np.zeros(n, dtype=np.float32)
+    dry[:len(x)] = x
+    out = np.zeros(n, dtype=np.float32)
+    for ms, fb in ((29.7, 0.80), (37.1, 0.79), (41.1, 0.78), (43.7, 0.77)):
+        d = int(RATE * ms / 1000)
+        y = dry.copy()
+        for i in range(d, n):                             # y[i] = x[i] + fb·y[i-d]
+            y[i] += fb * y[i - d]
+        out += y * 0.25
+    for ms, g in ((5.0, 0.7), (1.7, 0.7)):
+        d = int(RATE * ms / 1000)
+        y = np.zeros(n, dtype=np.float32)
+        for i in range(n):
+            xd = out[i - d] if i >= d else 0.0
+            yd = y[i - d] if i >= d else 0.0
+            y[i] = -g * out[i] + xd + g * yd
+        out = y
+    out = lowpass(out, dark)                               # 멀리서 울리는 소리는 둔하다
+    return dry * (1 - wet) + out * wet * 2.2
+
+
+def eerie(x, e):
+    """음산하게: 떨림(꾸르륵) → [링 변조(사람 목소리 같지 않은 금속성) → 찢어짐] → 고음 깎기 → 들판 잔향."""
+    t = np.arange(len(x)) / RATE
+    wob = 1 - e.get("depth", 0.3) * (0.5 + 0.5 * np.sin(2 * np.pi * e.get("tremolo", 7.0) * t + np.sin(2 * np.pi * 1.3 * t)))
+    x = (x * wob).astype(np.float32)
+    if e.get("ring"):
+        m = e.get("ring_mix", 0.3)
+        x = (x * (1 - m) + x * np.sin(2 * np.pi * e["ring"] * t) * m).astype(np.float32)
+    if e.get("drive"):
+        k = e["drive"]
+        x = (np.tanh(x / max(np.max(np.abs(x)), 1e-9) * k) / np.tanh(k)).astype(np.float32)
+    x = lowpass(x, e.get("cutoff", 3200))
+    return reverb(x, e.get("reverb", 0.35), e.get("tail", 1.3), e.get("dark", 2500))
+
+
 def build(name, r):
-    x = synth_pistol() if r.get("synth") == "pistol" else load_mono(r["src"])
+    x = synth_pistol(r.get("seed", 7), r.get("boom", 180)) if r.get("synth") == "pistol" else load_mono(r["src"], r.get("pitch", 1.0))
     if "start" in r or "end" in r:
         x = x[int(r.get("start", 0) * RATE): int(r["end"] * RATE) if "end" in r else None]
     x = trim_silence(x)
-    if "mix" in r:
-        m = r["mix"]
-        y = trim_silence(load_mono(m["src"])) * m.get("gain", 1.0)
+    mixes = r.get("mix", [])
+    for m in (mixes if isinstance(mixes, list) else [mixes]):             # 여러 소리를 정해진 시각에 겹친다
+        y = trim_silence(load_mono(m["src"], m.get("pitch", 1.0))) * m.get("gain", 1.0)
         off = int(m.get("at", 0) * RATE)
         out = np.zeros(max(len(x), off + len(y)), dtype=np.float32)
         out[:len(x)] += x
         out[off:off + len(y)] += y
         x = out
+    if "eerie" in r:
+        x = eerie(x, r["eerie"])
     x = x / max(np.max(np.abs(x)), 1e-9) * 10 ** (r["peak_db"] / 20)
     n_in, n_out = int(RATE * 0.003), min(len(x) // 4, int(RATE * 0.02))
     x[:n_in] *= np.linspace(0, 1, n_in)
@@ -114,7 +195,8 @@ def build(name, r):
     rms = float(np.sqrt(np.mean(x ** 2)))
     print("MAKE_SFX %-18s %5.2f초  최고 %5.1f dB  평균 %6.1f dB  %5.1f KB  <- %s%s" % (
         name, len(x) / RATE, r["peak_db"], 20 * np.log10(max(rms, 1e-9)), os.path.getsize(path) / 1024,
-        r.get("src", "직접 합성").split("/")[-1], " + " + r["mix"]["src"].split("/")[-1] if "mix" in r else ""))
+        r.get("src", "직접 합성").split("/")[-1],
+        "".join(" + " + m["src"].split("/")[-1] for m in (r["mix"] if isinstance(r.get("mix"), list) else [r["mix"]] if "mix" in r else []))))
 
 
 def main():

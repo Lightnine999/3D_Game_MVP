@@ -1,0 +1,20 @@
+[gd_resource type="AudioStreamRandomizer" load_steps=4 format=3]
+
+; 총성 무작위 — 쏠 때마다 3가지 중 하나를, 음 높이·크기를 조금씩 바꿔 낸다 (연사해도 똑같이 들리지 않게)
+; B: player.stream = preload("res://assets/audio/sfx_pistol_random.tres") 후 play() — sfx_pistol.ogg 대신 쓰면 된다
+
+[ext_resource type="AudioStream" path="res://assets/audio/sfx_pistol.ogg" id="1"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx_pistol_2.ogg" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx_pistol_3.ogg" id="3"]
+
+[resource]
+playback_mode = 0
+random_pitch = 1.06
+random_volume_offset_db = 1.5
+streams_count = 3
+stream_0/stream = ExtResource("1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("3")
+stream_2/weight = 1.0

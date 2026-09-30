@@ -35,6 +35,9 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--character", required=True)
     p.add_argument("--anim", action="append", default=[], help="이름=파일.fbx")
+    p.add_argument("--clip", action="append", default=[],
+                   help="이미 넣은 동작의 일부 구간을 새 이름으로: 새이름=원래이름:시작:끝 (0 - 1 비율). "
+                        "예: crouch_rise=getup:0.50:0.66 (누웠다 일어나는 동작에서 쭈그린 자세부터 선 자세까지)")
     p.add_argument("--out", required=True)
     p.add_argument("--max-tris", type=int, default=10000)
     p.add_argument("--target-tris", type=int, default=9000, help="여유를 두고 줄일 목표")
@@ -341,6 +344,24 @@ def main():
         strip = track.strips.new(name, int(act.frame_range[0]), act)
         if hasattr(strip, "action_slot") and strip.action_slot is None and getattr(act, "slots", None):
             strip.action_slot = act.slots[0]
+    acts = dict(named)
+    for spec in args.clip:                                               # 구간 자르기 → 같은 동작의 일부만 재생하는 트랙
+        new, rest = spec.split("=", 1)
+        src, a, b = rest.split(":")
+        act = acts[src]
+        f0, f1 = act.frame_range
+        s0, s1 = f0 + (f1 - f0) * float(a), f0 + (f1 - f0) * float(b)
+        track = arm.animation_data.nla_tracks.new()
+        track.name = new
+        strip = track.strips.new(new, int(round(s0)), act)
+        if hasattr(strip, "action_slot") and strip.action_slot is None and getattr(act, "slots", None):
+            strip.action_slot = act.slots[0]
+        strip.action_frame_start = s0
+        strip.action_frame_end = s1
+        strip.frame_end = strip.frame_start + (s1 - s0)
+        named.append((new, act))
+        print("IMPORT_MIXAMO clip %s = %s %.0f%% - %.0f%% (%.2f 초)" % (new, src, float(a) * 100, float(b) * 100,
+                                                                   (s1 - s0) / bpy.context.scene.render.fps))
 
     shrunk = shrink_textures(args.max_texture)
     brightened = brighten_base_color(args.brightness) if args.brightness != 1.0 else []
@@ -351,6 +372,7 @@ def main():
         filepath=args.out,
         export_format="GLB",
         export_animation_mode="NLA_TRACKS",
+        export_anim_slide_to_zero=True,        # 모든 동작을 0초부터 (잘라 넣은 구간이 원래 시각에서 시작하지 않게)
         export_yup=True,
     )
 
