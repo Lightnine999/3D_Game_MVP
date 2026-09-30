@@ -38,10 +38,13 @@ def parse_args():
     p.add_argument("--arms-fbx", default="", help="Mixamo 캐릭터 FBX — 주면 스크립트 손 대신 이 캐릭터의 팔(팔꿈치 아래)을 쓴다")
     p.add_argument("--arms-anim", default="", help="두 손으로 권총을 쥔 Mixamo 동작 FBX (예: pistol idle)")
     p.add_argument("--arms-frame", type=int, default=10, help="그 동작에서 손 모양을 가져올 프레임")
-    p.add_argument("--grip", default="0.100,-0.015,0.000,6",  # 손가락이 손잡이 앞면을 감싸고, 손잡이가 엄지·검지 사이에 끼는 자리
+    p.add_argument("--grip", default="0.100,-0.014,-0.002,-9",  # 손잡이가 엄지·검지 사이에 끼고, 엄지 쪽으로 붙이고, 총구가 손 방향과 일직선
                    help="오른손 손목에서 손잡이까지: 손끝 방향 m, 위 m, 오른쪽 m, 총구 좌우 각도(도)")
     p.add_argument("--left-thumb", default="0,0,-55",
                    help="왼손 엄지 첫 마디를 더 돌리는 각도 (x,y,z 도) — 위로 선 엄지를 총 옆면을 따라 앞으로 눕힐 때")
+    p.add_argument("--bend", default="RightHandIndex1=35,0,0;RightHandIndex2=35,0,0;RightHandIndex3=20,0,0;"
+                                     "RightHandThumb2=30,0,0;RightHandThumb3=25,0,0",   # 오른손 검지·엄지를 총 쪽으로 감아 쥐게
+                   help="손가락 관절을 더 구부리는 각도. '뼈이름=x,y,z;...' (도). 예: RightHandIndex1=0,0,-20")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",
                    help="소매(원래 SWAT 파란색) 를 바꿀 색 (선형 RGB). 기본 짙은 올리브. 빈 값이면 그대로")
@@ -306,6 +309,14 @@ def build_mixamo_hands(a):
         pb.rotation_mode = "QUATERNION"
         pb.rotation_quaternion = pb.rotation_quaternion @ Euler((tx, ty, tz)).to_quaternion()
         bpy.context.view_layer.update()
+
+    for item in filter(None, a.bend.split(";")):                         # 손가락을 총 쪽으로 더 감아 쥐게
+        name, ang = item.split("=")
+        pb = next(b for b in arm.pose.bones if b.name.endswith(name.strip()))
+        rx, ry, rz = [math.radians(float(v)) for v in ang.split(",")]
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = pb.rotation_quaternion @ Euler((rx, ry, rz)).to_quaternion()
+    bpy.context.view_layer.update()
 
     def bone(n):
         return next(b for b in arm.pose.bones if b.name.endswith(n))
