@@ -77,7 +77,7 @@ var _bumps := 0                     # 부딪힌 횟수 (통과 검사 기록용)
 var _stall := 0.0                   # 앞으로 절반도 못 나아간 시간 합 (통과 검사: "걸림" 체감 지표)
 var _stall_spots := {}              # 걸린 곳 → 시간 (통과 검사 기록용)
 var _last_hit := ""                 # 마지막으로 부딪힌 것 (모델 이름)
-var _wig_rng := RandomNumberGenerator.new()
+var _wig_rng := RandomNumberGenerator.new()   # 씨앗은 _ready 에서 1 (--wseed=N 으로 바꿈)
 var _wig_x := 0.0
 var _wig_t := 0.0
 var _vy := 0.0                      # 점프 세로 속도
@@ -99,6 +99,7 @@ var _retry: Button                  # 사망 후 "다시 시작하겠습니까?"
 
 
 func _ready() -> void:
+	_wig_rng.seed = 1
 	_parse_args()
 	_builder = StageBuilderV2.new()
 	add_child(_builder)
@@ -171,6 +172,8 @@ func _parse_args() -> void:
 			_frame_count = int(arg.trim_prefix("--count="))
 		elif arg.begins_with("--start="):
 			_frame_start = int(arg.trim_prefix("--start="))
+		elif arg.begins_with("--wseed="):
+			_wig_rng.seed = int(arg.trim_prefix("--wseed="))   # 막 누르기 검사 씨앗 (같은 씨앗 = 같은 누르기)
 		elif arg.begins_with("--shots="):
 			_shots_dir = arg.trim_prefix("--shots=")
 		elif arg.begins_with("--dist="):
@@ -506,6 +509,14 @@ func _gap_x(near_z: float, reach: float, pref := NAN) -> float:
 			var m: float = ob["half_width"] + PLAYER_RADIUS + 0.35
 			blocked.append([ob["x"] - m, ob["x"] + m])
 	blocked.sort_custom(func(a, b): return a[0] < b[0])
+	# 지금 몸 바로 옆에 붙어 있는 것 (앞뒤로 몸과 겹친다): 그 너머의 틈은 옆으로 뚫고 가야 하니 고르지 않는다
+	# (2026-09-30 472m: 대각선으로 늘어선 정체 차들 — 옆차 너머 틈을 골라 제자리에서 버둥거렸다)
+	var beside: Array = []
+	for ob in _builder.obstacles:
+		var hd3: float = ob.get("half_depth", 1.0)
+		if ob.get("top", 9.0) - _body.position.y >= PASS_LOW and ob["z"] - hd3 < _dist - 0.1 and ob["z"] + hd3 > _dist - PLAYER_RADIUS:
+			var m3: float = ob["half_width"] + PLAYER_RADIUS
+			beside.append([ob["x"] - m3, ob["x"] + m3])
 	var lane := _lane()
 	var best := NAN
 	var best_cost := INF
@@ -515,6 +526,9 @@ func _gap_x(near_z: float, reach: float, pref := NAN) -> float:
 			var e0: float = bl[0]
 			var tx: float = clampf(pref, start + 0.1, e0 - 0.1) if e0 - start > 0.2 else (start + e0) * 0.5
 			var cost: float = absf(tx - pref)
+			for bs in beside:
+				if bs[1] > minf(_x, tx) and bs[0] < maxf(_x, tx):
+					cost = INF                              # 가는 길을 옆차가 막는다
 			if cost < best_cost:
 				best_cost = cost
 				best = tx
@@ -611,7 +625,7 @@ func _unstuck() -> void:
 		while x <= _lane():
 			var p := Vector3(x, 0.0, here.z - ahead)
 			var cost: float = absf(x - here.x) + ahead * 0.8
-			if cost < best and _free_at(p):
+			if cost < best and _free_path(p):
 				best = cost
 				best_x = x
 			x += 0.25
@@ -626,6 +640,14 @@ func _unstuck() -> void:
 			_steer_target = best_x
 			print("[unstuck] %.1fm x %.2f → %.2f (앞 %.0fm)" % [-here.z, here.x, best_x, ahead])
 			return
+
+
+# 그 자리와 앞으로 2m 길이 모두 비었나 (옆으로만 조금 옮겨 곧바로 다시 막히던 문제 — 2026-09-30 472m)
+func _free_path(p: Vector3) -> bool:
+	for f in [0.0, 0.7, 1.4, 2.1]:
+		if not _free_at(p + Vector3(0, 0, -f)):
+			return false
+	return true
 
 
 func _free_at(p: Vector3) -> bool:
