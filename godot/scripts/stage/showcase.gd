@@ -187,6 +187,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
 	_prewarm()
+	_build_zombie_light(camera)
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
 	_vm = ViewmodelMotion.new()
 	_vm.rest_offset = VM_OFFSET
@@ -490,7 +491,7 @@ func _take(kind: String) -> Node3D:
 func _make_zombie(kind: String) -> Node3D:
 	var z: Node3D = load("res://assets/models/zombie_%s.glb" % kind).instantiate()
 	add_child(z)
-	_add_rim(z)
+	_dress_zombie(z)
 	var ap: AnimationPlayer = z.find_children("*", "AnimationPlayer", true, false)[0]
 	ap.add_animation_library("pack", _lib_for(kind, z.find_children("*", "Skeleton3D", true, false)[0]))
 	return z
@@ -694,20 +695,40 @@ func _retarget(src: Animation, ratio: float, prefix: String, loop: bool) -> Anim
 	return a
 
 
-# 달빛 테두리를 입힌다 (scenes/fx/zombie_rim.gdshader). 같은 모델끼리 재질을 같이 쓰므로 재질마다 한 번만
-var _rim: ShaderMaterial
+# 좀비 조명·재질 (2026-09-30 2차 "테두리 말고 스펙을 살려 풀에 묻히지 않게"): 가장자리 테두리 효과는 뺐다.
+# ① 좀비만 비추는 조명(ZOMBIE_LIGHT_LAYER) — 카메라에서 앞으로 은은하게, 풀·나무는 비추지 않는다
+# ② 재질을 조금 번들거리게 (거칠기 낮춤·반사 올림) → 빛을 받으면 피부·옷에 반짝임이 살아 풀 사이에서 몸이 읽힌다
+const ZOMBIE_LIGHT_LAYER := 2                 # 렌더 레이어 2번 (좀비 전용 조명의 cull_mask)
+const ZOMBIE_ROUGH := 0.5
+const ZOMBIE_SPEC := 0.75
+var _dressed := {}                            # 이미 손본 재질 (같은 모델끼리 재질을 같이 쓴다)
 
 
-func _add_rim(z: Node3D) -> void:
-	if _rim == null:
-		_rim = ShaderMaterial.new()
-		_rim.shader = load("res://scenes/fx/zombie_rim.gdshader")
+func _dress_zombie(z: Node3D) -> void:
 	for mi in z.find_children("*", "MeshInstance3D", true, false):
 		var m := mi as MeshInstance3D
+		m.layers = 1 | ZOMBIE_LIGHT_LAYER
 		for i in m.mesh.get_surface_count():
-			var mat := m.get_active_material(i)
-			if mat and mat.next_pass == null:
-				mat.next_pass = _rim
+			var mat := m.get_active_material(i) as BaseMaterial3D
+			if mat and not _dressed.has(mat):
+				_dressed[mat] = true
+				mat.roughness = minf(mat.roughness, ZOMBIE_ROUGH)
+				mat.metallic_specular = ZOMBIE_SPEC
+
+
+func _build_zombie_light(camera: Camera3D) -> void:
+	var l := SpotLight3D.new()
+	l.light_cull_mask = ZOMBIE_LIGHT_LAYER               # 좀비만
+	l.light_color = Color(0.86, 0.9, 1.0)                # 차가운 달빛 톤
+	l.light_energy = 2.2
+	l.light_specular = 1.4                               # 반짝임을 조금 더
+	l.spot_range = 34.0
+	l.spot_angle = 42.0
+	l.spot_attenuation = 0.6
+	l.shadow_enabled = false
+	l.position = Vector3(0.0, 0.6, 0.4)                  # 머리 위 살짝 뒤에서 내려 비춘다
+	l.rotation_degrees = Vector3(-6.0, 0.0, 0.0)
+	camera.add_child(l)
 
 
 # 첫 좀비는 눈에 잘 띄는 워커, 처음 INTRO_SAFE 마리에는 매복이 없게 순서만 바꾼다 (종류별 25마리는 그대로)
