@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://gxh1bvha2jp"
-path="res://.godot/imported/stump_old_01_Image_1_4.png-a8ff2cf67f3be654dade6dd9c6bda6c4.ctex"
+path.s3tc="res://.godot/imported/stump_old_01_Image_1_4.png-a8ff2cf67f3be654dade6dd9c6bda6c4.s3tc.ctex"
+path.etc2="res://.godot/imported/stump_old_01_Image_1_4.png-a8ff2cf67f3be654dade6dd9c6bda6c4.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "ee86c84b973dffdbfef0aa8da7bb46b7"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/trees/stump_old_01_Image_1_4.png"
-dest_files=["res://.godot/imported/stump_old_01_Image_1_4.png-a8ff2cf67f3be654dade6dd9c6bda6c4.ctex"]
+dest_files=["res://.godot/imported/stump_old_01_Image_1_4.png-a8ff2cf67f3be654dade6dd9c6bda6c4.s3tc.ctex", "res://.godot/imported/stump_old_01_Image_1_4.png-a8ff2cf67f3be654dade6dd9c6bda6c4.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -9,10 +9,12 @@ extends Node3D
 ##   fx.play()                    # 기본 15초 동안 피어오른 뒤 스스로 사라진다
 ##   fx.play(20.0)                # 시간을 바꿀 때
 ##   fx.stop()                    # 상자를 주웠을 때: 새 연기를 멈추고, 남은 연기가 흩어지면 사라진다
+## 초록 보급(2026-09-30): smoke_green.tscn 이 같은 스크립트를 쓴다 (색만 초록, flare_scale 0.45)
 ## 보급 간격 약 150m(PRD F-22), 달리기 5 m/s → 상자까지 약 10초라 기본 15초면 충분하다.
 
 const DEFAULT_TIME := 15.0
 const FLARE_ENERGY := 3.0
+@export var flare_scale := 1.0     # 불빛 세기 배율 (초록 보급은 주변 나무가 형광으로 물들어 낮춤)
 
 var _playing := false
 var _stopping := false
@@ -50,7 +52,7 @@ func _process(delta: float) -> void:
 	# 조명탄처럼 불규칙하게 깜빡인다
 	_t += delta
 	var flicker := 0.75 + 0.15 * sin(_t * 23.0) + 0.1 * sin(_t * 57.0)
-	($Flare as OmniLight3D).light_energy = FLARE_ENERGY * flicker
+	($Flare as OmniLight3D).light_energy = FLARE_ENERGY * flare_scale * flicker
 
 
 func _after(seconds: float, callback: Callable) -> void:

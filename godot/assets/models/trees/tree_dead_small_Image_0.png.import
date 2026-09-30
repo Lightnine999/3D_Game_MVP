@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://kebyy1ggnsea"
-path="res://.godot/imported/tree_dead_small_Image_0.png-565575f6c896ccb0160139cb6ab35c6b.ctex"
+path.s3tc="res://.godot/imported/tree_dead_small_Image_0.png-565575f6c896ccb0160139cb6ab35c6b.s3tc.ctex"
+path.etc2="res://.godot/imported/tree_dead_small_Image_0.png-565575f6c896ccb0160139cb6ab35c6b.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "93b4570ba8e119619a208591994cedb1"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/trees/tree_dead_small_Image_0.png"
-dest_files=["res://.godot/imported/tree_dead_small_Image_0.png-565575f6c896ccb0160139cb6ab35c6b.ctex"]
+dest_files=["res://.godot/imported/tree_dead_small_Image_0.png-565575f6c896ccb0160139cb6ab35c6b.s3tc.ctex", "res://.godot/imported/tree_dead_small_Image_0.png-565575f6c896ccb0160139cb6ab35c6b.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

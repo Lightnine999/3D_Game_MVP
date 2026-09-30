@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cry0upp2kowu7"
-path="res://.godot/imported/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-2d59fabfc90c852f32e82d260ad9b34f.ctex"
+path.s3tc="res://.godot/imported/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-2d59fabfc90c852f32e82d260ad9b34f.s3tc.ctex"
+path.etc2="res://.godot/imported/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-2d59fabfc90c852f32e82d260ad9b34f.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "dc845710c40468680fcdbb82e366b5cf"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/house/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png"
-dest_files=["res://.godot/imported/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-2d59fabfc90c852f32e82d260ad9b34f.ctex"]
+dest_files=["res://.godot/imported/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-2d59fabfc90c852f32e82d260ad9b34f.s3tc.ctex", "res://.godot/imported/house_shack_01_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-2d59fabfc90c852f32e82d260ad9b34f.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

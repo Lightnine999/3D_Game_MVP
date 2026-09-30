@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b2cox67wl45a"
-path="res://.godot/imported/car_abandoned_01_Image_3.png-335ceae9d04ec22d2d307a535c572c21.ctex"
+path.s3tc="res://.godot/imported/car_abandoned_01_Image_3.png-335ceae9d04ec22d2d307a535c572c21.s3tc.ctex"
+path.etc2="res://.godot/imported/car_abandoned_01_Image_3.png-335ceae9d04ec22d2d307a535c572c21.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e2923cc5737ce9ff5f28aa76c4f4fa7b"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/vehicles/car_abandoned_01_Image_3.png"
-dest_files=["res://.godot/imported/car_abandoned_01_Image_3.png-335ceae9d04ec22d2d307a535c572c21.ctex"]
+dest_files=["res://.godot/imported/car_abandoned_01_Image_3.png-335ceae9d04ec22d2d307a535c572c21.s3tc.ctex", "res://.godot/imported/car_abandoned_01_Image_3.png-335ceae9d04ec22d2d307a535c572c21.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

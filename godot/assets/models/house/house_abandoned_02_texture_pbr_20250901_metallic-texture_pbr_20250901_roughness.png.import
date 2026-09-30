@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c8vymihw51by6"
-path="res://.godot/imported/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-ac8a986999746d2ae75d910f29c3a228.ctex"
+path.s3tc="res://.godot/imported/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-ac8a986999746d2ae75d910f29c3a228.s3tc.ctex"
+path.etc2="res://.godot/imported/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-ac8a986999746d2ae75d910f29c3a228.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "d7d16d37a3bf11a9f9bee75c5f1ac203"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/house/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png"
-dest_files=["res://.godot/imported/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-ac8a986999746d2ae75d910f29c3a228.ctex"]
+dest_files=["res://.godot/imported/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-ac8a986999746d2ae75d910f29c3a228.s3tc.ctex", "res://.godot/imported/house_abandoned_02_texture_pbr_20250901_metallic-texture_pbr_20250901_roughness.png-ac8a986999746d2ae75d910f29c3a228.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

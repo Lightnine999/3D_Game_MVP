@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dw0p2bmo8esv7"
-path="res://.godot/imported/drum_old_01_Image_0.png-d0152d4c3897232b12c4ad27fe705e1f.ctex"
+path.s3tc="res://.godot/imported/drum_old_01_Image_0.png-d0152d4c3897232b12c4ad27fe705e1f.s3tc.ctex"
+path.etc2="res://.godot/imported/drum_old_01_Image_0.png-d0152d4c3897232b12c4ad27fe705e1f.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "a2131bf7b62f5eca4ba27ba05a2af6de"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/drum_old_01_Image_0.png"
-dest_files=["res://.godot/imported/drum_old_01_Image_0.png-d0152d4c3897232b12c4ad27fe705e1f.ctex"]
+dest_files=["res://.godot/imported/drum_old_01_Image_0.png-d0152d4c3897232b12c4ad27fe705e1f.s3tc.ctex", "res://.godot/imported/drum_old_01_Image_0.png-d0152d4c3897232b12c4ad27fe705e1f.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

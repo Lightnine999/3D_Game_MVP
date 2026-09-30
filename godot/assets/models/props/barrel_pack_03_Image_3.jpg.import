@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cjjnwbb0mofvw"
-path="res://.godot/imported/barrel_pack_03_Image_3.jpg-cbd17c36f383f0c1020e4bda69c01d59.ctex"
+path.s3tc="res://.godot/imported/barrel_pack_03_Image_3.jpg-cbd17c36f383f0c1020e4bda69c01d59.s3tc.ctex"
+path.etc2="res://.godot/imported/barrel_pack_03_Image_3.jpg-cbd17c36f383f0c1020e4bda69c01d59.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "076ea7dce96af0d3e7e1c74320f239c0"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/barrel_pack_03_Image_3.jpg"
-dest_files=["res://.godot/imported/barrel_pack_03_Image_3.jpg-cbd17c36f383f0c1020e4bda69c01d59.ctex"]
+dest_files=["res://.godot/imported/barrel_pack_03_Image_3.jpg-cbd17c36f383f0c1020e4bda69c01d59.s3tc.ctex", "res://.godot/imported/barrel_pack_03_Image_3.jpg-cbd17c36f383f0c1020e4bda69c01d59.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

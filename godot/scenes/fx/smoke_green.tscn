@@ -1,0 +1,62 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scenes/fx/smoke_red.gd" id="1_script"]
+
+[sub_resource type="Gradient" id="puff_shape"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="puff_tex"]
+gradient = SubResource("puff_shape")
+width = 64
+height = 64
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="StandardMaterial3D" id="mat_smoke"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.2, 0.85, 0.25, 0.8)
+albedo_texture = SubResource("puff_tex")
+billboard_mode = 3
+disable_fog = true
+
+[sub_resource type="QuadMesh" id="mesh_puff"]
+material = SubResource("mat_smoke")
+
+[sub_resource type="Curve" id="grow"]
+_data = [Vector2(0, 0.35), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.15, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.9, 1, 1, 1, 0.5, 1, 1, 1, 0)
+
+[node name="SmokeRed" type="Node3D"]
+script = ExtResource("1_script")
+flare_scale = 0.45
+
+[node name="Smoke" type="CPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+emitting = false
+amount = 40
+lifetime = 4.0
+mesh = SubResource("mesh_puff")
+direction = Vector3(0, 1, 0)
+spread = 12.0
+gravity = Vector3(0.25, 0.3, 0)
+initial_velocity_min = 0.7
+initial_velocity_max = 1.2
+scale_amount_min = 0.9
+scale_amount_max = 1.6
+scale_amount_curve = SubResource("grow")
+color_ramp = SubResource("fade")
+
+[node name="Flare" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+visible = false
+light_color = Color(0.2, 1, 0.3, 1)
+light_energy = 3.0
+omni_range = 8.0

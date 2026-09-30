@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c2ioi4mhx44v5"
-path="res://.godot/imported/house_abandoned_02_texture_pbr_20250901.png-f68c03bdf31a9926c4a5a2957065a943.ctex"
+path.s3tc="res://.godot/imported/house_abandoned_02_texture_pbr_20250901.png-f68c03bdf31a9926c4a5a2957065a943.s3tc.ctex"
+path.etc2="res://.godot/imported/house_abandoned_02_texture_pbr_20250901.png-f68c03bdf31a9926c4a5a2957065a943.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "db554279d6d20ff6439ad670403ea021"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/house/house_abandoned_02_texture_pbr_20250901.png"
-dest_files=["res://.godot/imported/house_abandoned_02_texture_pbr_20250901.png-f68c03bdf31a9926c4a5a2957065a943.ctex"]
+dest_files=["res://.godot/imported/house_abandoned_02_texture_pbr_20250901.png-f68c03bdf31a9926c4a5a2957065a943.s3tc.ctex", "res://.godot/imported/house_abandoned_02_texture_pbr_20250901.png-f68c03bdf31a9926c4a5a2957065a943.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

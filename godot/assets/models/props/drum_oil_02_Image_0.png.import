@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://13kwf802eepx"
-path="res://.godot/imported/drum_oil_02_Image_0.png-84f5377aa4a428e5f8f2335fe5fb6e35.ctex"
+path.s3tc="res://.godot/imported/drum_oil_02_Image_0.png-84f5377aa4a428e5f8f2335fe5fb6e35.s3tc.ctex"
+path.etc2="res://.godot/imported/drum_oil_02_Image_0.png-84f5377aa4a428e5f8f2335fe5fb6e35.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "bf31447797a2bdba321203e70612ce4e"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/props/drum_oil_02_Image_0.png"
-dest_files=["res://.godot/imported/drum_oil_02_Image_0.png-84f5377aa4a428e5f8f2335fe5fb6e35.ctex"]
+dest_files=["res://.godot/imported/drum_oil_02_Image_0.png-84f5377aa4a428e5f8f2335fe5fb6e35.s3tc.ctex", "res://.godot/imported/drum_oil_02_Image_0.png-84f5377aa4a428e5f8f2335fe5fb6e35.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
