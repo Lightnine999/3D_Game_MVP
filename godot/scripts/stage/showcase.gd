@@ -28,7 +28,21 @@ const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자 
 const SPEED := {"walker": 1.2, "runner": 4.5, "tank": 0.8, "ambusher": 1.5}   # PRD 4.5 이동 속도 (m/s)
 const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 → 2발 (2026-09-30 "너무 세다")
 
+signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 연출 (stage_preview)
+signal knifed                                 # 칼로 잡은 좀비를 죽이고 벗어났다
+
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
+var catching := false                         # 플레이 테스트: 좀비가 플레이어를 잡을 수 있다
+# 잡힘 규칙 (2026-09-30): 좀비가 내 몸을 절반 이상 가린 채 닿으면 잡힌다. 그보다 비켜서 지나치면 더는 쫓아오지 못한다
+const REACH := 0.8                            # 앞뒤로 이만큼 붙으면 "닿음"
+const ZOMBIE_W := 0.9                         # 좀비 몸+뻗은 팔 폭
+const PLAYER_W := 0.7                         # 플레이어 몸 폭
+const COVER_TO_GRAB := 0.5                    # 내 몸을 이만큼(절반) 이상 가리면 잡힘
+const KNIVES := 1                             # 칼은 한 스테이지에 한 번 (PRD 칼 규칙)
+var _knife_left := KNIVES
+const KNIFE_GRACE := 1.5                      # 칼로 벗어난 직후 이 시간은 다시 잡히지 않는다 (연달아 잡히던 문제)
+var _grace_t := 0.0
+var _hud_knife: TextureRect
 var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
 var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
 const FIRE_RANGE := 30.0                      # 직접 쏠 때 닿는 거리
@@ -109,6 +123,7 @@ func _build_hud(holder: Node) -> void:
 	knife.position = Vector2(145, 4)
 	knife.size = Vector2(55, 55)
 	panel.add_child(knife)
+	_hud_knife = knife
 	var bar_bg := Panel.new()                          # 남은 거리 + 진행 막대 (PRD F-54)
 	bar_bg.position = Vector2(w / 2 - 300, 92)
 	bar_bg.size = Vector2(600, 70)
@@ -158,6 +173,7 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	_update_crates(dist, cam_x, delta)
 	_update_zombies(dist, cam_x, delta)
 	_shot_cd -= delta
+	_grace_t -= delta
 
 
 func _spawn_wave(w: Array, dist: float, cam_x: float) -> void:
@@ -222,17 +238,69 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					_sfx("sfx_zombie_groan")
 				if e.get("charging", false):
 					spd = 2.5
+				if e.get("passed", false):                 # 지나친 좀비: 더는 쫓지 않고 가던 방향으로 계속 간다
+					var dir: Vector2 = e.get("dir", Vector2(0, -1))
+					e["x"] += dir.x * spd * delta
+					e["d"] += dir.y * spd * delta
+					z.position = Vector3(e["x"], 0, -e["d"])
+					if ahead < -10.0:
+						z.queue_free()
+					continue
 				var target := Vector2(cam_x, dist)
 				var here := Vector2(e["x"], e["d"])
-				var step := (target - here).normalized() * spd * delta
+				e["dir"] = (target - here).normalized()
+				var step: Vector2 = e["dir"] * spd * delta
 				e["x"] += step.x
 				e["d"] += step.y
 				_place(e)
+				ahead = e["d"] - dist
+				if ahead < REACH and ahead > -0.5:
+					var dx := absf(e["x"] - cam_x)
+					var cover := clampf((ZOMBIE_W * 0.5 + PLAYER_W * 0.5 - dx) / PLAYER_W, 0.0, 1.0)
+					if catching and cover >= COVER_TO_GRAB and _grace_t <= 0.0:
+						_grab(e, dist, cam_x)
+						continue
+					e["passed"] = true                     # 비켜서 지나쳤다
+				elif ahead <= -0.5:
+					e["passed"] = true
 				if auto_fire and ahead < SHOOT_RANGE and ahead > 1.5 and (_ammo > 0 or INFINITE_AMMO) and _shot_cd <= 0.0:
 					_shoot(e)
 			"dead":
 				if ahead < -4.0:
 					z.queue_free()
+			"grab":
+				pass                                       # 사망 연출 중: 제자리에서 물어뜯는다
+
+
+# 잡혔다: 칼이 남았으면 칼로 죽이고 벗어난다, 없으면 사망 (stage_preview 가 카메라 연출)
+func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
+	var z: Node3D = e["node"]
+	var ap: AnimationPlayer = e["ap"]
+	ap.speed_scale = 1.0
+	if _knife_left > 0:
+		_knife_left -= 1
+		if _hud_knife:
+			_hud_knife.modulate = Color(1, 1, 1, 0.2)      # 칼 다 씀
+		_sfx("sfx_knife")
+		BulletHitFX.spawn(self, z.global_position + Vector3(0, 1.3, 0), z.global_position - _camera.global_position, 1.6)
+		e["state"] = "dead"
+		e["passed"] = true
+		ap.play("death")
+		_grace_t = KNIFE_GRACE
+		print("[knife] %.0fm 칼로 벗어남" % dist)
+		knifed.emit()
+		return
+	e["state"] = "grab"
+	e["d"] = dist + 1.15                                   # 코앞에 붙는다 (너무 붙으면 몸통만 화면을 덮는다)
+	_pistol.visible = false                                # 쓰러질 때 총이 허공에 떠 보이지 않게
+	e["x"] = cam_x
+	_place(e)
+	if ap.has_animation("attack"):
+		ap.get_animation("attack").loop_mode = Animation.LOOP_LINEAR
+		ap.play("attack")
+	_sfx("sfx_bite")
+	print("[caught] %.0fm %s 에게 잡힘 (칼 없음)" % [dist, e["kind"]])
+	caught.emit(z)
 
 
 # 플레이 테스트 사격 (스페이스바·FIRE 버튼): 화면 가운데 조준선 앞의 가장 가까운 좀비를 쏜다. 없으면 허공에 쏜다
