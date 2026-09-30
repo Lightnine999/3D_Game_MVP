@@ -97,7 +97,7 @@ var live_audio := false                       # 플레이 테스트: 소리를 �
 const SFX_DB := -7.94                         # 효과음: 절반(-6dB) → 거기서 20% 더 줄임(×0.8 = -1.94dB) (2026-09-30 "아직 크다")
 const BGM_DB := -13.94                        # 배경음도 같은 비율로 (-12 → -13.94)
 const SFX_TRIM := {"sfx_pistol": -6.02}       # 소리별 추가 조정 (dB): 총소리만 절반 더 (×0.5 = -6.02dB, 2026-09-30 "총소리가 크다")
-const FIRE_RANGE := 30.0                      # 직접 쏠 때 닿는 거리
+const FIRE_RANGE := 15.0                      # 직접 쏠 때 닿는 거리 (30 → 15m, 2026-09-30 "사정거리가 너무 길다" — 멀리서 다 쏘지 말고 피하게)
 const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서 옆으로 이만큼(+거리 × 0.06) 안에 있으면 맞는다
 var _builder: StageBuilderV2
 var _camera: Camera3D
