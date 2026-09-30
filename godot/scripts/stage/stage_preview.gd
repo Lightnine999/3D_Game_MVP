@@ -101,7 +101,9 @@ var _retry: Button                  # 사망 후 "다시 시작하겠습니까?"
 func _ready() -> void:
 	_wig_rng.seed = 1
 	_parse_args()
+	process_mode = Node.PROCESS_MODE_ALWAYS              # 일시정지 중에도 이 노드는 입력을 받는다 (게임 진행은 _process 에서 멈춤)
 	_builder = StageBuilderV2.new()
+	_builder.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(_builder)
 	_builder.build()
 	# 영상 모드는 화면 밖 캔버스(SubViewport)에 그린다 → 실제 창은 작게 띄워도 영상은 제 크기
@@ -125,6 +127,7 @@ func _ready() -> void:
 	_play = _frames_dir.is_empty() and _shots_dir.is_empty() and not ("--auto" in args or "--sim" in args)
 	if "--showcase" in args or (_play and not ("--no-showcase" in args)):
 		_showcase = ShowcaseDirector.new()
+		_showcase.process_mode = Node.PROCESS_MODE_PAUSABLE   # 일시정지하면 좀비·소리도 멈춘다
 		add_child(_showcase)
 		_showcase.setup(_builder, _camera, holder)
 		_label.position = Vector2(48, 640)          # 시연 HUD 가 남은 거리를 보여 준다 → 구석에 FPS 만
@@ -139,6 +142,7 @@ func _ready() -> void:
 			_showcase.start_bgm()
 			if DisplayServer.is_touchscreen_available():
 				_build_fire_button(holder)
+			_build_pause_button(holder)
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
@@ -222,6 +226,60 @@ func _death_cam(delta: float) -> void:
 		_retry.grab_focus()                               # 엔터·스페이스로도 누를 수 있게
 	if _retry.visible:
 		_retry.modulate.a = clampf((_dead_t - 4.0) / 0.6, 0.0, 1.0)   # DEAD 가 찍힌 뒤 한 번 서서히 나타난다
+
+
+# 일시정지 (2026-09-30): 오른쪽 위 어두운 반투명 원 + 뼈색 아이콘 (❚❚ 진행 중 / ▶ 멈춤). P·Esc 키로도
+var _pause_btn: Button
+var _pause_dim: ColorRect
+
+
+func _build_pause_button(holder: Node) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	holder.add_child(layer)
+	_pause_dim = ColorRect.new()                           # 멈추면 화면을 살짝 어둡게
+	_pause_dim.color = Color(0, 0, 0, 0.45)
+	_pause_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pause_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pause_dim.visible = false
+	layer.add_child(_pause_dim)
+	_pause_btn = Button.new()
+	_pause_btn.focus_mode = Control.FOCUS_NONE             # 스페이스(사격)가 버튼을 누르지 않게
+	_pause_btn.anchor_left = 1.0
+	_pause_btn.anchor_right = 1.0
+	_pause_btn.offset_left = -108
+	_pause_btn.offset_right = -36
+	_pause_btn.offset_top = 26
+	_pause_btn.offset_bottom = 98
+	var circle := StyleBoxFlat.new()
+	circle.bg_color = Color(0.05, 0.05, 0.06, 0.38)
+	circle.set_corner_radius_all(36)
+	var round_hi := circle.duplicate() as StyleBoxFlat
+	round_hi.bg_color = Color(0.05, 0.05, 0.06, 0.6)
+	_pause_btn.add_theme_stylebox_override("normal", circle)
+	_pause_btn.add_theme_stylebox_override("hover", round_hi)
+	_pause_btn.add_theme_stylebox_override("pressed", round_hi)
+	_pause_btn.draw.connect(_draw_pause_icon)
+	_pause_btn.pressed.connect(_toggle_pause)
+	layer.add_child(_pause_btn)
+
+
+func _draw_pause_icon() -> void:
+	var c := Vector2(36, 36)
+	var bone := Color8(233, 226, 214)
+	if get_tree().paused:                                  # ▶ 다시 달리기
+		_pause_btn.draw_colored_polygon(PackedVector2Array([c + Vector2(-9, -14), c + Vector2(-9, 14), c + Vector2(15, 0)]), bone)
+	else:                                                  # ❚❚ 일시정지
+		_pause_btn.draw_rect(Rect2(c + Vector2(-11, -14), Vector2(7, 28)), bone)
+		_pause_btn.draw_rect(Rect2(c + Vector2(4, -14), Vector2(7, 28)), bone)
+
+
+func _toggle_pause() -> void:
+	if _dead:
+		return
+	get_tree().paused = not get_tree().paused
+	_pause_dim.visible = get_tree().paused
+	_pause_btn.queue_redraw()
 
 
 # Retry 모양: 아래쪽 줄 하나 (두께 w, 색 line) + 옅은 바탕
@@ -346,6 +404,8 @@ func _build_overlay(holder: Node) -> void:
 
 
 func _process(delta: float) -> void:
+	if get_tree().paused:
+		return
 	if not _frames_dir.is_empty() or not _shots_dir.is_empty() or "--sim" in OS.get_cmdline_user_args():
 		return                                           # 캡처·통과 검사는 아래 함수가 직접 한 걸음씩 진행
 	if _dead:
@@ -362,6 +422,11 @@ func _process(delta: float) -> void:
 # 마우스는 쓰지 않는다: 마우스를 움직여 시선이 돌아가거나 기울지 않게 (2026-09-30 피드백)
 func _unhandled_input(event: InputEvent) -> void:
 	if not _play:
+		return
+	if event is InputEventKey and event.pressed and not event.echo and (event.physical_keycode == KEY_P or event.physical_keycode == KEY_ESCAPE) and not _dead:
+		_toggle_pause()
+		return
+	if get_tree().paused:
 		return
 	var w := get_viewport().get_visible_rect().size.x
 	if event is InputEventScreenTouch:

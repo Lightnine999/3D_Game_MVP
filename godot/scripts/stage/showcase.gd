@@ -19,6 +19,7 @@ const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
 # 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 글록 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
 # 새 탄창 크기가 된다. 받은 총알은 예비탄으로 쟁여 두고 R(폰 RELOAD)로 재장전한다 — 재장전은 시간이 걸린다
+const LINE_W := 360.0                         # 진행 실선 길이 (px)
 const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
 const GLOCKS := [["G43", 6], ["G26", 10], ["G19", 15], ["G17", 17], ["G17 확장탄창", 24], ["G18 롱탄창", 30]]   # [모델, 탄창]
 const RELOAD_TIME := 1.5                      # 재장전 기본 시간 (초) + 탄창이 클수록 조금 더 (30발 = 2.1초)
@@ -86,7 +87,9 @@ var _hud_reserve: Label
 var _hud_gun: Label
 var _hud_pistol: TextureRect
 var _hud_dist: Label
-var _hud_bar: ProgressBar
+var _hud_line_done: ColorRect                 # 진행 실선: 지나온 쪽 (조금 밝게)
+var _hud_tick: ColorRect                      # 진행 작대기
+var _gun_toast_t := 0.0
 var _tex_pistol: Texture2D
 var _tex_pistol_empty: Texture2D
 
@@ -148,9 +151,10 @@ func _build_hud(holder: Node) -> void:
 	_hud_reserve.add_theme_font_size_override("font_size", 24)
 	_hud_reserve.add_theme_color_override("font_color", Color(0.75, 0.75, 0.72))
 	panel.add_child(_hud_reserve)
-	_hud_gun = Label.new()                             # 지금 총 모델 (패널 아래)
-	_hud_gun.position = Vector2(0, 64)
+	_hud_gun = Label.new()                             # 새 총을 주웠을 때만 잠깐 뜬다 (진행 실선 아래)
+	_hud_gun.position = Vector2(0, 100)
 	_hud_gun.size = Vector2(300, 24)
+	_hud_gun.modulate.a = 0.0
 	_hud_gun.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hud_gun.add_theme_font_size_override("font_size", 18)
 	_hud_gun.add_theme_color_override("font_color", Color(0.8, 0.8, 0.76))
@@ -163,25 +167,31 @@ func _build_hud(holder: Node) -> void:
 	knife.size = Vector2(55, 55)
 	panel.add_child(knife)
 	_hud_knife = knife
-	var bar_bg := Panel.new()                          # 남은 거리 + 진행 막대 (PRD F-54)
-	bar_bg.position = Vector2(w / 2 - 300, 110)
-	bar_bg.size = Vector2(600, 70)
-	bar_bg.self_modulate = Color(0.12, 0.13, 0.14, 0.6)
-	layer.add_child(bar_bg)
+	# 남은 거리: 왼쪽 위 큰 흰 숫자 (예전 방식, 2026-09-30 피드백)
 	_hud_dist = Label.new()
-	_hud_dist.position = Vector2(0, 2)
-	_hud_dist.size = Vector2(600, 36)
-	_hud_dist.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hud_dist.add_theme_font_size_override("font_size", 30)
-	bar_bg.add_child(_hud_dist)
-	_hud_bar = ProgressBar.new()
-	_hud_bar.position = Vector2(18, 42)
-	_hud_bar.size = Vector2(564, 16)
-	_hud_bar.show_percentage = false
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.78, 0.2, 0.16)
-	_hud_bar.add_theme_stylebox_override("fill", fill)
-	bar_bg.add_child(_hud_bar)
+	_hud_dist.position = Vector2(48, 28)
+	_hud_dist.add_theme_font_size_override("font_size", 56)
+	_hud_dist.add_theme_color_override("font_color", Color(0.92, 0.92, 0.9))
+	_hud_dist.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
+	_hud_dist.add_theme_constant_override("shadow_offset_x", 3)
+	_hud_dist.add_theme_constant_override("shadow_offset_y", 3)
+	layer.add_child(_hud_dist)
+	# 진행: 가는 실선 하나 위를 작대기 하나가 결승점 쪽으로 간다 (두꺼운 막대·상자 없이, 2026-09-30 디자인)
+	var line := ColorRect.new()
+	line.position = Vector2(w / 2 - LINE_W / 2, 98)
+	line.size = Vector2(LINE_W, 2)
+	line.color = Color(0.85, 0.81, 0.75, 0.28)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(line)
+	_hud_line_done = ColorRect.new()
+	_hud_line_done.size = Vector2(0, 2)
+	_hud_line_done.color = Color(0.85, 0.81, 0.75, 0.7)
+	line.add_child(_hud_line_done)
+	_hud_tick = ColorRect.new()
+	_hud_tick.size = Vector2(3, 16)
+	_hud_tick.position = Vector2(-1.5, -7)
+	_hud_tick.color = Color(0.93, 0.9, 0.84, 0.95)
+	line.add_child(_hud_tick)
 	_refresh_ammo()
 
 
@@ -193,7 +203,7 @@ func _refresh_ammo() -> void:
 	_hud_ammo.text = str(_mag)
 	_hud_ammo.add_theme_color_override("font_color", Color(0.9, 0.25, 0.2) if _mag == 0 else Color(0.95, 0.95, 0.93))
 	_hud_reserve.text = "/ %d" % _reserve
-	_hud_gun.text = "%s · 탄창 %d발" % [_gun_name, _mag_cap]
+	_hud_gun.text = "%s  %d발 탄창" % [_gun_name, _mag_cap]
 	_hud_pistol.texture = _tex_pistol if _mag + _reserve > 0 else _tex_pistol_empty
 
 
@@ -235,7 +245,11 @@ func sfx(name: String) -> void:
 func update(dist: float, cam_x: float, delta: float) -> void:
 	_time += delta
 	_hud_dist.text = "%dm" % StageBuilderV2.remaining(dist)
-	_hud_bar.value = dist / StageBuilderV2.STAGE_LENGTH * 100.0
+	var k := clampf(dist / StageBuilderV2.STAGE_LENGTH, 0.0, 1.0)
+	_hud_line_done.size.x = LINE_W * k
+	_hud_tick.position.x = LINE_W * k - 1.5
+	_gun_toast_t -= delta
+	_hud_gun.modulate.a = clampf(_gun_toast_t / 0.5, 0.0, 1.0)   # 2.5초 떠 있다가 마지막 0.5초에 사라진다
 	while _next_wave < _plan.size() and dist >= _plan[_next_wave][0] - 34.0:   # 34m 앞에서 나타난다
 		_spawn_wave([_plan[_next_wave][0], _plan[_next_wave][1], 1], dist, cam_x)
 		_next_wave += 1
@@ -572,6 +586,7 @@ func _pick_glock() -> void:
 		_reserve += _mag - _mag_cap
 		_mag = _mag_cap
 	_reserve += _mag_cap
+	_gun_toast_t = 2.5                                   # 주운 총 이름을 잠깐 보여 준다
 	_refresh_ammo()
 
 
