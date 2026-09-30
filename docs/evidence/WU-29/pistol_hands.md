@@ -9,6 +9,7 @@
 
 ## 손
 - Mixamo `Swat` 캐릭터 + `pistol idle`(Pistol Handgun Locomotion Pack) 10번째 프레임 자세를 굳히고 팔꿈치 아래만 잘랐다
+- 소매는 SWAT 파란색을 짙은 올리브로 다시 칠했다 (`--sleeve`, 장갑은 원래 검정)
 - 뼈대 없음 → 손은 총과 함께 움직인다. 장전 때 왼손(`HandLeft`)만 통째로 옮긴다 (TECH_SPEC D6 v0.5.4 변경 제안)
 - 원본 FBX 는 `art/source/mixamo/swat_pistol/` (git 제외, 재배포 금지)
 

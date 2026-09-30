@@ -73,7 +73,7 @@
 | zombie scream | 애니메이션 → `scream` (Scary Zombie Pack 포함) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_ambusher.glb` |
 | FuzZombie | 캐릭터 (워커, 경찰복, 키 2.044 → 1.85 m, 그림 2048 → 1024) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb`, `art/ui/hud_mock_*.png` (HUD 시안 배경 그림, 게임에는 안 들어감) |
 | Getting Up | 애니메이션 → `getup` (제자리로 변환) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_ambusher.glb` |
-| Swat | 캐릭터 → 1인칭 손 (장갑·소매, 삼각형 줄임, 그림 1024) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-30 | `godot/assets/models/weapon_pistol.glb` (팔꿈치 아래만 잘라 권총에 붙임) |
+| Swat | 캐릭터 → 1인칭 손 (장갑·소매, 소매 파란색 → 짙은 올리브로 다시 칠함, 삼각형 줄임, 그림 1024) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-30 | `godot/assets/models/weapon_pistol.glb` (팔꿈치 아래만 잘라 권총에 붙임) |
 | pistol idle (Pistol Handgun Locomotion Pack) | 애니메이션 → 두 손으로 권총 쥔 손 모양 (10번째 프레임으로 굳힘) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-30 | `godot/assets/models/weapon_pistol.glb` (팔꿈치 아래만 잘라 권총에 붙임) |
 
 ## 사운드

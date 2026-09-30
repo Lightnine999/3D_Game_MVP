@@ -41,6 +41,8 @@ def parse_args():
     p.add_argument("--grip", default="0.035,0.020,0.004,6",
                    help="오른손 손목에서 손잡이까지: 손끝 방향 m, 위 m, 오른쪽 m, 총구 좌우 각도(도)")
     p.add_argument("--max-texture", type=int, default=1024)
+    p.add_argument("--sleeve", default="0.30,0.32,0.22",
+                   help="소매(원래 SWAT 파란색) 를 바꿀 색 (선형 RGB). 기본 짙은 올리브. 빈 값이면 그대로")
     p.add_argument("--max-tris", type=int, default=4900, help="TECH_SPEC 5.3 weapon_ 5000 안쪽")
     return p.parse_args(argv)
 
@@ -352,6 +354,8 @@ def build_mixamo_hands(a):
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         h = join(objs, "Hand" + side)
         hands.append(h)
+    if a.sleeve:
+        recolor_blue(a.sleeve)
     hl = next(h for h in hands if h.name == "HandLeft")
     c = sum((Vector(v.co) for v in hl.data.vertices), Vector()) / len(hl.data.vertices)
     set_origin(hl, c)                                                    # 왼손만 통째로 옮기므로 원점을 손 가운데로
@@ -361,6 +365,40 @@ def build_mixamo_hands(a):
             img.scale(int(img.size[0] * k), int(img.size[1] * k))
             img.pack()
     return hands
+
+
+def recolor_blue(color):
+    """몸 색 그림에서 파란 부분(SWAT 제복)만 골라 같은 밝기의 다른 색으로 칠한다. 검은 장갑·금속은 그대로."""
+    import numpy as np
+    tint = np.array([float(v) for v in color.split(",")], dtype=np.float32)
+    tint = tint / tint.max()
+    imgs = set()
+    for o in bpy.context.scene.objects:                                  # 손 재질의 몸 색(Base Color) 그림만
+        if o.type != "MESH" or not o.name.startswith("Hand"):
+            continue
+        for m in o.data.materials:
+            b = m and m.use_nodes and next((n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+            if b and b.inputs["Base Color"].is_linked:
+                img = getattr(b.inputs["Base Color"].links[0].from_node, "image", None)
+                if img:
+                    imgs.add(img)
+    for img in imgs:
+        w, h = img.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        rgb = px.reshape(-1, 4)[:, :3]
+        r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+        mx, mn = rgb.max(axis=1), rgb.min(axis=1)
+        blue = (b >= mx - 1e-6) & (b > r + 0.03) & ((mx - mn) > 0.04)                 # 파랗고 색이 있는 곳
+        k = np.clip(((b - r) - 0.03) / 0.08, 0, 1) * blue                              # 경계는 부드럽게 섞음
+        lum = rgb @ np.array([0.3, 0.59, 0.11], dtype=np.float32)
+        new = (lum * 0.55)[:, None] * tint[None, :]                                    # 어둡고 탁하게 (올리브·검정 느낌)
+        rgb[:] = rgb * (1 - k[:, None]) + new * k[:, None]
+        px.reshape(-1, 4)[:, :3] = np.clip(rgb, 0, 1)
+        img.pixels.foreach_set(px)
+        img.update()
+        img.pack()
+        print("MAKE_PISTOL sleeve recolor %s: %.0f%% 픽셀" % (img.name, 100 * float(blue.mean())))
 
 
 def limit_tris(limit, keep_names):
