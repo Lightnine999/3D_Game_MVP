@@ -1,4 +1,4 @@
-# HUD 아이콘 · 무기 표시 시안 (A → C 전달)
+# HUD 아이콘 (A → C 전달)
 
 HUD 는 C 의 일이다 — WU-31 "HUD: 진행 막대, 탄약 수, 칼 아이콘, 사격 버튼, 일시정지 버튼",
 TECH_SPEC "`godot/assets/ui/` (C) 아이콘·폰트·UI 테마".
@@ -33,20 +33,9 @@ A 는 **그림만** 만들어 여기(`art/ui/`)에 둔다. C 의 폴더에는 �
 
 Godot: 가져오기 설정은 기본값(Lossless), `TextureRect` 의 `expand_mode` 로 줄여 쓴다 (시안 기준 권총 60 px · 칼 55 px · 숫자 38 px — 처음 시안의 절반으로 줄였다).
 
-## 시안 — 1920×1080 (TECH_SPEC 6.1 기준 해상도)
-
-| 파일 | 내용 |
-|---|---|
-| `hud_mock_full.png` | 게임 화면 전체: 최상단 중앙 무기 표시 → 그 아래 남은 거리 `680m`·진행 막대(F-54, PRD v0.5 "남은 거리(1,000m → 0m)") / 오른쪽 위 일시정지 / 오른쪽 아래 사격 버튼(F-11) |
-| `hud_mock_states.png` | 무기 표시 세 상태: ① 8발·칼 있음 ② 0발 ③ 칼 사용 뒤 |
-
-배경 좀비는 A 의 좀비 모델을 찍은 것이고, 길·안개는 대충 그린 것이다.
-글씨는 윈도우 기본 글꼴(맑은 고딕)로 그렸고 게임에는 넣지 않는다 — 게임 글꼴은 C 가 정한다.
-
 ## 다시 만들기
 
 ```bash
 blender -b --factory-startup --python art/blender/render_icons.py   # 모델 촬영 → art/previews/icons_raw/ (커밋 안 함)
 python art/ui/finish_icons.py                                       # 테두리 → art/ui/icons/
-python art/ui/make_hud_mock.py                                      # 시안 → art/ui/hud_mock_*.png
 ```

@@ -28,10 +28,6 @@ SHOTS = {
     "icon_knife":  {"glb": "weapon_knife.glb",  "view": (1, 0, 0), "roll": 35},
     "icon_supply": {"glb": "prop_supply_crate.glb", "view": (0.8, -1.3, 0.9), "roll": 0, "drop": ["Parachute"]},  # 빨간 표식이 있는 -Y 면이 보이게
     "icon_ammo":   {"make": "cartridge", "view": (1, 0.25, 0.1), "roll": -30},
-    # HUD 배치 시안(art/ui/make_hud_mock.py) 배경에 넣을 좀비 — 아이콘 아님, 앞모습 걷는 자세
-    "mock_walker": {"glb": "zombie_walker.glb", "view": (0.25, 1, 0.08), "roll": 0, "anim": "walk", "frame": 12},
-    "mock_runner": {"glb": "zombie_runner.glb", "view": (-0.3, 1, 0.08), "roll": 0, "anim": "run", "frame": 6},
-    "mock_tank":   {"glb": "zombie_tank.glb",   "view": (0.1, 1, 0.08), "roll": 0, "anim": "walk", "frame": 20},
 }
 
 
