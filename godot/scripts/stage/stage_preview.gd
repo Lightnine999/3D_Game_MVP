@@ -8,6 +8,7 @@
 #              Movie Maker를 쓰지 않는 이유: macOS가 가려진 창의 그리기를 건너뛰어 영상이 어긋났다
 #              실행 예: --resolution 320x148 --position 0,0 --always-on-top (구석의 작은 창, 영상은 1560x720)
 # 지점 캡처:   godot --path godot -- --shots=<폴더> [--dist=0,250,500,750,990]
+# 시연 연출:   위 명령에 --showcase 를 더하면 좀비·권총·보급·HUD 를 얹는다 (영상 모드는 events.json 에 소리 시각 기록)
 extends Node3D
 
 const RUN_SPEED := 5.0      # m/s (PRD F-01)
@@ -32,6 +33,7 @@ var _frame_start := 0        # 이어 찍기: --start=N 이면 N번째 프레임
 var _frame_vp: SubViewport   # 영상 모드: 창 크기와 상관없이 이 캔버스에 그린다
 var _shots_dir := ""
 var _shot_dists: Array[float] = [0.0, 250.0, 500.0, 750.0, 990.0]
+var _showcase: ShowcaseDirector     # --showcase: 좀비·권총·보급·HUD 시연 연출 (scripts/stage/showcase.gd)
 
 
 func _ready() -> void:
@@ -55,6 +57,11 @@ func _ready() -> void:
 	holder.add_child(_camera)
 	_camera.make_current()
 	_build_overlay(holder)
+	if "--showcase" in OS.get_cmdline_user_args():
+		_showcase = ShowcaseDirector.new()
+		add_child(_showcase)
+		_showcase.setup(_builder, _camera, holder)
+		_label.visible = false                      # 시연 HUD 가 남은 거리를 보여 준다
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
@@ -107,6 +114,8 @@ func _step(delta: float) -> void:
 	_x = move_toward(_x, _target_x(), STEER_SPEED * delta)
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
+	if _showcase:
+		_showcase.update(_dist, _x, delta)
 	_label.text = "%dm" % StageBuilderV2.remaining(_dist)
 
 
@@ -162,6 +171,9 @@ func _capture_frames() -> void:
 		img.save_jpg("%s/f_%05d.jpg" % [_frames_dir, i], 0.88)
 		if i % 300 == 0:
 			print("[preview] frame %d / %d  (%dm)" % [i, total, int(_dist)])
+	if _showcase:                                        # 소리 입히기용 사건 시각 (총성·비명·줍기)
+		var f := FileAccess.open(_frames_dir + "/events.json", FileAccess.WRITE)
+		f.store_string(JSON.stringify(_showcase.events))
 	print("[preview] frames done: %d" % total)
 	get_tree().quit()
 
