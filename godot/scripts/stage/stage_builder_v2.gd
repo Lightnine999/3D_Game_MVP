@@ -194,10 +194,11 @@ const GRASS_TUFTS := [
 # 가지가 조각나거나 삼각형 판자처럼 깎인 모델(tree_dead_01·04, tree_old_02, tree_dead_real)은 뺐다 (2026-09-29 확대 점검)
 # tree_fantasy_dead: 줄기가 공중에서 끝나고 가는 가지만 땅까지 늘어져, 세우면 떠 보이고 묻으면 잘려 보여서 뺐다
 const TREES_3D := ["tree_dead_02", "tree_dead_03", "tree_dead_small", "tree_dry_01", "tree_old_01"]
+# car_scan_07(파란 뒤집힌 차)은 뺐다 — 2026-09-30 "퀄리티가 너무 떨어짐" (출발 22m 지점에 나오던 차)
 const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "car_scan_01", "car_scan_02", "car_scan_03",
-	"car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]
+	"car_scan_06", "car_scan_red", "car_scan_barricade"]
 const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)
-const WRECKS_SCAN := ["car_scan_01", "car_scan_02", "car_scan_03", "car_scan_06", "car_scan_07", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
+const WRECKS_SCAN := ["car_scan_01", "car_scan_02", "car_scan_03", "car_scan_06", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
 const HOUSES_3D := ["house_abandoned_01", "house_abandoned_02", "house_shack_01", "house_slum_01"]
 const TREE_3D_NEAR := 16.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능). 22 → 16: 양옆이 너무 벌어져 보여 가운데 쪽으로
 const TREE_3D_RANGE := 60.0    # 3D 나무를 그리는 거리
@@ -732,48 +733,92 @@ func _scene_bus(d: float) -> void:
 
 
 # ── 충돌 (2026-09-30): 달리는 폭 근처의 차·소품은 전부 막힌다 ─────────────
-# 비유: 보이는 물건마다 투명한 상자를 씌운다. 상자는 모델을 따라 돌아가서 비스듬한 차도 모양대로 막는다.
-# 나무·그루터기는 달리는 폭(±6m) 밖에만 있어 플레이어가 닿지 않는다 → 상자를 씌우지 않는다 (성능)
+# 비유: 보이는 물건마다 투명한 "알약"(가운데 상자 + 양끝 원기둥)을 세워 씌운다. 모서리가 둥글어서
+#       비스듬히 부딪혀도 몸이 모서리를 타고 옆으로 흘러 나간다 (네모 상자는 모서리·찢긴 조각에 걸렸다 — 2026-09-30 피드백)
+# 알약은 항상 똑바로 선다: 뒤집히거나 옆으로 누운 차도 바닥 발자국 모양대로만 막는다 (기운 벽·턱이 생기지 않게)
+# 나무·그루터기는 달리는 폭(±6m) 밖에만 있어 플레이어가 닿지 않는다 → 씌우지 않는다 (성능)
 const COLLIDE_X := LANE_HALF + 3.0
+const FOOT_SHRINK := 0.9          # 스캔 차는 찢긴 조각이 삐져나와 겉 상자가 실제 몸보다 크다 → 발자국을 10% 줄인다
+const FLOOR_SKIP := 0.08          # 이보다 낮은 것(바닥 쓰레기·납작한 조각)은 밟고 지나간다
 
 
 func _build_colliders() -> void:
-	# 미리보기 자동 회피(obstacles)도 손대중 크기 대신 실제 충돌 상자로 다시 채운다
+	# 미리보기 자동 회피(obstacles)도 손대중 크기 대신 실제 충돌 모양으로 다시 채운다
 	# (잔해 더미가 기록보다 4m 넓어서, 없는 틈으로 파고들어 멈춘 일이 있었다 2026-09-30)
 	obstacles.clear()
+	var todo: Array = []
 	for c in get_children():
 		var node := c as Node3D
 		if node == null or absf(node.position.x) > COLLIDE_X:
 			continue
 		if node.has_meta("chainlink"):                    # 철조망 한 장 (얇은 판)
-			_box_collider(node, AABB(Vector3(-1.6, 0.0, -0.06), Vector3(3.3, 2.2, 0.12)))
+			todo.append([node, AABB(Vector3(-1.6, 0.0, -0.06), Vector3(3.3, 2.2, 0.12)), 1.0])
 			continue
 		if node.scene_file_path.is_empty():
 			continue
 		var n := node.scene_file_path.get_file().get_basename()
 		if n.begins_with("tree_") or n.begins_with("stump_") or n.begins_with("v2_bridge"):
 			continue
-		var box := _local_aabb(node)
-		if box.size.y < 0.08:                             # 납작한 것(바닥 쓰레기)은 밟고 지나간다
-			continue
-		_box_collider(node, box)
-
+		todo.append([node, _local_aabb(node), FOOT_SHRINK if n.begins_with("car_scan") else 1.0])
+	for t in todo:                                        # 순회가 끝난 뒤 붙인다 (돌면서 자식을 늘리지 않게)
+		_pill_collider(t[0], t[1], t[2])
 	for w in _walls:
 		_add_ob(w)
 
 
-# 모델(node) 좌표계의 상자로 충돌을 만든다 → 모델이 돌아가 있으면 상자도 같이 돌아간다
-func _box_collider(node: Node3D, box: AABB) -> void:
+# 모델(node) 좌표계의 상자 box 를 세상에서 똑바로 선 알약으로 바꿔 충돌을 만든다
+func _pill_collider(node: Node3D, box: AABB, shrink: float) -> void:
+	var t := node.transform
+	var world := t * box
+	var top := world.end.y
+	var bottom := maxf(world.position.y, 0.0)
+	if top - bottom < FLOOR_SKIP:
+		return
+	# 모델의 세 축 중 가장 위를 향한 축 = 높이, 나머지 둘 = 바닥 발자국 (뒤집기·옆으로 눕히기를 따라간다)
+	var up := 0
+	var best := -1.0
+	for i in 3:
+		var v: Vector3 = t.basis[i].normalized()
+		if absf(v.y) > best:
+			best = absf(v.y)
+			up = i
+	var flat: Array = []
+	for i in 3:
+		if i != up:
+			var v: Vector3 = t.basis[i] * box.size[i]
+			flat.append(Vector3(v.x, 0.0, v.z))
+	var long_v: Vector3 = flat[0] if flat[0].length() >= flat[1].length() else flat[1]
+	var length: float = long_v.length() * shrink
+	var width: float = minf(flat[0].length(), flat[1].length()) * shrink
+	var h := top - bottom
+	var c := t * box.get_center()
 	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = box.size
-	shape.shape = bs
-	shape.position = box.get_center()
-	body.add_child(shape)
-	node.add_child(body)
+	body.position = Vector3(c.x, bottom + h * 0.5, c.z)
+	body.rotation.y = atan2(-long_v.z, long_v.x)          # 몸체의 X 축 = 차 길이 방향
+	body.set_meta("top", top)                             # 자동 점프가 윗면 높이를 읽는다 (stage_preview)
+	var r := width * 0.5
+	var core := length - width
+	if core > 0.05:
+		var shape := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(core, h, width)
+		shape.shape = bs
+		body.add_child(shape)
+	for sgn in ([-1.0, 1.0] if core > 0.05 else [0.0]):
+		var cap := CollisionShape3D.new()
+		var cy := CylinderShape3D.new()
+		cy.radius = r if core > 0.05 else length * 0.5
+		cy.height = h
+		cap.shape = cy
+		cap.position.x = sgn * core * 0.5
+		body.add_child(cap)
+	add_child(body)
 	_colliders += 1
-	_add_ob(node.transform * box)
+	# 자동 회피 기록: 돌아간 알약을 감싸는 상자
+	var a := body.rotation.y
+	var hx := absf(cos(a)) * length * 0.5 + absf(sin(a)) * width * 0.5
+	var hz := absf(sin(a)) * length * 0.5 + absf(cos(a)) * width * 0.5
+	_add_ob(AABB(Vector3(c.x - hx, bottom, c.z - hz), Vector3(hx * 2.0, h, hz * 2.0)))
 
 
 func _wall_box(center: Vector3, size: Vector3) -> void:

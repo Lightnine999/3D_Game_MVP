@@ -4,7 +4,8 @@
 # 플레이 테스트 (2026-09-30, 기본): 사용자가 직접 좌우로 피한다 — 레벨 디자인 확인용 (진짜 조작·판정은 B 담당)
 #   PC: A·D 또는 ←·→ 로 좌우, 스페이스바로 사격 (마우스는 쓰지 않는다 — 시선은 항상 정면)
 #   폰: 화면을 누른 채 좌우로 끌기, 오른쪽 아래 FIRE 버튼으로 사격
-#   전진은 자동. 낮은 장애물(1m 이하)은 저절로 뛰어 올라탔다가 내려온다
+#   전진은 자동. 낮은 장애물(1.1m 이하 — 찢긴 차·방어벽·짐 더미)은 높이에 맞춰 살짝 올라탔다가 내려앉는다
+#   R 키 / 폰 RELOAD 버튼: 탄창 재장전 (시간이 걸린다). 빈 탄창으로 쏘면 저절로 재장전
 #   차·소품은 뚫고 지나가지 못한다. 정면으로 막히면 가까운 틈으로 저절로 미끄러지고, 낮은 것은 저절로 뛰어넘는다. 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
 #   --auto: 예전처럼 알아서 피해 가는 자동 달리기 / --no-showcase: 좀비 없이 맵만
 # 영상 프레임: godot --path godot --resolution 1560x720 -- --frames=<폴더>
@@ -29,14 +30,20 @@ const PLAYER_RADIUS := 0.35
 const SLIDE_SPEED := 3.2    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
 const SLIDE_HOLD := 0.35    # 한 번 막히면 이 시간 동안 미끄러짐을 이어 간다 (초)
 const SLIDE_FORWARD := 0.25 # 미끄러지는 동안 앞으로 가는 속도 비율
-const JUMP_MAX := 0.7       # 이보다 낮은 장애물(타이어·가방·낮은 짐)은 저절로 뛰어 올라탔다가 내려온다 (m). 1.0 → 0.7: 차는 오르지 않고 미끄러져 피한다
-const JUMP_LOOK := 1.0      # 낮은 장애물이 이만큼 앞에 오면 뛴다 (m)
-const PASS_LOW := 0.5       # 틈을 고를 때 이보다 낮은 것만 "넘어갈 수 있다"고 본다 (드럼통 0.9m 는 막힘으로)
-const UNSTUCK_TIME := 1.2   # 이만큼 끼어 있으면 가장 가까운 빈자리로 몸을 옮긴다 (최후 수단 — 절대 갇히지 않게)
+const JUMP_MAX := 1.1       # 이보다 낮은 장애물은 높이에 맞춰 올라탔다가 내려앉는다 (m). 0.7 → 1.1 (2026-09-30 "점프가 빠졌다":
+                            # 찢긴 은색 차 0.95m·방어벽 0.95m·짐 더미 1.0m 가 0.7 보다 높아 넘지도 못하고 정면으로 막혔다). 온전한 차(1.13m~)는 미끄러져 피한다
+const JUMP_LEAD := 0.45     # 뛰기 시작하는 거리 = 그 높이까지 오르는 동안 달리는 거리 + 이만큼 (m) — 앞면에 걸리기 전에 이미 올라가 있게
+const STEP_UP := 0.4        # 공중에서 윗면 모서리에 걸리면 이만큼까지는 살짝 더 올려 준다 (턱에 걸리지 않게)
+const PASS_LOW := JUMP_MAX  # 틈을 고를 때 넘을 수 있는 것은 막힘으로 보지 않는다
+const ASSIST_LOOK := 1.3    # 넘을 수 없는 것이 이만큼 앞에서 몸을 막으면, 닿기 전에 미리 틈으로 비켜 흐른다 (m)
+const UNSTUCK_TIME := 0.7   # 이만큼 못 나아가면 가장 가까운 빈자리로 몸을 부드럽게 옮긴다 (최후 수단 — 절대 갇히지 않게). 1.2 → 0.7
+const GLIDE_TIME := 0.25    # 빈자리로 옮겨 가는 시간 (순간이동처럼 보이지 않게)
 const STUCK_TIME := 0.6     # 이만큼 못 나아가면 반대쪽 틈으로 + 한 번 뛴다
-const JUMP_CLEAR := 0.05   # 장애물 윗면보다 이만큼만 더 뛴다 (2026-09-30 "아직 높다" 0.12 → 0.05)
+const JUMP_CLEAR := 0.08   # 장애물 윗면보다 이만큼만 더 뛴다 (모서리에 발이 걸리지 않을 만큼만)
 const JUMP_MIN := 0.22      # 최소 점프 높이 (m)
-const JUMP_CAM := 0.5       # 뛸 때 카메라는 몸 높이의 절반만 따라 올라간다 (눈높이가 크게 튀지 않게)
+const JUMP_CAM := 0.45      # 뛸 때 카메라는 몸 높이의 절반쯤만 따라 올라간다 ("점프"보다 살짝 올라탔다 내려앉는 느낌)
+const BUMP_ROLL := 5.0      # 어깨빵: 부딪힌 쪽 반대로 기우는 각도 (도)
+const BUMP_YAW := 2.5       # 어깨빵: 고개가 살짝 돌아가는 각도 (도)
 const GRAVITY := 18.0       # 14 → 18: 짧고 가볍게 뛰었다 내려온다 (타이어 넘기 체공 약 0.5초)
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
@@ -60,7 +67,13 @@ var _steer_target := 0.0
 var _touch_id := -1
 var _touch_x0 := 0.0
 var _steer_x0 := 0.0
-var _bump := 0.0                    # 부딪힌 순간 화면 흔들림
+var _bump := 0.0                    # 부딪힌 순간 화면 흔들림 (어깨빵)
+var _bump_side := 1.0               # 어깨빵 방향 (+1 오른쪽으로 밀림 / -1 왼쪽)
+var _glide_t := 0.0                 # 끼임 탈출: 빈자리로 옮겨 가는 남은 시간
+var _glide_from := Vector3.ZERO
+var _glide_to := Vector3.ZERO
+var _unstucks := 0                  # 끼임 탈출 횟수 (통과 검사 기록용)
+var _bumps := 0                     # 부딪힌 횟수 (통과 검사 기록용)
 var _vy := 0.0                      # 점프 세로 속도
 var _slide_t := 0.0                 # 미끄러짐 남은 시간
 var _slide_x := 0.0                 # 미끄러져 갈 x (가장 가까운 틈)
@@ -76,6 +89,7 @@ var _killer: Node3D
 var _fall_from := Vector3.ZERO      # 쓰러지기 시작할 때의 카메라 각도
 var _fade: ColorRect
 var _dead_label: Label
+var _retry: Button                  # 사망 후 "다시 시작하겠습니까?" (누르면 처음부터)
 
 
 func _ready() -> void:
@@ -134,7 +148,7 @@ func _simulate() -> void:
 	while _dist < StageBuilderV2.STAGE_LENGTH and steps < 9000:
 		_step(1.0 / FRAME_FPS)
 		steps += 1
-	print("[sim] %s %.0fs (막힘 없으면 %.0fs) 자동 점프 %d번" % ["완주" if _dist >= StageBuilderV2.STAGE_LENGTH else "멈춤", steps / FRAME_FPS, StageBuilderV2.STAGE_LENGTH / RUN_SPEED, _jumps])
+	print("[sim] %s %.0fs (막힘 없으면 %.0fs) 자동 점프 %d번 · 부딪힘 %d번 · 끼임 탈출 %d번" % ["완주" if _dist >= StageBuilderV2.STAGE_LENGTH else "멈춤", steps / FRAME_FPS, StageBuilderV2.STAGE_LENGTH / RUN_SPEED, _jumps, _bumps, _unstucks])
 	get_tree().quit()
 
 
@@ -160,31 +174,37 @@ func _on_knifed() -> void:
 
 
 func _on_caught(z: Node3D) -> void:
+	_label.visible = false
 	_dead = true
 	_dead_t = 0.0
 	_killer = z
 
 
-# 사망 연출: ① 1.5초 동안 코앞의 좀비가 물어뜯는 모습을 본다 → ② 1.3초 동안 하늘을 올려다보며 땅으로 쓰러진다
-#            → ③ 화면이 어두워지고 "사망" → 5초 뒤 처음부터
+# 사망 연출 (2026-09-30 피드백): ① 1.4초 동안 코앞의 좀비가 물어뜯는 모습을 본다 → ② 1.1초 동안 뒤로 넘어지며
+#            하늘을 올려다보고 바닥에 눕는다 → ③ 누운 채 잠깐 → 블랙아웃 + 굵은 빨간 "DEAD" → 6초 뒤 처음부터
 func _death_cam(delta: float) -> void:
 	_dead_t += delta
 	var eye := Vector3(_x, EYE_HEIGHT, -_dist)
-	if _dead_t < 1.5:
+	if _dead_t < 1.4:
 		var head := _killer.global_position + Vector3(0, 1.35, 0) if is_instance_valid(_killer) else eye + Vector3(0, 0, -1)
-		var shake := Vector3(sin(_dead_t * 47.0), sin(_dead_t * 61.0), 0) * 0.025
+		var shake := Vector3(sin(_dead_t * 47.0), sin(_dead_t * 61.0), 0) * 0.03
 		_camera.position = eye + shake
 		_camera.look_at(head, Vector3.UP)
 		_fall_from = _camera.rotation
-	elif _dead_t < 2.8:
-		var k := smoothstep(0.0, 1.0, (_dead_t - 1.5) / 1.3)
-		_camera.position = eye.lerp(Vector3(_x + 0.15, 0.28, -_dist + 0.7), k * k)   # 뒤로 넘어지며 바닥으로
-		_camera.rotation = Vector3(lerpf(_fall_from.x, deg_to_rad(72.0), k), lerpf(_fall_from.y, 0.0, k), lerpf(_fall_from.z, deg_to_rad(18.0), k))
-	else:
-		_fade.color.a = clampf((_dead_t - 2.8) / 1.0, 0.0, 0.85)
-		_dead_label.visible = _dead_t > 3.2
-	if _dead_t > 5.0:
-		get_tree().reload_current_scene()
+	elif _dead_t < 2.5:
+		var k := smoothstep(0.0, 1.0, (_dead_t - 1.4) / 1.1)
+		_camera.position = eye.lerp(Vector3(_x + 0.1, 0.22, -_dist + 0.9), k * k)   # 뒤로 넘어지며 바닥으로
+		_camera.rotation = Vector3(lerpf(_fall_from.x, deg_to_rad(80.0), k), lerpf(_fall_from.y, 0.0, k), lerpf(_fall_from.z, deg_to_rad(10.0), k))
+	var black := clampf((_dead_t - 3.0) / 0.6, 0.0, 1.0)  # 누워서 하늘을 본 채 블랙아웃
+	_fade.color.a = black
+	if _dead_t > 3.3:
+		_dead_label.visible = true
+		var pop := clampf((_dead_t - 3.3) / 0.25, 0.0, 1.0)  # 글자가 크게 찍혔다가 제 크기로
+		_dead_label.scale = Vector2.ONE * lerpf(1.35, 1.0, pop)
+		_dead_label.modulate.a = pop
+	if _dead_t > 4.0 and not _retry.visible:              # 자동으로 넘어가지 않는다 — 버튼을 눌러야 다시 시작 (2026-09-30 피드백)
+		_retry.visible = true
+		_retry.grab_focus()                               # 엔터로도 누를 수 있게
 
 
 func _build_fire_button(holder: Node) -> void:
@@ -205,6 +225,20 @@ func _build_fire_button(holder: Node) -> void:
 	b.button_down.connect(func(): _fire_held = true)
 	b.button_up.connect(func(): _fire_held = false)
 	layer.add_child(b)
+	var r := Button.new()                                   # 재장전 버튼: FIRE 위
+	r.text = "RELOAD"
+	r.add_theme_font_size_override("font_size", 30)
+	r.anchor_left = 1.0
+	r.anchor_top = 1.0
+	r.anchor_right = 1.0
+	r.anchor_bottom = 1.0
+	r.offset_left = -210
+	r.offset_top = -300
+	r.offset_right = -60
+	r.offset_bottom = -210
+	r.modulate = Color(1, 1, 1, 0.7)
+	r.button_down.connect(func(): _showcase.reload())
+	layer.add_child(r)
 
 
 func _build_body() -> void:
@@ -231,21 +265,38 @@ func _build_overlay(holder: Node) -> void:
 	_label.add_theme_constant_override("shadow_offset_x", 3)
 	_label.add_theme_constant_override("shadow_offset_y", 3)
 	layer.add_child(_label)
-	_fade = ColorRect.new()                              # 사망 연출: 화면이 어두워진다
-	_fade.color = Color(0.05, 0.0, 0.0, 0.0)
+	_fade = ColorRect.new()                              # 사망 연출: 블랙아웃
+	_fade.color = Color(0.0, 0.0, 0.0, 0.0)
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_fade)
 	_dead_label = Label.new()
-	_dead_label.text = "사망"
+	_dead_label.text = "DEAD"
 	_dead_label.visible = false
-	_dead_label.set_anchors_preset(Control.PRESET_CENTER)
+	_dead_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_dead_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_dead_label.add_theme_font_size_override("font_size", 96)
-	_dead_label.add_theme_color_override("font_color", Color(0.85, 0.12, 0.1))
-	_dead_label.position = Vector2(-200, -80)
-	_dead_label.size = Vector2(400, 160)
+	_dead_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var bold := SystemFont.new()                          # 굵은 글꼴 (없으면 기본 글꼴을 굵게 흉내)
+	bold.font_names = PackedStringArray(["Impact", "Arial Black", "Helvetica Neue", "Roboto", "sans-serif"])
+	bold.font_weight = 900
+	_dead_label.add_theme_font_override("font", bold)
+	_dead_label.add_theme_font_size_override("font_size", 210)
+	_dead_label.add_theme_color_override("font_color", Color(0.78, 0.03, 0.03))
+	_dead_label.add_theme_color_override("font_outline_color", Color(0.25, 0.0, 0.0))
+	_dead_label.add_theme_constant_override("outline_size", 14)
+	_dead_label.resized.connect(func(): _dead_label.pivot_offset = _dead_label.size * 0.5)
+	_retry = Button.new()
+	_retry.text = "다시 시작하겠습니까?"
+	_retry.visible = false
+	_retry.add_theme_font_size_override("font_size", 44)
+	_retry.set_anchors_preset(Control.PRESET_CENTER)
+	_retry.offset_left = -260
+	_retry.offset_right = 260
+	_retry.offset_top = 170
+	_retry.offset_bottom = 260
+	_retry.pressed.connect(func(): get_tree().reload_current_scene())
 	layer.add_child(_dead_label)
+	layer.add_child(_retry)
 
 
 func _process(delta: float) -> void:
@@ -297,9 +348,20 @@ func _step(delta: float) -> void:
 			_steer_target = clampf(_x + key * 1.2, -_lane(), _lane())
 		if _showcase and (Input.is_physical_key_pressed(KEY_SPACE) or _fire_held):
 			_showcase.fire()                              # 누르고 있으면 연사 간격(0.45초)마다
+		if _showcase and Input.is_physical_key_pressed(KEY_R):
+			_showcase.reload()                            # 재장전 (걸리는 시간 동안 못 쏜다)
 		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
+	if _glide_t > 0.0:                                   # 끼임 탈출: 빈자리로 부드럽게 옮겨 가는 중 (다른 움직임은 잠시 멈춤)
+		_glide_t -= delta
+		var k := 1.0 - clampf(_glide_t / GLIDE_TIME, 0.0, 1.0)
+		_body.position = _glide_from.lerp(_glide_to, smoothstep(0.0, 1.0, k))
+		_dist = -_body.position.z
+		_x = _body.position.x
+		_finish_step(delta)
+		return
+	_assist()
 	if _slide_t > 0.0:                                   # 막혀서 미끄러지는 중: 조작보다 우선 (조작 안 해도 빠져나간다)
 		_slide_t -= delta
 		vx = clampf((_slide_x - _x) * 6.0, -SLIDE_SPEED, SLIDE_SPEED)
@@ -321,12 +383,35 @@ func _step(delta: float) -> void:
 		_body.position.y = 0.0
 		_vy = 0.0
 		_grounded = true
+	_finish_step(delta)
+
+
+func _finish_step(delta: float) -> void:
 	_bump = maxf(_bump - delta * 3.0, 0.0)
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
 	if _showcase:
 		_showcase.update(_dist, _x, delta)
 	_label.text = "%dm" % StageBuilderV2.remaining(_dist)
+
+
+# 미리 비켜 흐르기 (2026-09-30 "무조건 미끄러지거나 점프해서 빠져나와야"): 넘을 수 없는 것이 바로 앞에서 몸을 막으면
+# 닿기 전에 가장 가까운 틈으로 흘러간다. 사용자가 장애물 쪽으로 키를 계속 눌러도 이것이 먼저다
+func _assist() -> void:
+	if _slide_t > 0.0 or not _grounded:
+		return
+	for ob in _builder.obstacles:
+		if ob.get("top", 9.0) - _body.position.y < JUMP_MAX:
+			continue                                          # 넘을 수 있는 것은 _auto_jump 가 맡는다
+		var ahead: float = ob["z"] - ob.get("half_depth", 1.0) - _dist
+		if ahead > -0.2 and ahead < ASSIST_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
+			var gx := _gap_x(ob["z"], 6.0)
+			if is_nan(gx):
+				gx = _gap_x(ob["z"], 1.0)
+			if not is_nan(gx):
+				_slide_x = gx
+				_slide_t = SLIDE_HOLD
+			return
 
 
 # 자동 달리기: 앞에 있는 가장 가까운 장애물 "줄"(앞뒤 7m 안에 모인 것들)의 막힌 구간을 모아,
@@ -406,13 +491,19 @@ func _move_body(motion: Vector3) -> void:
 		if col == null:
 			break
 		var n := col.get_normal()
-		if _grounded and (n.y > 0.3 or n.z > 0.5):          # 낮은 것에 걸렸다 → 그 위로 올라탄다 (1m 이하만)
-			var top := _collider_top(col)
-			if top - _body.position.y < JUMP_MAX:
-				_jump_to(top)
+		var rise := _collider_top(col) - _body.position.y
+		if n.y > -0.3 and rise > 0.0 and rise < (JUMP_MAX if _grounded else STEP_UP):   # 낮은 것에 걸렸다 → 높이에 맞춰 올라탄다
+			_jump_to(_collider_top(col))
+			if _grounded:
 				_jumps += 1
-				_slide_t = 0.0
-				break                                         # 이번 걸음은 여기까지 — 다음 걸음부터 위로 올라간다
+			_slide_t = 0.0
+			break                                             # 이번 걸음은 여기까지 — 다음 걸음부터 위로 올라간다
+		if absf(n.y) < 0.5 and _bump < 0.25:                 # 옆·앞으로 부딪혔다 → 어깨빵 (밀린 쪽으로 카메라가 기운다)
+			_bump = 1.0
+			_bumps += 1
+			_bump_side = signf(n.x) if absf(n.x) > 0.2 else (1.0 if _x < 0.0 else -1.0)
+			if _showcase:
+				_showcase.sfx("sfx_hit_obstacle")
 		n.y = 0.0
 		n = n.normalized() if n.length() > 0.01 else Vector3.BACK
 		motion = col.get_remainder().slide(n)
@@ -449,9 +540,6 @@ func _move_body(motion: Vector3) -> void:
 		_slide_t = SLIDE_HOLD * 2.0
 		if _grounded:
 			_jump_to(0.5)
-	if moved < want * 0.3 and _time > 0.5 and _bump <= 0.0:
-		_bump = 1.0                                       # 정면으로 막혔다 → 화면을 흔든다
-		print("[bump] %.1fm x=%.2f" % [-_body.position.z, _body.position.x])
 	_dist = -_body.position.z
 	_x = _body.position.x
 
@@ -472,7 +560,10 @@ func _unstuck() -> void:
 				best_x = x
 			x += 0.25
 		if best < INF:
-			_body.position = Vector3(best_x, 0.0, here.z - ahead)
+			_glide_from = here
+			_glide_to = Vector3(best_x, 0.0, here.z - ahead)
+			_glide_t = GLIDE_TIME
+			_unstucks += 1
 			_vy = 0.0
 			_grounded = true
 			_slide_t = 0.0
@@ -504,6 +595,8 @@ func _collider_top(col: KinematicCollision3D) -> float:
 	var body := col.get_collider() as Node
 	if body == null:
 		return 99.0
+	if body.has_meta("top"):                              # 알약 충돌 (stage_builder_v2._pill_collider)
+		return body.get_meta("top")
 	for c in body.get_children():
 		var cs := c as CollisionShape3D
 		if cs and cs.shape is BoxShape3D:
@@ -512,15 +605,18 @@ func _collider_top(col: KinematicCollision3D) -> float:
 	return 99.0
 
 
-# 바로 앞(JUMP_LOOK 안)에 낮은 장애물이 몸과 겹치면 저절로 뛴다 — 사용자는 점프를 조작하지 않는다
+# 앞에 낮은 장애물(JUMP_MAX 미만)이 몸과 겹치면 저절로 뛴다 — 사용자는 점프를 조작하지 않는다
+# 뛰는 거리 = 그 높이까지 오르는 동안 달리는 거리 + 여유 → 앞면에 닿기 전에 이미 윗면 높이에 있다
 func _auto_jump() -> void:
 	if not _grounded:
 		return
 	for ob in _builder.obstacles:
-		if ob.get("top", 9.0) >= JUMP_MAX:
+		var rise: float = ob.get("top", 9.0) - _body.position.y
+		if rise >= JUMP_MAX or rise <= 0.02:
 			continue
 		var ahead: float = ob["z"] - ob.get("half_depth", 1.0) - _dist
-		if ahead > -0.3 and ahead < JUMP_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
+		var look := RUN_SPEED * sqrt(2.0 * GRAVITY * (rise + JUMP_CLEAR)) / GRAVITY + JUMP_LEAD
+		if ahead > -0.3 and ahead < look and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
 			_jump_to(ob.get("top", 0.5))
 			_jumps += 1
 			return
@@ -533,8 +629,9 @@ func _apply_camera(t: float) -> void:
 	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
 	var air := _body.position.y * JUMP_CAM
 	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
-	if _play:                                              # 플레이: 항상 정면. 좌우로 돌거나 기울지 않는다 (위아래 발걸음만)
-		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), 0.0, 0.0)
+	if _play:                                              # 플레이: 항상 정면 (위아래 발걸음만). 부딪히면 어깨빵처럼 잠깐 기울었다 돌아온다
+		var jolt := _bump * _bump * _bump_side
+		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4 - _bump * _bump * 1.2), deg_to_rad(-BUMP_YAW * jolt), deg_to_rad(-BUMP_ROLL * jolt))
 	else:
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(sin(t * 0.35) * -4.0), deg_to_rad(sway * 0.6 + shake * 40.0))
 
