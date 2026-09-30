@@ -73,7 +73,12 @@ const FINALE_AT := 718.0
 const FINALE_GAP := 0.7
 const FINALE_AHEAD := 26.0
 const FINALE_SIDE := 10.0
-const FINALE_LOCK := 6.0                      # 끝의 둘은 6m 앞에서 방향 고정 → 비킬 틈 약 0.4초, 피해도 아슬아슬하게 스친다
+const FINALE_LOCK := 6.0
+# 최후의 반전 (2026-09-30 "안심할 때쯤 바닥에서"): 끝의 광전사 둘이 지나가면 바로 앞 6.5m 땅속에서 튀어나와 약 1초 만에 덮친다
+# 피할 수 없다 — 쏘면 살고, 못 쏘면 칼로 벗어나고, 칼도 없으면 죽는다
+const BURST_AT := 738.0                       # 늦어도 여기서는 튀어나온다 (둘을 먼저 지나치면 그 즉시)
+const BURST_AHEAD := 6.5
+const BURST_SPEED := 1.5                      # 나(5m/s)와 합쳐 초당 6.5m → 약 1초                      # 끝의 둘은 6m 앞에서 방향 고정 → 비킬 틈 약 0.4초, 피해도 아슬아슬하게 스친다
 const POUNCE_AHEAD := 8.5
 const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
@@ -93,14 +98,22 @@ const HP := {"walker": 1, "runner": 1, "tank": 2, "ambusher": 1}   # 탱커 4 �
 signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 연출 (stage_preview)
 signal knifed                                 # (옛 즉시 칼) — 지금은 melee_start 로 합을 맞춘다
 signal melee_start(zombie: Node3D)            # 칼 근접전 시작: 멈춰 서서 좀비와 마주 본다 (stage_preview 가 칼 동작·카메라)
+signal brushed(side: float)
+signal burst                                  # 마지막 좀비가 바닥에서 튀어나왔다 → 화면 덜컥                   # 좀비와 스쳤다 → 어깨빵 (side: 좀비가 있는 쪽 -1 왼쪽 / +1 오른쪽)
 signal tripped                                # 기는 좀비가 발목을 잡았다 → 잠깐 휘청 (풀에 묻혀 안 보이니 죽이지는 않는다)
 
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
 var catching := false                         # 플레이 테스트: 좀비가 플레이어를 잡을 수 있다
 # 잡힘 규칙 (2026-09-30): 좀비는 앞에서만 덮친다. 내 앞에서 몸을 절반 이상 가린 채 닿으면 잡힌다.
 # 비켜서 스쳐 지나가면 그걸로 끝 — 뒤돌아 쫓아오거나 뒤에서 잡지 않는다
-const REACH := 0.8                            # 앞뒤로 이만큼 붙으면 "닿음"
-const ZOMBIE_W := 0.9                         # 좀비 몸+뻗은 팔 폭
+# 잡기 판정 (2026-09-30 "탱커가 못 잡는다 / 좀 더 붙잡게"): 덩치별로 팔이 닿는 폭·거리를 따로
+const REACH := 0.9                            # 앞뒤로 이만큼 붙으면 "닿음" (0.8 → 0.9)
+const ZOMBIE_W := 1.2                         # 좀비 몸+뻗은 팔 폭 (0.9 → 1.2)
+const TANK_REACH := 1.3                       # 탱커는 팔이 길고 덩치가 크다
+const TANK_W := 1.8
+const LUNGE_WARN := 0.45                      # 반반 확률로: 부딪히기 이만큼(초) 전에 비명·팔 뻗기로 예고 → 그때 비키면 피한다
+const PLAYER_SPEED := 5.0                     # 플레이어 달리기 속도 (stage_preview RUN_SPEED 와 같게)
+const BRUSH_EXTRA := 0.6                      # 잡히진 않았지만 이만큼 안으로 스치면 어깨빵
 const PLAYER_W := 0.7                         # 플레이어 몸 폭
 const COVER_TO_GRAB := 0.5                    # 내 몸을 이만큼(절반) 이상 가리면 잡힘
 const KNIVES := 1                             # 칼은 한 스테이지에 한 번 (PRD 칼 규칙)
@@ -392,6 +405,9 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 		_berserker(dist, cam_x, -FINALE_SIDE, FINALE_AHEAD)
 		_zombies[-1]["lock"] = FINALE_LOCK
 		print("[finale] %.0fm 끝 반전 — 왼쪽 광전사" % dist)
+	elif _finale == 2 and (dist >= BURST_AT * sc750 or _finale_clear(dist)):
+		_finale = 3
+		_ground_burst(dist, cam_x)
 	elif _finale == 1:
 		_finale_t -= delta
 		if _finale_t <= 0.0:
@@ -547,7 +563,7 @@ func _prewarm() -> void:
 # 앞질러 달려들 자리: 나(초속 RUN_SPEED 로 앞으로)와 속도 spd 인 좀비가 만나는 곳
 # (spd² - u²)T² - 2u·dD·T - (dx² + dD²) = 0 을 T 에 대해 푼다 (dD = 내 거리 - 좀비 거리, 음수)
 func _intercept(z: Vector2, me: Vector2, spd: float) -> Vector2:
-	var u := 5.0
+	var u := PLAYER_SPEED
 	var dx := me.x - z.x
 	var dd := me.y - z.y
 	var a := spd * spd - u * u
@@ -556,6 +572,34 @@ func _intercept(z: Vector2, me: Vector2, spd: float) -> Vector2:
 	var disc := 4.0 * u * u * dd * dd + 4.0 * a * (dx * dx + dd * dd)
 	var tt := (2.0 * u * dd + sqrt(disc)) / (2.0 * a)
 	return Vector2(me.x, me.y + u * maxf(tt, 0.0))
+
+
+# 끝의 광전사 둘이 모두 지나갔거나 쓰러졌나
+func _finale_clear(dist: float) -> bool:
+	var n := 0
+	for e in _zombies:
+		if e["style"] == "berserk" and e.get("lock", 0.0) == FINALE_LOCK and not e.get("passed", false) and e["state"] != "dead":
+			n += 1
+	return n == 0 and dist >= FINALE_AT * StageBuilderV2.STAGE_LENGTH / 750.0 + 8.0
+
+
+# 바닥에서 튀어나오는 마지막 좀비: 땅속(y -1.4)에서 솟아오르며 비명 → 곧장 덮친다
+func _ground_burst(dist: float, cam_x: float) -> void:
+	var e := _spawn("ambusher", "pounce", BURST_AHEAD, cam_x, dist, cam_x)
+	e["spd"] = BURST_SPEED
+	e["lock"] = 0.0                                       # 끝까지 나를 따라온다 (비켜도 소용없다)
+	e["unavoidable"] = true
+	e["y"] = -1.4
+	e["burst"] = true
+	var ap: AnimationPlayer = e["ap"]
+	if ap.has_animation("crouch_rise"):
+		ap.play("crouch_rise")
+		ap.speed_scale = 3.0
+	e["rise_t"] = 0.4
+	_sfx("sfx_zombie_scream")
+	_sfx("sfx_hit_obstacle")
+	burst.emit()
+	print("[burst] %.0fm 바닥에서 튀어나옴" % dist)
 
 
 # 광전사: 42m 앞 길 안쪽에서 비명 → 초속 10m 돌진 (8m 앞부터 방향 고정)
@@ -704,7 +748,7 @@ func _move_anim(e: Dictionary, spd := -1.0) -> void:
 
 func _place(e: Dictionary) -> void:
 	var z: Node3D = e["node"]
-	z.position = Vector3(e["x"], 0, -e["d"])
+	z.position = Vector3(e["x"], e.get("y", 0.0), -e["d"])   # y: 바닥에서 튀어나오는 좀비만 땅속에서 올라온다
 	var to_cam := _camera.global_position - z.global_position
 	z.rotation.y = atan2(-to_cam.x, -to_cam.z)            # 정면(-Z)이 카메라를 본다 → 손 뻗고 다가온다
 
@@ -791,6 +835,8 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					if ahead < -10.0:
 						_despawn(e)
 					continue
+				if e.has("burst") and e["y"] < 0.0:           # 땅속에서 솟아오른다 (0.3초)
+					e["y"] = minf(0.0, e["y"] + delta * 1.4 / 0.3)
 				if e.has("rise_t"):                          # 길목 매복: 벌떡 일어나는 동작이 끝나면 달리기로
 					e["rise_t"] -= delta
 					if e["rise_t"] <= 0.0:
@@ -807,9 +853,26 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 				e["d"] += step.y
 				_place(e)
 				ahead = e["d"] - dist
-				if ahead < REACH and ahead > 0.05:          # 내 앞에서 닿음 → 몸을 절반 이상 가리면 잡힌다
-					var dx := absf(e["x"] - cam_x)
-					var cover := clampf((ZOMBIE_W * 0.5 + PLAYER_W * 0.5 - dx) / PLAYER_W, 0.0, 1.0)
+				var big: bool = e["kind"] == "tank"
+				var reach: float = TANK_REACH if big else REACH
+				var zw: float = TANK_W if big else ZOMBIE_W
+				var dx0 := absf(e["x"] - cam_x)
+				# 반반 예고: 부딪히기 LUNGE_WARN 초 전쯤, 내 앞을 막고 있으면 절반은 비명·팔 뻗기로 알린다 (그때 비키면 산다)
+				if not e.has("lunge") and ahead < reach + (PLAYER_SPEED + spd) * LUNGE_WARN and ahead > reach and dx0 < zw * 0.5 + PLAYER_W * 0.5:
+					e["lunge"] = _rng.randf() < 0.5
+					if e["lunge"] and not e.get("low", false):
+						ap.play("grab", 0.1)
+						ap.speed_scale = 1.6
+						_sfx("sfx_zombie_groan")
+				if ahead < reach and ahead > 0.05:          # 내 앞에서 닿음 → 몸을 절반 이상 가리면 잡힌다
+					var dx := dx0
+					var cover := clampf((zw * 0.5 + PLAYER_W * 0.5 - dx) / PLAYER_W, 0.0, 1.0)
+					if e.get("unavoidable", false):
+						cover = 1.0                            # 바닥에서 튀어나온 마지막 좀비: 쏘지 못하면 잡힌다
+					if catching and cover < COVER_TO_GRAB and dx < zw * 0.5 + PLAYER_W * 0.5 + BRUSH_EXTRA and not e.get("brushed", false):
+						e["brushed"] = true                    # 스쳐 지나감 → 어깨빵
+						brushed.emit(signf(e["x"] - cam_x))
+						_sfx("sfx_hit_obstacle")
 					if catching and cover >= COVER_TO_GRAB and _grace_t <= 0.0:
 						if e.get("low", false):                # 기는 좀비: 풀에 묻혀 잘 안 보인다 → 발목만 잡고 휘청하게 (사망 없음)
 							e["passed"] = true

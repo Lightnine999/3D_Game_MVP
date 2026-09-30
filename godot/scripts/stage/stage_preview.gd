@@ -117,6 +117,8 @@ var _fade: ColorRect
 var _blood: TextureRect             # 물릴 때 화면 가장자리에 튄 피 (assets/textures/fx/fx_blood_screen.png)
 var _dead_label: Label
 var _retry: Button                  # 사망 후 "다시 시작하겠습니까?" (누르면 처음부터)
+var _deaths_label: Label
+static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 시작해도 이어진다 — 2026-09-30 "다크소울 느낌, 여러 번 도전하게")
 
 
 func _ready() -> void:
@@ -163,6 +165,8 @@ func _ready() -> void:
 			_km.speed = KNIFE_SPEED
 			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
 			_km.finished.connect(_on_melee_end)
+			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
+			_showcase.burst.connect(func(): _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.caught.connect(_on_caught)
 			_showcase.auto_fire = false                   # 사격은 스페이스바·FIRE 버튼으로 직접
@@ -259,6 +263,8 @@ func _on_caught(z: Node3D) -> void:
 	_dead_t = 0.0
 	_killer = z
 	_killer_tall = "tank" in z.scene_file_path
+	_deaths += 1
+	_deaths_label.text = "사망 %d회" % _deaths
 	_melee = false
 
 
@@ -313,6 +319,8 @@ func _death_cam(delta: float) -> void:
 		var pop := clampf((_dead_t - f0 - 1.9) / 0.25, 0.0, 1.0)  # 글자가 크게 찍혔다가 제 크기로
 		_dead_label.scale = Vector2.ONE * lerpf(1.35, 1.0, pop)
 		_dead_label.modulate.a = pop
+		_deaths_label.visible = true
+		_deaths_label.modulate.a = clampf((_dead_t - f0 - 2.2) / 0.5, 0.0, 1.0)
 	if _dead_t > f0 + 2.6 and not _retry.visible:         # 자동으로 넘어가지 않는다 — Retry 를 눌러야 다시 시작 (2026-09-30 피드백)
 		_retry.visible = true
 		_retry.modulate.a = 0.0
@@ -489,6 +497,16 @@ func _build_overlay(holder: Node) -> void:
 	_dead_label.resized.connect(func(): _dead_label.pivot_offset = _dead_label.size * 0.5)
 	# Retry (2026-09-30 디자인): 이 화면의 주인공은 DEAD 하나 → Retry 는 조용하게. 회색 상자 대신 뼈색 글자 + 아래 마른 피 줄 하나,
 	# 고르면(마우스 올림·엔터 초점·터치) 줄이 굵어지고 선명한 피 색으로 번진다. 폰에서 누르기 쉽게 누르는 영역은 넓게
+	_deaths_label = Label.new()                           # DEAD 아래 작게: 몇 번째 죽음인지
+	_deaths_label.visible = false
+	_deaths_label.set_anchors_preset(Control.PRESET_CENTER)
+	_deaths_label.offset_left = -200
+	_deaths_label.offset_right = 200
+	_deaths_label.offset_top = 110
+	_deaths_label.offset_bottom = 150
+	_deaths_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_deaths_label.add_theme_font_size_override("font_size", 26)
+	_deaths_label.add_theme_color_override("font_color", Color8(170, 160, 148))
 	_retry = Button.new()
 	_retry.text = "Retry"
 	_retry.visible = false
@@ -514,6 +532,7 @@ func _build_overlay(holder: Node) -> void:
 	_retry.offset_bottom = 275
 	_retry.pressed.connect(func(): get_tree().reload_current_scene())
 	layer.add_child(_dead_label)
+	layer.add_child(_deaths_label)
 	layer.add_child(_retry)
 
 
