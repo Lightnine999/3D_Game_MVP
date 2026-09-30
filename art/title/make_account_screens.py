@@ -6,8 +6,7 @@
 사용:
   godot --path godot --resolution 1920x1080 res://scenes/stage/title_art.tscn -- --out=art/previews/bg_in.png --dist=440 --yaw=20 --zombies=2
   godot --path godot --resolution 1920x1080 res://scenes/stage/title_art.tscn -- --out=art/previews/bg_up.png --dist=665 --yaw=-15 --zombies=3
-  godot --path godot --resolution 1920x1080 res://scenes/stage/title_art.tscn -- --out=art/previews/bg_acc.png --dist=230 --yaw=-25 --zombies=1
-  python art/title/make_account_screens.py --bg-in art/previews/bg_in.png --bg-up art/previews/bg_up.png --bg-acc art/previews/bg_acc.png --out-dir art/title
+  python art/title/make_account_screens.py --bg-in art/previews/bg_in.png --bg-up art/previews/bg_up.png --out-dir art/title
 글꼴: 맑은 고딕 (과제용 비상업 — 상용 전 OFL 글꼴로 교체, README)
 """
 import argparse
@@ -187,78 +186,13 @@ def sign_up(bg):
     return img
 
 
-def leather_panel(size, seed):
-    """계정 화면: 낡은 검은 가죽 수첩 — 가죽 결 + 박음질 테두리 + 긁힘."""
-    w, h = size
-    n1, n2 = noise(size, seed, 25), noise(size, seed + 1, 3)
-    base = np.array([34, 24, 20], np.float32) * (0.75 + 0.35 * n1[..., None]) + (n2[..., None] - 0.5) * 10
-    img = Image.fromarray(np.clip(base, 0, 255).astype("uint8")).convert("RGBA")
-    d = ImageDraw.Draw(img)
-    for i in range(0, w - 60, 22):                         # 박음질
-        d.line((30 + i, 26, 42 + i, 26), fill=(150, 120, 90), width=2)
-        d.line((30 + i, h - 26, 42 + i, h - 26), fill=(150, 120, 90), width=2)
-    for i in range(0, h - 60, 22):
-        d.line((26, 30 + i, 26, 42 + i), fill=(150, 120, 90), width=2)
-        d.line((w - 26, 30 + i, w - 26, 42 + i), fill=(150, 120, 90), width=2)
-    rng = np.random.default_rng(seed)
-    for _ in range(25):
-        x, y = rng.uniform(0, w), rng.uniform(0, h)
-        d.line((x, y, x + rng.uniform(15, 60), y + rng.uniform(-8, 8)), fill=(80, 62, 50, 120), width=1)
-    m = Image.new("L", size, 0)
-    ImageDraw.Draw(m).rounded_rectangle((0, 0, w - 1, h - 1), 22, fill=240)
-    img.putalpha(m)
-    return img
-
-
-def row(d, x, y, w, label, value, action=None, danger=False):
-    """한 줄: 왼쪽 이름·값, 오른쪽 작은 버튼."""
-    d.text((x, y), label, font=f(24, True), fill=(185, 165, 145))
-    d.text((x, y + 34), value, font=f(30, True), fill=(240, 228, 215))
-    if action:
-        bw = 190
-        col = (160, 25, 18) if danger else (95, 70, 50)
-        d.rounded_rectangle((x + w - bw, y + 14, x + w, y + 74), 10, fill=col, outline=(20, 10, 8), width=3)
-        d.text((x + w - bw // 2, y + 44), action, font=f(26, True), fill=(250, 238, 225), anchor="mm")
-    d.line((x, y + 96, x + w, y + 96), fill=(90, 70, 55), width=1)
-    return y + 112
-
-
-def account(bg):
-    """4번째 화면 — 계정(회원 관리): PRD F-103 로그아웃 · F-106 비밀번호 재설정 · F-107 탈퇴 · F-108 닉네임 변경."""
-    img = darken(bg, "right")
-    pw, ph = 760, 900
-    px, py = (W - pw) // 2 - 200, (H - ph) // 2
-    shadow(img, (px + 10, py + 20, px + pw + 10, py + ph + 20))
-    img.alpha_composite(leather_panel((pw, ph), 11), (px, py))
-    d = ImageDraw.Draw(img)
-    tx, ty = px + pw - 190, py + 40                        # 인식표 (생존자 표시)
-    d.line((tx + 20, ty - 60, tx + 70, ty + 6), fill=(160, 160, 165), width=3)
-    d.rounded_rectangle((tx, ty, tx + 140, ty + 80), 26, fill=(150, 152, 158), outline=(70, 70, 75), width=3)
-    d.text((tx + 70, ty + 40), "생존자", font=f(24, True), fill=(40, 40, 45), anchor="mm")
-    lg = logo(0.24)
-    img.alpha_composite(lg, (px + 60, py + 50))
-    d.text((px + 60, py + 60 + lg.height), "내 계정", font=f(44, True), fill=(240, 225, 210), stroke_width=2, stroke_fill=(0, 0, 0))
-    x, w = px + 60, pw - 120
-    y = py + 140 + lg.height
-    y = row(d, x, y, w, "닉네임", "(가입할 때 정한 닉네임)", "바꾸기")
-    y = row(d, x, y, w, "이메일", "(가입한 이메일)")
-    y = row(d, x, y, w, "비밀번호", "잊었을 때 메일로 다시 정하기", "메일 보내기")
-    y = row(d, x, y, w, "로그아웃", "로그아웃하면 새 게스트로 시작", "로그아웃")
-    y = row(d, x, y, w, "회원 탈퇴", "계정과 기록이 모두 지워집니다", "탈퇴", danger=True)
-    d.text((px + pw // 2, y + 6), "‹  돌아가기", font=f(28, True), fill=(210, 195, 180), anchor="mt")
-    return img
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bg-in", required=True)
     ap.add_argument("--bg-up", required=True)
-    ap.add_argument("--bg-acc", default="")
     ap.add_argument("--out-dir", required=True)
     a = ap.parse_args()
     jobs = [("signin_mock.png", sign_in, a.bg_in), ("signup_mock.png", sign_up, a.bg_up)]
-    if a.bg_acc:
-        jobs.append(("account_mock.png", account, a.bg_acc))
     for name, fn, bgp in jobs:
         out = os.path.join(a.out_dir, name)
         fn(Image.open(bgp)).convert("RGB").save(out, optimize=True)
