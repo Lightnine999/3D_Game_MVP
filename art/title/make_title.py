@@ -16,13 +16,25 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 FONT = "C:/Windows/Fonts/malgunbd.ttf"
 TITLE = "좀비탈출"
 SUB = "ZOMBIE ESCAPE"
+SLANT = 0.45           # 오른쪽으로 45% 기울임 (약 24°)
 
 
-def rough_mask(size, text, font, seed):
-    """글자 모양 → 가장자리를 불규칙하게 갉아먹은 모양."""
+def rough_mask(size, text, font, seed, stagger=None):
+    """글자 모양 → 가장자리를 불규칙하게 갉아먹은 모양.
+    stagger = 글자마다 위아래로 옮길 거리(px) 목록 (예: [-60, 60, -60, 60] → 위·아래·위·아래)."""
     rng = np.random.default_rng(seed)
     m = Image.new("L", size, 0)
-    ImageDraw.Draw(m).text((size[0] // 2, size[1] // 2), text, font=font, fill=255, anchor="mm")
+    dm = ImageDraw.Draw(m)
+    if stagger:
+        gap = font.size * 0.30                         # 기울이면 이웃 글자와 겹쳐서 넉넉히
+        widths = [font.getlength(c) for c in text]
+        x = size[0] / 2 - (sum(widths) + gap * (len(text) - 1)) / 2
+        for c, w, dy in zip(text, widths, stagger):
+            # 오른쪽으로 기울이면 위로 올린 글자는 오른쪽으로 밀린다 → 미리 반대로 옮겨 간격을 고르게
+            dm.text((x + w / 2 + SLANT * dy, size[1] // 2 + dy), c, font=font, fill=255, anchor="mm")
+            x += w + gap
+    else:
+        dm.text((size[0] // 2, size[1] // 2), text, font=font, fill=255, anchor="mm")
     # 잡음으로 가장자리 흔들기: 흐림 → 잡음 더하기 → 다시 자르기
     noise = Image.fromarray((rng.random((size[1] // 6, size[0] // 6)) * 255).astype("uint8")).resize(size, Image.BICUBIC)
     blur = m.filter(ImageFilter.GaussianBlur(3))
@@ -97,9 +109,9 @@ def blood_fill(size, seed):
     return Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"), "RGB")
 
 
-def title_layer(size, text, font, seed, depth=0):
+def title_layer(size, text, font, seed, depth=0, stagger=None):
     """depth > 0 이면 글자를 뒤쪽 아래로 밀어낸 두께(입체)를 깐다."""
-    m, bbox = rough_mask(size, text, font, seed)
+    m, bbox = rough_mask(size, text, font, seed, stagger)
     m = drips(m, bbox, seed + 1)
     m = scratches(m, bbox, seed + 2)
     fill = blood_fill(size, seed + 3).convert("RGBA")
@@ -158,12 +170,16 @@ def main():
     arr[..., 0] *= 1.06
     bg = Image.fromarray(np.clip(arr, 0, 255).astype("uint8"), "RGBA")
 
-    # 제목: 글자 크기 2배(240 → 480). 그대로면 폭이 화면을 넘어서 가로만 80% 로 눌러 맞춘다. 두께(입체) 26 칸
+    # 제목: 글자 크기 2배(480), 입체(두께 26 칸)
+    #   글자마다 위·아래·위·아래로 엇갈리게 (좀↑ 비↓ 탈↑ 출↓, 사용자 요청 2026-09-30)
+    #   오른쪽으로 45% 기울임 (윗부분이 오른쪽으로 — 가로 밀림 = 높이 × 0.45)
     font = ImageFont.truetype(FONT, 480)
-    big_w = int(W / 0.8)
-    t = title_layer((big_w, 900), TITLE, font, seed=13, depth=26)
-    t = t.resize((W, 900), Image.LANCZOS)
-    bg.alpha_composite(t, (0, -95))
+    big_w, big_h = int(W / 0.6), 1150
+    t = title_layer((big_w, big_h), TITLE, font, seed=13, depth=26, stagger=[-85, 85, -85, 85])
+    k = SLANT
+    t = t.transform((big_w, big_h), Image.AFFINE, (1, k, -k * big_h / 2, 0, 1, 0), resample=Image.BICUBIC)
+    t = t.resize((W, int(big_h * 0.62)), Image.LANCZOS)
+    bg.alpha_composite(t, (0, -70))
     # 부제 (영문) — 작고 가는 흰 글씨, 살짝 긁힘
     sub = Image.new("RGBA", (W, 120), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sub)
