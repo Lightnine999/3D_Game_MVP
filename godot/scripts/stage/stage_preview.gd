@@ -27,15 +27,15 @@ const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
 const DRAG_WIDTH_M := 14.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
 const PLAYER_RADIUS := 0.35
 # 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
-const SLIDE_SPEED := 3.2    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
+const SLIDE_SPEED := 6.5    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
 const SLIDE_HOLD := 0.35    # 한 번 막히면 이 시간 동안 미끄러짐을 이어 간다 (초)
-const SLIDE_FORWARD := 0.25 # 미끄러지는 동안 앞으로 가는 속도 비율
+const SLIDE_FORWARD := 0.8 # 미끄러지는 동안 앞으로 가는 속도 비율
 const JUMP_MAX := 1.1       # 이보다 낮은 장애물은 높이에 맞춰 올라탔다가 내려앉는다 (m). 0.7 → 1.1 (2026-09-30 "점프가 빠졌다":
                             # 찢긴 은색 차 0.95m·방어벽 0.95m·짐 더미 1.0m 가 0.7 보다 높아 넘지도 못하고 정면으로 막혔다). 온전한 차(1.13m~)는 미끄러져 피한다
 const JUMP_LEAD := 0.45     # 뛰기 시작하는 거리 = 그 높이까지 오르는 동안 달리는 거리 + 이만큼 (m) — 앞면에 걸리기 전에 이미 올라가 있게
 const STEP_UP := 0.4        # 공중에서 윗면 모서리에 걸리면 이만큼까지는 살짝 더 올려 준다 (턱에 걸리지 않게)
 const PASS_LOW := JUMP_MAX  # 틈을 고를 때 넘을 수 있는 것은 막힘으로 보지 않는다
-const ASSIST_LOOK := 1.3    # 넘을 수 없는 것이 이만큼 앞에서 몸을 막으면, 닿기 전에 미리 틈으로 비켜 흐른다 (m)
+const ASSIST_LOOK := 2.2    # 넘을 수 없는 것이 이만큼 앞에서 몸을 막으면, 닿기 전에 미리 틈으로 비켜 흐른다 (m)
 const UNSTUCK_TIME := 0.7   # 이만큼 못 나아가면 가장 가까운 빈자리로 몸을 부드럽게 옮긴다 (최후 수단 — 절대 갇히지 않게). 1.2 → 0.7
 const GLIDE_TIME := 0.25    # 빈자리로 옮겨 가는 시간 (순간이동처럼 보이지 않게)
 const STUCK_TIME := 0.6     # 이만큼 못 나아가면 반대쪽 틈으로 + 한 번 뛴다
@@ -74,6 +74,12 @@ var _glide_from := Vector3.ZERO
 var _glide_to := Vector3.ZERO
 var _unstucks := 0                  # 끼임 탈출 횟수 (통과 검사 기록용)
 var _bumps := 0                     # 부딪힌 횟수 (통과 검사 기록용)
+var _stall := 0.0                   # 앞으로 절반도 못 나아간 시간 합 (통과 검사: "걸림" 체감 지표)
+var _stall_spots := {}              # 걸린 곳 → 시간 (통과 검사 기록용)
+var _last_hit := ""                 # 마지막으로 부딪힌 것 (모델 이름)
+var _wig_rng := RandomNumberGenerator.new()
+var _wig_x := 0.0
+var _wig_t := 0.0
 var _vy := 0.0                      # 점프 세로 속도
 var _slide_t := 0.0                 # 미끄러짐 남은 시간
 var _slide_x := 0.0                 # 미끄러져 갈 x (가장 가까운 틈)
@@ -148,6 +154,11 @@ func _simulate() -> void:
 	while _dist < StageBuilderV2.STAGE_LENGTH and steps < 9000:
 		_step(1.0 / FRAME_FPS)
 		steps += 1
+	var spots := _stall_spots.keys()
+	spots.sort_custom(func(a, b): return _stall_spots[a] > _stall_spots[b])
+	for k in spots.slice(0, 8):
+		print("[stall] %s %.2fs" % [k, _stall_spots[k]])
+	print("[sim] 걸림 합계 %.1fs" % _stall)
 	print("[sim] %s %.0fs (막힘 없으면 %.0fs) 자동 점프 %d번 · 부딪힘 %d번 · 끼임 탈출 %d번" % ["완주" if _dist >= StageBuilderV2.STAGE_LENGTH else "멈춤", steps / FRAME_FPS, StageBuilderV2.STAGE_LENGTH / RUN_SPEED, _jumps, _bumps, _unstucks])
 	get_tree().quit()
 
@@ -202,9 +213,25 @@ func _death_cam(delta: float) -> void:
 		var pop := clampf((_dead_t - 3.3) / 0.25, 0.0, 1.0)  # 글자가 크게 찍혔다가 제 크기로
 		_dead_label.scale = Vector2.ONE * lerpf(1.35, 1.0, pop)
 		_dead_label.modulate.a = pop
-	if _dead_t > 4.0 and not _retry.visible:              # 자동으로 넘어가지 않는다 — 버튼을 눌러야 다시 시작 (2026-09-30 피드백)
+	if _dead_t > 4.0 and not _retry.visible:              # 자동으로 넘어가지 않는다 — Retry 를 눌러야 다시 시작 (2026-09-30 피드백)
 		_retry.visible = true
-		_retry.grab_focus()                               # 엔터로도 누를 수 있게
+		_retry.modulate.a = 0.0
+		_retry.grab_focus()                               # 엔터·스페이스로도 누를 수 있게
+	if _retry.visible:
+		_retry.modulate.a = clampf((_dead_t - 4.0) / 0.6, 0.0, 1.0)   # DEAD 가 찍힌 뒤 한 번 서서히 나타난다
+
+
+# Retry 모양: 아래쪽 줄 하나 (두께 w, 색 line) + 옅은 바탕
+func _retry_style(w: int, line: Color, bg: Color) -> StyleBoxFlat:
+	var st := StyleBoxFlat.new()
+	st.bg_color = bg
+	st.border_color = line
+	st.border_width_bottom = w
+	st.content_margin_left = 40
+	st.content_margin_right = 40
+	st.content_margin_top = 14
+	st.content_margin_bottom = 14
+	return st
 
 
 func _build_fire_button(holder: Node) -> void:
@@ -285,15 +312,31 @@ func _build_overlay(holder: Node) -> void:
 	_dead_label.add_theme_color_override("font_outline_color", Color(0.25, 0.0, 0.0))
 	_dead_label.add_theme_constant_override("outline_size", 14)
 	_dead_label.resized.connect(func(): _dead_label.pivot_offset = _dead_label.size * 0.5)
+	# Retry (2026-09-30 디자인): 이 화면의 주인공은 DEAD 하나 → Retry 는 조용하게. 회색 상자 대신 뼈색 글자 + 아래 마른 피 줄 하나,
+	# 고르면(마우스 올림·엔터 초점·터치) 줄이 굵어지고 선명한 피 색으로 번진다. 폰에서 누르기 쉽게 누르는 영역은 넓게
 	_retry = Button.new()
-	_retry.text = "다시 시작하겠습니까?"
+	_retry.text = "Retry"
 	_retry.visible = false
-	_retry.add_theme_font_size_override("font_size", 44)
+	_retry.flat = false
+	var spaced := FontVariation.new()                     # DEAD 와 같은 굵은 글꼴, 글자 사이만 벌려 차분하게
+	spaced.base_font = bold
+	spaced.spacing_glyph = 6
+	_retry.add_theme_font_override("font", spaced)
+	_retry.add_theme_font_size_override("font_size", 52)
+	var bone := Color8(217, 207, 192)
+	_retry.add_theme_color_override("font_color", bone)
+	_retry.add_theme_color_override("font_hover_color", Color8(242, 233, 220))
+	_retry.add_theme_color_override("font_focus_color", Color8(242, 233, 220))
+	_retry.add_theme_color_override("font_pressed_color", Color8(199, 8, 8))
+	_retry.add_theme_stylebox_override("normal", _retry_style(3, Color8(107, 15, 15), Color(0, 0, 0, 0)))
+	_retry.add_theme_stylebox_override("hover", _retry_style(6, Color8(179, 18, 15), Color(0.3, 0.01, 0.01, 0.22)))
+	_retry.add_theme_stylebox_override("focus", _retry_style(6, Color8(179, 18, 15), Color(0.3, 0.01, 0.01, 0.22)))
+	_retry.add_theme_stylebox_override("pressed", _retry_style(6, Color8(199, 8, 8), Color(0.3, 0.01, 0.01, 0.4)))
 	_retry.set_anchors_preset(Control.PRESET_CENTER)
-	_retry.offset_left = -260
-	_retry.offset_right = 260
-	_retry.offset_top = 170
-	_retry.offset_bottom = 260
+	_retry.offset_left = -170
+	_retry.offset_right = 170
+	_retry.offset_top = 175
+	_retry.offset_bottom = 275
 	_retry.pressed.connect(func(): get_tree().reload_current_scene())
 	layer.add_child(_dead_label)
 	layer.add_child(_retry)
@@ -426,6 +469,12 @@ func _target_x() -> float:
 				nz = a
 				nx = ob["x"]
 		return clampf(nx, -_lane(), _lane())
+	if "--wiggle" in OS.get_cmdline_user_args():          # 막 누르기 검사: 0.3-0.9초마다 아무 데로나 방향을 바꾼다 (사용자가 키를 제멋대로 누르는 흉내)
+		_wig_t -= 1.0 / FRAME_FPS
+		if _wig_t <= 0.0:
+			_wig_t = _wig_rng.randf_range(0.3, 0.9)
+			_wig_x = _wig_rng.randf_range(-_lane(), _lane())
+		return _wig_x
 	if "--straight" in OS.get_cmdline_user_args():
 		return _x                                         # 손 놓고 달리기 검사: 조작 없이 미끄러짐·점프만으로 빠져나가는지 (--sim --straight)
 	var wander := sin(_time * 0.35) * 1.2              # 장애물이 없으면 길 안에서 천천히 좌우로
@@ -491,6 +540,8 @@ func _move_body(motion: Vector3) -> void:
 		if col == null:
 			break
 		var n := col.get_normal()
+		var hit := col.get_collider() as Node
+		_last_hit = str(hit.get_meta("model", hit.name)) if hit else "?"
 		var rise := _collider_top(col) - _body.position.y
 		if n.y > -0.3 and rise > 0.0 and rise < (JUMP_MAX if _grounded else STEP_UP):   # 낮은 것에 걸렸다 → 높이에 맞춰 올라탄다
 			_jump_to(_collider_top(col))
@@ -523,6 +574,11 @@ func _move_body(motion: Vector3) -> void:
 					_jump_to(0.5)                                 # 끼었으면 한 번 뛰어 본다 (낮은 짐 더미 위로)
 	_body.position.x = clampf(_body.position.x, -_lane(), _lane())
 	var moved := before.z - _body.position.z
+	if want > 0.0 and moved < want * 0.5 and _stun_t <= 0.0:
+		var dt := want / RUN_SPEED
+		_stall += dt
+		var key := "%s @%dm" % [_last_hit, int(_dist / 5.0) * 5]
+		_stall_spots[key] = _stall_spots.get(key, 0.0) + dt
 	if want > 0.0 and moved < want * 0.3:
 		_stuck_t += want / RUN_SPEED
 		_stuck_total += want / RUN_SPEED

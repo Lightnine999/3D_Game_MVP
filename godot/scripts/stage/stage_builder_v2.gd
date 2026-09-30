@@ -766,6 +766,27 @@ func _build_colliders() -> void:
 		_add_ob(w)
 
 
+# 알약 한 덩어리 (2026-09-30 2차 "뒤집힌 차 날카로운 곳에 계속 걸린다"): 양끝은 반원, 긴 옆면은 가운데가 살짝 볼록 →
+# 평평한 면이 하나도 없어서 어디에 닿아도 몸이 가까운 끝 쪽으로 밀려 흘러간다. 조각을 이어 붙인 이음매도 없다
+const PILL_BOW := 0.12            # 옆면 가운데가 끝보다 이만큼 더 나온다 (m) — 끝 반원은 이만큼 작게 해서 전체 폭은 그대로
+
+
+func _pill_hull(core: float, r: float, h: float) -> ConvexPolygonShape3D:
+	var pts := PackedVector3Array()
+	var bow := minf(PILL_BOW, r * 0.4)
+	var r2 := r - bow
+	for y in [-h * 0.5, h * 0.5]:
+		for sgn in [-1.0, 1.0]:
+			for k in 13:                                    # 끝 반원 (15도 간격)
+				var ang := -PI * 0.5 + PI * k / 12.0
+				pts.append(Vector3(sgn * (core * 0.5 + cos(ang) * r2), y, sin(ang) * r2))
+		for sgn in [-1.0, 1.0]:                             # 옆면 가운데 볼록한 점
+			pts.append(Vector3(0.0, y, sgn * r))
+	var hull := ConvexPolygonShape3D.new()
+	hull.points = pts
+	return hull
+
+
 # 모델(node) 좌표계의 상자 box 를 세상에서 똑바로 선 알약으로 바꿔 충돌을 만든다
 func _pill_collider(node: Node3D, box: AABB, shrink: float) -> void:
 	var t := node.transform
@@ -796,22 +817,18 @@ func _pill_collider(node: Node3D, box: AABB, shrink: float) -> void:
 	body.position = Vector3(c.x, bottom + h * 0.5, c.z)
 	body.rotation.y = atan2(-long_v.z, long_v.x)          # 몸체의 X 축 = 차 길이 방향
 	body.set_meta("top", top)                             # 자동 점프가 윗면 높이를 읽는다 (stage_preview)
+	body.set_meta("model", node.scene_file_path.get_file().get_basename() if not node.scene_file_path.is_empty() else "chainlink")
 	var r := width * 0.5
 	var core := length - width
+	var shape := CollisionShape3D.new()
 	if core > 0.05:
-		var shape := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = Vector3(core, h, width)
-		shape.shape = bs
-		body.add_child(shape)
-	for sgn in ([-1.0, 1.0] if core > 0.05 else [0.0]):
-		var cap := CollisionShape3D.new()
-		var cy := CylinderShape3D.new()
-		cy.radius = r if core > 0.05 else length * 0.5
+		shape.shape = _pill_hull(core, r, h)
+	else:
+		var cy := CylinderShape3D.new()                   # 길이·폭이 거의 같다 → 원기둥 하나
+		cy.radius = length * 0.5
 		cy.height = h
-		cap.shape = cy
-		cap.position.x = sgn * core * 0.5
-		body.add_child(cap)
+		shape.shape = cy
+	body.add_child(shape)
 	add_child(body)
 	_colliders += 1
 	# 자동 회피 기록: 돌아간 알약을 감싸는 상자

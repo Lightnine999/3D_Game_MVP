@@ -82,7 +82,6 @@ var _hud_layer: CanvasLayer
 var _hud_ammo: Label
 var _hud_reserve: Label
 var _hud_gun: Label
-var _hud_reload: ProgressBar
 var _hud_pistol: TextureRect
 var _hud_dist: Label
 var _hud_bar: ProgressBar
@@ -153,22 +152,7 @@ func _build_hud(holder: Node) -> void:
 	_hud_gun.add_theme_font_size_override("font_size", 18)
 	_hud_gun.add_theme_color_override("font_color", Color(0.8, 0.8, 0.76))
 	panel.add_child(_hud_gun)
-	_hud_reload = ProgressBar.new()                     # 재장전 막대 (화면 가운데 아래쪽, 재장전 중에만)
-	_hud_reload.position = Vector2(w / 2 - 110, 470)
-	_hud_reload.size = Vector2(220, 14)
-	_hud_reload.show_percentage = false
-	var rfill := StyleBoxFlat.new()
-	rfill.bg_color = Color(0.9, 0.85, 0.7)
-	_hud_reload.add_theme_stylebox_override("fill", rfill)
-	_hud_reload.visible = false
-	layer.add_child(_hud_reload)
-	var rl := Label.new()
-	rl.text = "재장전"
-	rl.position = Vector2(0, -30)
-	rl.size = Vector2(220, 28)
-	rl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rl.add_theme_font_size_override("font_size", 22)
-	_hud_reload.add_child(rl)
+
 	var knife := TextureRect.new()
 	knife.texture = _icon("icon_knife.png")
 	knife.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -210,13 +194,12 @@ func _refresh_ammo() -> void:
 	_hud_pistol.texture = _tex_pistol if _mag + _reserve > 0 else _tex_pistol_empty
 
 
-# 재장전 (R 키 · RELOAD 버튼 · 빈 탄창으로 쏠 때): 시간이 걸리고 그동안 못 쏜다
+# 재장전 (탄창이 비면 저절로 · R 키 · RELOAD 버튼): 시간이 걸리고 그동안 못 쏜다
 func reload() -> void:
 	if INFINITE_AMMO or _reload_left > 0.0 or _mag >= _mag_cap or _reserve <= 0:
 		return
 	_reload_total = RELOAD_TIME + RELOAD_PER_ROUND * _mag_cap
 	_reload_left = _reload_total
-	_hud_reload.visible = true
 	_sfx("sfx_ui_click")                                 # 탄창 빼는 소리
 	print("[reload] 시작 %.1f초 (탄창 %d / 예비 %d)" % [_reload_total, _mag, _reserve])
 
@@ -228,7 +211,6 @@ func _update_reload(delta: float) -> void:
 		return
 	_reload_left -= delta
 	var k := 1.0 - _reload_left / _reload_total
-	_hud_reload.value = k * 100.0
 	var dip := sin(clampf(k, 0.0, 1.0) * PI)            # 총을 아래로 내렸다가 (탄창 갈고) 다시 올린다
 	_pistol.position = _pistol_rest + Vector3(0.02, -0.16, 0.05) * dip
 	_pistol.rotation_degrees.x = 6.0 - 35.0 * dip
@@ -236,7 +218,6 @@ func _update_reload(delta: float) -> void:
 		var take := mini(_mag_cap - _mag, _reserve)
 		_mag += take
 		_reserve -= take
-		_hud_reload.visible = false
 		_sfx("sfx_empty_click")                          # 슬라이드 당기는 소리
 		_refresh_ammo()
 		print("[reload] 끝 → 탄창 %d / 예비 %d" % [_mag, _reserve])
@@ -266,8 +247,8 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	_shot_cd -= delta
 	_grace_t -= delta
 	_update_reload(delta)
-	if auto_fire and _mag == 0 and _reserve > 0:
-		reload()                                         # 영상·통과 검사: 빈 탄창이면 알아서 재장전
+	if _mag == 0 and _reserve > 0:
+		reload()                                         # 탄창이 비고 예비탄이 있으면 저절로 재장전 (2026-09-30 피드백 — 게이지 없이 총을 내렸다 올리는 동작만)
 
 
 func _spawn_wave(w: Array, dist: float, cam_x: float) -> void:
