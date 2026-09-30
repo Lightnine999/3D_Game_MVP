@@ -31,7 +31,8 @@ const RELOAD_PER_ROUND := 0.02
 # 보급 계획: [달린 거리(750m 기준), 초록?] — 빨강·초록을 번갈아
 # 11개 → 9개 → 7개 (2026-09-30 두 번째 "20% 더 줄여": 회피를 살린다), 약 100m 간격
 # 초록 불빛 보급은 하늘에서 초록 불을 뿜으며 내려온다. 강·다리(510-530m) 위에는 떨어뜨리지 않는다
-const SUPPLY_PLAN := [[26.0, false], [125.0, true], [225.0, false], [330.0, true], [440.0, false], [585.0, true], [680.0, false]]
+# 첫 보급(26m 빨강)은 뺐다 (2026-09-30 "처음부터 총알을 너무 많이 준다") → 첫 보급은 125m, 모두 6개
+const SUPPLY_PLAN := [[125.0, true], [225.0, false], [330.0, true], [440.0, false], [585.0, true], [680.0, false]]
 const DROP_AHEAD := 55.0                      # 이만큼 앞에서 떨어지기 시작 → 착지할 때 약 30m 앞 (PRD F-20: 40-60m 앞 착지에 가깝게)
 const DROP_HEIGHT := 20.0
 const DROP_SPEED := 4.0                       # 낙하 속도 (m/s)
@@ -381,9 +382,9 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 		if ap.has_animation(n):
 			ap.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 	if is_nan(x):
-		x = clampf(cam_x + _rng.randf_range(-3.5, 3.5), -4.5, 4.5)
+		x = clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5)   # 달리는 폭 ±8m 안
 		if style == "sprint":
-			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(9.0, 12.0)   # 옆에서 대각선으로 (F-41)
+			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(11.0, 14.0)   # 옆에서 대각선으로 (F-41)
 	var e := {"node": z, "ap": ap, "kind": kind, "style": style, "hp": HP[kind], "state": "move", "x": x, "d": dist + ahead, "t": 0.0,
 		"spd": _rng.randf_range(STYLE_SPEED[style][0], STYLE_SPEED[style][1]), "low": style.begins_with("crawl")}
 	e["walk"] = "walk" if _rng.randf() < 0.5 else "pack/p_walk"       # 같은 스타일이라도 걸음걸이·뛰는 폼을 섞는다
@@ -401,7 +402,7 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 			ap.seek(_rng.randf() * 2.0, true)
 			e["state"] = "feed"
 			e["wake"] = _rng.randf_range(14.0, 18.0)
-			x = clampf(x + (1.0 if x >= 0.0 else -1.0) * 2.5, -5.5, 5.5)   # 길 가장자리 쪽에서 뜯어먹는다
+			x = clampf(x + (1.0 if x >= 0.0 else -1.0) * 2.5, -7.5, 7.5)   # 길 가장자리 쪽에서 뜯어먹는다
 			e["x"] = x
 		"idle":
 			ap.play("pack/p_idle")
@@ -508,7 +509,7 @@ func _sprint_event(dist: float, cam_x: float) -> void:
 	for i in n:
 		var sx := side if i < 2 else -side                  # 셋째는 반대쪽에서
 		var e := _spawn("runner" if _rng.randf() < 0.6 else "walker", "event", EVENT_AHEAD + i * 2.5 + _rng.randf_range(-1.0, 1.0),
-			sx * _rng.randf_range(8.0, 11.0), dist, cam_x)
+			sx * _rng.randf_range(10.0, 13.0), dist, cam_x)
 		var ap: AnimationPlayer = e["ap"]
 		ap.play("pack/p_scream")
 		ap.speed_scale = 1.0
@@ -943,8 +944,8 @@ func _drop_crate(d: float, green: bool) -> void:
 # 차·소품이 없는 자리에 떨어뜨린다 (상자가 차 속에 박히지 않게)
 func _free_x(d: float) -> float:
 	var picks: Array = []
-	var x := -4.5
-	while x <= 4.5:
+	var x := -6.5
+	while x <= 6.5:
 		var ok := true
 		for ob in _builder.obstacles:
 			if absf(ob["z"] - d) < ob.get("half_depth", 1.0) + 1.5 and absf(ob["x"] - x) < ob["half_width"] + 1.0:

@@ -19,7 +19,8 @@ extends Node3D
 
 const STAGE_LENGTH := 750.0           # 1000 → 500 → 750 (2026-09-30: 500m 는 판이 너무 짧다 → 750m + 좀비 150마리, 밀도는 500m 때 그대로)
 const DS := STAGE_LENGTH / 1000.0     # 1000m 시절 지점 → 지금 지점 (구간·랜드마크 위치는 비율 그대로)
-const LANE_HALF := 6.0                # 이동 가능 폭 ±6m (PRD F-07)
+const LANE_HALF := 8.0                # 이동 가능 폭 ±8m (PRD F-07 ±6m → 2026-09-30 "좌우가 좁게 막혀 있다" ±8m)
+const LANE_K := LANE_HALF / 6.0       # 장애물 카드 가로 위치 배율 (±6m 시절 값 × 이것 — 넓어진 폭에서도 피해야 하게)
 const WORLD_HALF := 48.0
 const CHUNK := 50.0
 const DRAW_RANGE := 68.0              # 이보다 먼 것은 그리지 않음 (안개가 이미 가림)
@@ -202,7 +203,7 @@ const WRECKS_3D := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957", "
 const WRECKS_LIGHT := ["car_junk_01", "car_abandoned_01", "car_thunderbird_1957"]   # 5천-9천 면 (길옆용)
 const WRECKS_SCAN := ["car_scan_02", "car_scan_03", "car_scan_06", "car_scan_red", "car_scan_barricade"]   # 3만-5만 면
 const HOUSES_3D := ["house_abandoned_01", "house_abandoned_02", "house_shack_01", "house_slum_01"]
-const TREE_3D_NEAR := 16.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능). 22 → 16: 양옆이 너무 벌어져 보여 가운데 쪽으로
+const TREE_3D_NEAR := 18.0     # 3D 나무는 이 거리 안에만 (1그루 약 1만 면 — 폰 성능). 22 → 16: 양옆이 너무 벌어져 보여 가운데 쪽으로
 const TREE_3D_RANGE := 60.0    # 3D 나무를 그리는 거리
 const GRASS_RANGE := 85.0      # 풀 조각(50m)을 그리는 거리 — 안개가 68m에서 꽉 차서 그 너머는 안 보인다
 
@@ -222,7 +223,7 @@ func _trees_chunk(d0: float, zone: int) -> void:
 		_tree(Vector3(_side() * _rng.randf_range(LANE_HALF + 1.5, TREE_3D_NEAR), 0, -(d0 + _rng.randf() * CHUNK)))
 	for k in _dense(1):
 		if _rng.randf() < 0.5:                            # 오래된 그루터기
-			var sx := _side() * _rng.randf_range(LANE_HALF + 1.0, 11.0)
+			var sx := _side() * _rng.randf_range(LANE_HALF + 1.0, LANE_HALF + 5.0)
 			_spawn("stump_old_01", Vector3(sx, 0, -(d0 + _rng.randf() * CHUNK)), _rng.randf() * 360.0, _rng.randf_range(0.8, 1.3), true, TREE_3D_RANGE)
 
 
@@ -575,17 +576,17 @@ func _beat(kind: String, d: float) -> float:
 	_clear_side = 0.0 if kind == "wall" else -s
 	match kind:
 		"flipped":                                        # 뒤집힌 차 한 대가 가운데를 막는다 → 양옆 중 하나로
-			var info := _car(_pick_distinct(WRECKS_3D, 0.0, d), _rng.randf_range(-1.5, 1.5), d, _rng.randf_range(-35, 35) + 90.0 * float(_rng.randi() % 2), "flipped")
-			_spawn("v2_tire", Vector3(info["x"] + s * 2.4, 0, -(d + 2.0)), _rng.randf() * 360.0)
+			var info := _car(_pick_distinct(WRECKS_3D, 0.0, d), _rng.randf_range(-1.5, 1.5) * LANE_K, d, _rng.randf_range(-35, 35) + 90.0 * float(_rng.randi() % 2), "flipped")
+			_spawn("v2_tire", Vector3(info["x"] + s * 2.4 * LANE_K, 0, -(d + 2.0)), _rng.randf() * 360.0)
 			if _rng.randf() < 0.5:
-				_burning_drums(Vector3(info["x"] - s * 2.6, 0, -(d - 1.5)), 2)
+				_burning_drums(Vector3(info["x"] - s * 2.6 * LANE_K, 0, -(d - 1.5)), 2)
 			return 5.0
 		"side":                                           # 옆으로 누운 차가 가로로 길을 반쯤 막는다
-			_car(_pick_distinct(WRECKS_3D, 0.0, d), s * _rng.randf_range(0.6, 1.8), d, 90.0 + _rng.randf_range(-20, 20), "side")
-			_spawn("v2_rubble_wood", Vector3(-s * _rng.randf_range(4.5, 5.5), 0, -(d + 1.0)), _rng.randf() * 360.0)
+			_car(_pick_distinct(WRECKS_3D, 0.0, d), s * _rng.randf_range(0.6, 1.8) * LANE_K, d, 90.0 + _rng.randf_range(-20, 20), "side")
+			_spawn("v2_rubble_wood", Vector3(-s * _rng.randf_range(4.5, 5.5) * LANE_K, 0, -(d + 1.0)), _rng.randf() * 360.0)
 			return 4.0
 		"crash":                                          # 두 대가 비스듬히 부딪힌 사고 + 흩어진 짐
-			var cx := s * _rng.randf_range(0.3, 1.5)
+			var cx := s * _rng.randf_range(0.3, 1.5) * LANE_K
 			var yaw := _rng.randf_range(20, 70) * s
 			_car(_pick_distinct(WRECKS_3D, cx, d), cx, d, yaw, "flat")
 			_car(_pick_distinct(WRECKS_3D, cx, d + 4.2), cx + s * 1.8, d + 4.2, yaw + _rng.randf_range(60, 110), "flipped" if _rng.randf() < 0.3 else "flat")
@@ -593,7 +594,7 @@ func _beat(kind: String, d: float) -> float:
 				_spawn(["v2_suitcase_red", "v2_suitcase_blue", "v2_tire"][_rng.randi() % 3], Vector3(cx - s * _rng.randf_range(0.5, 1.8), 0, -(d + _rng.randf_range(-2.5, 2.5))), _rng.randf() * 360.0)
 			return 7.0
 		"wall":                                           # 차 두 대가 가로로 벽을 쌓고 한 곳만 틈 → 그 틈으로 파고든다
-			var g := -s * _rng.randf_range(1.5, 3.5)          # 틈 가운데 (s 반대쪽)
+			var g := -s * _rng.randf_range(1.5, 3.5) * LANE_K # 틈 가운데 (s 반대쪽)
 			var w := _rng.randf_range(GAP_MIN + 0.2, 3.2)
 			var left := _car(_pick_distinct(WRECKS_3D, g - 3.0, d), 0.0, d, 90.0 + _rng.randf_range(-12, 12), "flat")
 			_align(left, g - w * 0.5, -1.0)
@@ -610,30 +611,30 @@ func _beat(kind: String, d: float) -> float:
 		"slalom":                                         # 좌·우·좌로 엇갈린 차 → 지그재그로 빠져나간다
 			for k in 3:
 				var side := s * (1.0 if k % 2 == 0 else -1.0)
-				_car(_pick_distinct(WRECKS_3D, side * 1.5, d + k * 8.0), side * _rng.randf_range(0.9, 2.0), d + k * 8.0, 90.0 + _rng.randf_range(-30, 30), "flipped" if _rng.randf() < 0.2 else "flat")
+				_car(_pick_distinct(WRECKS_3D, side * 1.5, d + k * 8.0), side * _rng.randf_range(0.9, 2.0) * LANE_K, d + k * 8.0, 90.0 + _rng.randf_range(-30, 30), "flipped" if _rng.randf() < 0.2 else "flat")
 			return 18.0
 		"jam":                                            # 정체된 차들이 한쪽 가장자리부터 대각선으로 늘어섬
 			var n := mini(_rng.randi_range(3, 4), _car_budget)
 			for k in n:
-				var x := s * (4.6 - k * 2.3)
+				var x := s * (4.6 - k * 2.3) * LANE_K
 				_car(_pick_distinct(WRECKS_3D, x, d + k * 3.2), x, d + k * 3.2, _rng.randf_range(-25, 25) + (180.0 if _rng.randf() < 0.5 else 0.0), "flat")
 			return 3.2 * (n - 1) + 5.0
 		"pileup":                                         # 연쇄 추돌: 세 대가 엉켜 한쪽을 통째로 막고, 하나는 뒤집혔다
-			var cx := s * _rng.randf_range(1.2, 2.2)
+			var cx := s * _rng.randf_range(1.2, 2.2) * LANE_K
 			_car(_pick_distinct(WRECKS_3D, cx, d), cx, d, 90.0 + _rng.randf_range(-25, 25), "flat")
 			_car(_pick_distinct(WRECKS_3D, cx, d + 3.0), cx - s * 0.6, d + 3.0, _rng.randf_range(-40, 40), "flipped")
 			_car(_pick_distinct(WRECKS_3D, cx, d + 6.5), cx + s * 0.4, d + 6.5, 90.0 + _rng.randf_range(-40, 40), "side")
 			if _rng.randf() < 0.6:
-				_burning_drums(Vector3(cx - s * 3.2, 0, -(d + 3.0)), 2)
+				_burning_drums(Vector3(cx - s * 3.2 * LANE_K, 0, -(d + 3.0)), 2)
 			return 9.0
 		"camp":
-			_scene_camp(s * _rng.randf_range(0.3, 1.2), d)
+			_scene_camp(s * _rng.randf_range(0.3, 1.2) * LANE_K, d)
 			return 5.0
 		"rubble":
-			_scene_rubble(s * _rng.randf_range(0.3, 1.5), d)
+			_scene_rubble(s * _rng.randf_range(0.3, 1.5) * LANE_K, d)
 			return 3.0
 		"barricade":
-			_scene_barricade(s * _rng.randf_range(0.2, 1.0), d)
+			_scene_barricade(s * _rng.randf_range(0.2, 1.0) * LANE_K, d)
 			return 4.0
 	return 3.0
 
@@ -948,7 +949,7 @@ func _build_wrecks_3d() -> void:
 		var wd := 25.0 + (STAGE_LENGTH - 45.0) * (i + _rng.randf_range(0.1, 0.9)) / n
 		if wd > RIVER_Z0 - 14.0 and wd < RIVER_Z1 + 10.0:
 			wd = RIVER_Z1 + 10.0 + _rng.randf() * 20.0
-		var x := _side() * _rng.randf_range(LANE_HALF + 1.5, 11.0)
+		var x := _side() * _rng.randf_range(LANE_HALF + 1.5, LANE_HALF + 5.0)
 		var pool: Array = WRECKS_SCAN if _rng.randf() < 0.15 else WRECKS_LIGHT
 		var node := _spawn(_pick_distinct(pool, x, wd), Vector3(x, 0, -wd), _rng.randf() * 360.0, 1.0, true, TREE_3D_RANGE)
 		if _rng.randf() < 0.2:
@@ -1009,7 +1010,7 @@ func _roadside_litter(d: float) -> void:
 # ── 그림 카드 소품 (폐차 무더기·나무·그루터기) ─────────────────────
 # 테스트 결과(2026-09-29): 12m 밖에서는 자연스럽고 5m 안에서는 떠 보이고 평면 티가 난다
 # → 카드는 원거리(달리는 폭 중심에서 12m 밖) 전용. 근거리 폐차·나무는 3D 에셋으로 채운다
-const CARD_MIN_X := 10.0      # 카드는 원거리 전용: 5m 안은 평면 티가 난다 (2026-09-29 근거리 테스트). 12 → 10: 가운데 쪽으로
+const CARD_MIN_X := 12.0      # 카드는 원거리 전용: 5m 안은 평면 티가 난다 (2026-09-29 근거리 테스트). 12 → 10: 가운데 쪽으로
 const CARD_FAR_X := 60.0      # 카드 나무는 옆으로 60m까지 — 안개 너머 실루엣이 겹겹이 보여 깊이감(Z 뎁스)을 만든다
 const CARD_RANGE := 105.0     # 카드는 가벼워서 3D 모델보다 멀리까지 그린다 (120 → 105: 폰 FPS)
 

@@ -24,7 +24,7 @@ const LOOK_AHEAD := 18.0    # 이만큼 앞의 장애물부터 피하기 시작
 const DODGE_MARGIN := 1.1   # 장애물 옆으로 두는 여유 (m)
 const STEER_SPEED := 3.0    # 자동 달리기 좌우 이동 속도 (m/s) — 500m 압축 뒤 장애물이 촘촘해져 2.2 → 3.0
 const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
-const DRAG_WIDTH_M := 14.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
+const DRAG_WIDTH_M := 18.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
 const PLAYER_RADIUS := 0.35
 # 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
 const SLIDE_SPEED := 6.5    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
