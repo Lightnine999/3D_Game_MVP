@@ -14,7 +14,16 @@ const SHOT_GAP := 0.45                        # 연사 간격 (초)
 
 const ZOMBIE_COUNT := 100                     # 스테이지(500m)에 100마리 (약 5m 마다 한 마리), 4종을 25마리씩 골고루
 const KINDS := ["walker", "runner", "tank", "ambusher"]
-const INFINITE_AMMO := true                   # 시연용: 총알 무한 (HUD 에 ∞)
+const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
+const START_AMMO := 6                         # 시작 총알 6발 (2026-09-30 사용자 지정)
+const AMMO_PER_CRATE := 6                     # 보급 1개 = 6발 (PRD F-23)
+# 초록 불빛 보급 (2026-09-30 추가): 하늘에서 초록 불을 뿜으며 낙하산으로 내려오고, 땅에 놓인 것 앞을 지나가면 총알 충전
+const GREEN_AT := [60.0, 140.0, 220.0, 300.0, 410.0]   # 달린 거리 (500m 기준)
+const DROP_AHEAD := 55.0                      # 이만큼 앞에서 떨어지기 시작 → 착지할 때 약 30m 앞 (PRD F-20: 40-60m 앞 착지에 가깝게)
+const DROP_HEIGHT := 20.0
+const DROP_SPEED := 4.0                       # 낙하 속도 (m/s)
+const PICK_X := 2.3                           # 옆으로 이 거리 안을 지나가면 줍는다
+const PICK_Z := 1.6
 const SUPPLY_AT := [35.0, 200.0, 360.0, 520.0, 750.0, 900.0]    # 보급 상자 지점 (1000m 기준 → × StageBuilderV2.DS, PRD F-22)
 const SPEED := {"walker": 1.2, "runner": 4.5, "tank": 0.8, "ambusher": 1.5}   # PRD 4.5 이동 속도 (m/s)
 const HP := {"walker": 1, "runner": 1, "tank": 4, "ambusher": 1}
@@ -28,7 +37,8 @@ var _crates: Array = []                       # {node, d, x, y, landed, taken, s
 var _plan: Array = []                         # [나타날 지점(달린 거리), 종류]
 var _next_wave := 0
 var _next_crate := 0
-var _ammo := 0                                # 총알 0발로 시작 (PRD F-10)
+var _next_green := 0
+var _ammo := START_AMMO
 var _shot_cd := 0.0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -135,9 +145,12 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_wave < _plan.size() and dist >= _plan[_next_wave][0] - 34.0:   # 34m 앞에서 나타난다
 		_spawn_wave([_plan[_next_wave][0], _plan[_next_wave][1], 1], dist, cam_x)
 		_next_wave += 1
-	while _next_crate < SUPPLY_AT.size() and dist >= SUPPLY_AT[_next_crate] * StageBuilderV2.DS - 28.0:
-		_drop_crate(SUPPLY_AT[_next_crate] * StageBuilderV2.DS, cam_x)
+	while _next_crate < SUPPLY_AT.size() and dist >= SUPPLY_AT[_next_crate] * StageBuilderV2.DS - DROP_AHEAD:
+		_drop_crate(SUPPLY_AT[_next_crate] * StageBuilderV2.DS, false)
 		_next_crate += 1
+	while _next_green < GREEN_AT.size() and dist >= GREEN_AT[_next_green] - DROP_AHEAD:
+		_drop_crate(GREEN_AT[_next_green], true)
+		_next_green += 1
 	_update_crates(dist, cam_x, delta)
 	_update_zombies(dist, cam_x, delta)
 	_shot_cd -= delta
@@ -240,12 +253,34 @@ func _shoot(e: Dictionary) -> void:
 		e["ap"].play("death")
 
 
-func _drop_crate(d: float, cam_x: float) -> void:
+func _drop_crate(d: float, green: bool) -> void:
 	var c: Node3D = load("res://assets/models/prop_supply_crate.glb").instantiate()
 	add_child(c)
-	var x := clampf(cam_x + _rng.randf_range(-1.5, 1.5), -3.0, 3.0)
-	_crates.append({"node": c, "d": d, "x": x, "y": 22.0, "landed": false, "taken": false, "smoke": null})
-	c.position = Vector3(x, 22.0, -d)
+	var x := _free_x(d)
+	var e := {"node": c, "d": d, "x": x, "y": DROP_HEIGHT, "landed": false, "taken": false, "green": green, "smoke": null}
+	c.position = Vector3(x, DROP_HEIGHT, -d)
+	if green:                                             # 초록 불빛: 떨어지는 동안부터 뿜는다 (멀리서도 보이게)
+		var fx: Node3D = load("res://scenes/fx/smoke_green.tscn").instantiate()
+		c.add_child(fx)
+		fx.play(60.0)
+		e["smoke"] = fx
+	_crates.append(e)
+
+
+# 차·소품이 없는 자리에 떨어뜨린다 (상자가 차 속에 박히지 않게)
+func _free_x(d: float) -> float:
+	var picks: Array = []
+	var x := -4.5
+	while x <= 4.5:
+		var ok := true
+		for ob in _builder.obstacles:
+			if absf(ob["z"] - d) < ob.get("half_depth", 1.0) + 1.5 and absf(ob["x"] - x) < ob["half_width"] + 1.0:
+				ok = false
+				break
+		if ok:
+			picks.append(x)
+		x += 0.5
+	return picks[_rng.randi() % picks.size()] if not picks.is_empty() else 0.0
 
 
 func _update_crates(dist: float, cam_x: float, delta: float) -> void:
@@ -254,7 +289,7 @@ func _update_crates(dist: float, cam_x: float, delta: float) -> void:
 			continue                                    # 주운 상자는 지워졌으니 건드리지 않는다
 		var n: Node3D = c["node"]
 		if not c["landed"]:
-			c["y"] = maxf(0.0, c["y"] - 3.2 * delta)     # 낙하산으로 천천히 내려온다
+			c["y"] = maxf(0.0, c["y"] - DROP_SPEED * delta)   # 낙하산으로 천천히 내려온다
 			n.position.y = c["y"]
 			n.rotation.y += delta * 0.4
 			if c["y"] <= 0.0:
@@ -262,13 +297,24 @@ func _update_crates(dist: float, cam_x: float, delta: float) -> void:
 				var chute := n.find_child("Parachute", true, false)
 				if chute:
 					chute.visible = false                  # 착지하면 낙하산만 숨긴다 (TECH_SPEC 13.3.1)
-				var smoke: Node3D = load("res://scenes/fx/smoke_red.tscn").instantiate()
-				n.add_child(smoke)
-				smoke.play()
-				c["smoke"] = smoke
-		elif c["d"] - dist < 1.2:                          # 지나가며 줍는다 → 탄약 +6 (PRD F-21)
+				if not c["green"]:
+					var smoke: Node3D = load("res://scenes/fx/smoke_red.tscn").instantiate()
+					n.add_child(smoke)
+					smoke.play()
+					c["smoke"] = smoke
+		# 땅에 놓인 상자 앞(옆 PICK_X 안)을 지나가면 줍는다 → 총알 +6 (PRD F-23). 멀리 비켜 가면 못 줍는다
+		elif absf(c["d"] - dist) < PICK_Z and absf(c["x"] - cam_x) < PICK_X:
 			c["taken"] = true
-			_ammo += 6
+			_ammo += AMMO_PER_CRATE
 			_refresh_ammo()
 			events.append([_time, "sfx_supply_pickup"])
+			print("[supply] %s %.0fm 줍기 → 총알 %d" % ["초록" if c["green"] else "빨강", c["d"], _ammo])
 			n.queue_free()
+
+
+# 자동 달리기(영상·통과 검사)용: 앞 25m 안에 땅에 놓인 상자가 있으면 그 x (없으면 NAN)
+func crate_x(dist: float) -> float:
+	for c in _crates:
+		if c["landed"] and not c["taken"] and is_instance_valid(c["node"]) and c["d"] - dist > 0.5 and c["d"] - dist < 25.0:
+			return c["x"]
+	return NAN

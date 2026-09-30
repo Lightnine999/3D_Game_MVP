@@ -3,7 +3,7 @@
 #
 # 플레이 테스트 (2026-09-30, 기본): 사용자가 직접 좌우로 피한다 — 레벨 디자인 확인용 (진짜 조작·판정은 B 담당)
 #   폰: 화면을 누른 채 좌우로 끌기 / PC: A·D 또는 ←·→ (마우스 끌기도 됨)
-#   차·소품에 부딪히면 막힌다 (뚫고 지나가지 못함). 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
+#   차·소품은 뚫고 지나가지 못한다. 정면으로 막히면 가까운 틈으로 저절로 미끄러지고, 낮은 것은 저절로 뛰어넘는다. 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
 #   --auto: 예전처럼 알아서 피해 가는 자동 달리기 / --no-showcase: 좀비 없이 맵만
 # 영상 프레임: godot --path godot --resolution 1560x720 -- --frames=<폴더>
 #              → 1/30초씩 진행하며 그려진 장면을 JPG(약 3,000장)로 저장 후 종료 (ffmpeg로 mp4 조립)
@@ -23,6 +23,13 @@ const STEER_SPEED := 3.0    # 자동 달리기 좌우 이동 속도 (m/s) — 50
 const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
 const DRAG_WIDTH_M := 14.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
 const PLAYER_RADIUS := 0.35
+# 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
+const SLIDE_SPEED := 3.2    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
+const SLIDE_HOLD := 0.35    # 한 번 막히면 이 시간 동안 미끄러짐을 이어 간다 (초)
+const JUMP_MAX := 0.8       # 이보다 낮은 장애물(타이어·가방·잔해)은 자동으로 뛰어넘는다 (m)
+const JUMP_LOOK := 1.3      # 낮은 장애물이 이만큼 앞에 오면 뛴다 (m)
+const JUMP_SPEED := 5.2     # 뛰어오르는 속도 (m/s) → 최고 약 0.97m, 체공 약 0.74초
+const GRAVITY := 14.0
 const FRAME_FPS := 30.0     # 영상 프레임 간격
 const FRAME_SIZE := Vector2i(1560, 720)   # 영상 해상도 (19.5:9, S24 Ultra 비율)
 
@@ -46,6 +53,10 @@ var _touch_id := -1
 var _touch_x0 := 0.0
 var _steer_x0 := 0.0
 var _bump := 0.0                    # 부딪힌 순간 화면 흔들림
+var _vy := 0.0                      # 점프 세로 속도
+var _slide_t := 0.0                 # 미끄러짐 남은 시간
+var _slide_x := 0.0                 # 미끄러져 갈 x (가장 가까운 틈)
+var _jumps := 0                     # 자동 점프 횟수 (통과 검사 기록용)
 
 
 func _ready() -> void:
@@ -95,7 +106,7 @@ func _simulate() -> void:
 	while _dist < StageBuilderV2.STAGE_LENGTH and steps < 9000:
 		_step(1.0 / FRAME_FPS)
 		steps += 1
-	print("[sim] %s %.0fs (막힘 없으면 %.0fs)" % ["완주" if _dist >= StageBuilderV2.STAGE_LENGTH else "멈춤", steps / FRAME_FPS, StageBuilderV2.STAGE_LENGTH / RUN_SPEED])
+	print("[sim] %s %.0fs (막힘 없으면 %.0fs) 자동 점프 %d번" % ["완주" if _dist >= StageBuilderV2.STAGE_LENGTH else "멈춤", steps / FRAME_FPS, StageBuilderV2.STAGE_LENGTH / RUN_SPEED, _jumps])
 	get_tree().quit()
 
 
@@ -193,7 +204,19 @@ func _step(delta: float) -> void:
 		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
-	_move_body(Vector3(vx, 0.0, -RUN_SPEED) * delta)
+	if _slide_t > 0.0:                                   # 막혀서 미끄러지는 중: 조작보다 우선 (조작 안 해도 빠져나간다)
+		_slide_t -= delta
+		vx = clampf((_slide_x - _x) * 6.0, -SLIDE_SPEED, SLIDE_SPEED)
+		_steer_target = _x                                # 손을 떼도 제자리로 끌려가지 않게
+	_auto_jump()
+	if _body.position.y > 0.0 or _vy > 0.0:
+		_vy -= GRAVITY * delta
+	else:
+		_vy = 0.0
+	_move_body(Vector3(vx, _vy, -RUN_SPEED) * delta)
+	if _body.position.y <= 0.0 and _vy <= 0.0:             # 착지 (막 뛰어오르려는 순간은 건드리지 않는다)
+		_body.position.y = 0.0
+		_vy = 0.0
 	_bump = maxf(_bump - delta * 3.0, 0.0)
 	_builder.update_atmosphere(_dist)   # 600m 이후 하늘·안개가 회색으로 무거워짐
 	_apply_camera(_time)
@@ -206,26 +229,32 @@ func _step(delta: float) -> void:
 # 빈 틈 가운데 지금 위치에서 가장 가까운 곳으로 비킨다 (차 두 대가 벽을 쌓고 틈이 하나뿐인 카드도 통과)
 func _target_x() -> float:
 	if "--straight" in OS.get_cmdline_user_args():
-		return 0.0                                        # 충돌 검사용: 피하지 않고 가운데로만 (--sim --straight)
+		return _x                                         # 손 놓고 달리기 검사: 조작 없이 미끄러짐·점프만으로 빠져나가는지 (--sim --straight)
 	var wander := sin(_time * 0.35) * 1.2              # 장애물이 없으면 길 안에서 천천히 좌우로
 	var near_z := INF
 	for ob in _builder.obstacles:
 		var hd: float = ob.get("half_depth", 1.0)
-		if ob["z"] + hd - _dist > -0.3 and ob["z"] - hd - _dist < LOOK_AHEAD:
+		if ob.get("top", 9.0) >= JUMP_MAX and ob["z"] + hd - _dist > -0.3 and ob["z"] - hd - _dist < LOOK_AHEAD:
 			near_z = minf(near_z, ob["z"])
+	var cx := _showcase.crate_x(_dist) if _showcase else NAN
 	if near_z == INF:
-		return wander
-	var best := _gap_x(near_z, 7.0)
+		return wander if is_nan(cx) else cx                 # 길이 비었으면 보급 상자 쪽으로
+	var pref := _x if is_nan(cx) else cx                   # 틈이 여럿이면 상자에 가까운 틈으로
+	var best := _gap_x(near_z, 7.0, pref)
 	if is_nan(best):                                        # 7m 줄에 틈이 없으면(엇갈린 배치) 가장 가까운 것만 보고 비킨다
-		best = _gap_x(near_z, 1.5)
+		best = _gap_x(near_z, 1.5, pref)
 	return _x if is_nan(best) else best
 
 
 # near_z 앞뒤 reach 안의 장애물이 막은 구간을 빼고, 남은 틈 중 지금 위치에서 가장 가까운 x (틈이 없으면 NAN)
-func _gap_x(near_z: float, reach: float) -> float:
+func _gap_x(near_z: float, reach: float, pref := NAN) -> float:
+	if is_nan(pref):
+		pref = _x
 	var blocked: Array = []
 	for ob in _builder.obstacles:
 		var hd2: float = ob.get("half_depth", 1.0)
+		if ob.get("top", 9.0) < JUMP_MAX:
+			continue                                          # 낮은 것은 뛰어넘으니 피하지 않는다
 		if absf(ob["z"] - near_z) < reach + hd2 and ob["z"] + hd2 - _dist > -0.3:
 			var m: float = ob["half_width"] + PLAYER_RADIUS + 0.35
 			blocked.append([ob["x"] - m, ob["x"] + m])
@@ -237,8 +266,8 @@ func _gap_x(near_z: float, reach: float) -> float:
 	for bl in blocked + [[lane, lane]]:
 		if bl[0] > start:                                  # [start, bl[0]] 이 빈 틈
 			var e0: float = bl[0]
-			var tx: float = clampf(_x, start + 0.1, e0 - 0.1) if e0 - start > 0.2 else (start + e0) * 0.5
-			var cost: float = absf(tx - _x)
+			var tx: float = clampf(pref, start + 0.1, e0 - 0.1) if e0 - start > 0.2 else (start + e0) * 0.5
+			var cost: float = absf(tx - pref)
 			if cost < best_cost:
 				best_cost = cost
 				best = tx
@@ -250,15 +279,33 @@ func _gap_x(near_z: float, reach: float) -> float:
 func _move_body(motion: Vector3) -> void:
 	var before := _body.position
 	var want := -motion.z
-	for i in 3:
+	# 위아래 먼저, 그다음 앞·옆 (한꺼번에 움직이면 앞 차와 발밑 타이어 사이에 끼어 점프가 막혔다)
+	if absf(motion.y) > 0.0001:
+		var vcol := _body.move_and_collide(Vector3(0.0, motion.y, 0.0))
+		if vcol and motion.y < 0.0:
+			_vy = 0.0                                     # 낮은 것 위에 내려앉음 → 그 위로 계속 달린다
+	motion.y = 0.0
+	for i in 4:
 		var col := _body.move_and_collide(motion)
 		if col == null:
 			break
 		var n := col.get_normal()
+		if n.y > 0.3 and _body.position.y <= 0.05:        # 낮은 것의 모서리·비탈(타이어·잔해)에 걸렸다 → 폴짝 넘는다
+			_vy = JUMP_SPEED
 		n.y = 0.0
-		motion = col.get_remainder().slide(n.normalized()) if n.length() > 0.01 else Vector3.ZERO
+		n = n.normalized() if n.length() > 0.01 else Vector3.BACK
+		motion = col.get_remainder().slide(n)
+		if n.z > 0.5 and _slide_t <= 0.0:                 # 정면으로 막혔다 → 가장 가까운 틈으로 미끄러지기 시작
+			var gx := _gap_x(_dist + 1.0, 6.0)              # 바로 뒤에 붙은 차까지 보고 틈을 고른다
+			if is_nan(gx):
+				gx = _gap_x(_dist + 1.0, 1.0)
+			_slide_x = gx if not is_nan(gx) else _x + (1.0 if _x < 0.0 else -1.0) * 2.0
+			_slide_t = SLIDE_HOLD
+		elif n.z > 0.5:
+			_slide_t = SLIDE_HOLD                          # 아직 막혀 있으면 미끄러짐 연장
+			if absf(_slide_x - _x) < 0.15:                   # 목표에 왔는데도 막힘(가장자리 등) → 반대쪽으로
+				_slide_x = clampf(_x - signf(_x if _x != 0.0 else 1.0) * 3.0, -_lane(), _lane())
 	_body.position.x = clampf(_body.position.x, -_lane(), _lane())
-	_body.position.y = 0.0
 	var moved := before.z - _body.position.z
 	if moved < want * 0.3 and _time > 0.5 and _bump <= 0.0:
 		_bump = 1.0                                       # 정면으로 막혔다 → 화면을 흔든다
@@ -267,12 +314,27 @@ func _move_body(motion: Vector3) -> void:
 	_x = _body.position.x
 
 
+# 바로 앞(JUMP_LOOK 안)에 낮은 장애물이 몸과 겹치면 저절로 뛴다 — 사용자는 점프를 조작하지 않는다
+func _auto_jump() -> void:
+	if _body.position.y > 0.01:
+		return
+	for ob in _builder.obstacles:
+		if ob.get("top", 9.0) >= JUMP_MAX:
+			continue
+		var ahead: float = ob["z"] - ob.get("half_depth", 1.0) - _dist
+		if ahead > 0.0 and ahead < JUMP_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:
+			_vy = JUMP_SPEED
+			_jumps += 1
+			return
+
+
 func _apply_camera(t: float) -> void:
 	# 발걸음 흔들림 + 살짝 좌우로 흔들리는 시선 (달리는 느낌)
 	var step := sin(t * TAU * BOB_FREQ)
 	var sway := sin(t * TAU * BOB_FREQ * 0.5)
 	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
-	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + absf(step) * BOB_AMP, -_dist)
+	var air := _body.position.y
+	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
 	var look := 0.0 if _play else sin(t * 0.35) * -4.0      # 플레이 중에는 시선이 멋대로 돌지 않게
 	_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4), deg_to_rad(look), deg_to_rad(sway * 0.6 + shake * 40.0))
 

@@ -633,7 +633,8 @@ func _beat(kind: String, d: float) -> float:
 func _car(model: String, x: float, d: float, yaw: float, pose: String) -> Dictionary:
 	var node := _spawn(model, Vector3(x, 0, -d), yaw)
 	var native := _local_aabb(node)
-	if native.size.x > native.size.z:
+	var long_x := native.size.x > native.size.z
+	if long_x:
 		node.rotation_degrees.y -= 90.0
 	match pose:
 		"flat":
@@ -641,8 +642,12 @@ func _car(model: String, x: float, d: float, yaw: float, pose: String) -> Dictio
 		"flipped":
 			node.rotation_degrees.z = 180.0 + _rng.randf_range(-4, 4)
 			_ground(node)
-		"side":
-			node.rotation_degrees.z = 90.0 * _side() + _rng.randf_range(-6, 6)
+		"side":                                           # 길이 축을 중심으로 굴린다 (다른 축이면 차가 코를 박고 선다 — 2026-09-30 발견)
+			var roll := 90.0 * _side() + _rng.randf_range(-6, 6)
+			if long_x:
+				node.rotation_degrees.x = roll
+			else:
+				node.rotation_degrees.z = roll
 			_ground(node)
 	_car_budget -= 1
 	_cars_placed += 1
@@ -783,7 +788,8 @@ var _walls: Array[AABB] = []
 func _add_ob(box: AABB) -> void:
 	if absf(box.get_center().x) - box.size.x * 0.5 > LANE_HALF:
 		return                                            # 달리는 폭 밖이면 피할 필요 없다
-	obstacles.append({"z": -box.get_center().z, "x": box.get_center().x, "half_width": box.size.x * 0.5, "half_depth": box.size.z * 0.5})
+	obstacles.append({"z": -box.get_center().z, "x": box.get_center().x, "half_width": box.size.x * 0.5, "half_depth": box.size.z * 0.5,
+		"top": box.end.y})                                # 높이: 낮은 것(타이어·가방 등)은 자동 점프로 넘는다
 
 
 # ── 먼 산 배경막 (반지름 180m 원통, 카메라를 따라감) ────────────────
