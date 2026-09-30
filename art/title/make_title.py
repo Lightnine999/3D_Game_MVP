@@ -157,4 +157,5 @@ def main():
     print("TITLE saved", a.out, "+ _logo.png")
 
 
-main()
+if __name__ == "__main__":
+    main()
