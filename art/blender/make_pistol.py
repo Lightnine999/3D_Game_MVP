@@ -1,8 +1,9 @@
 """1인칭 권총 + 총을 쥔 장갑 손 — weapon_pistol.glb (TECH_SPEC 13.3.1 ①-2, 주인 A)
 사진 참고 없이 "긴 슬라이드 + 빨간 점 조준경 + 오돌토돌한 손잡이" 형태를 직접 만든다 (라이선스 걱정 없음).
 
-사용:
-  blender -b --factory-startup --python art/blender/make_pistol.py -- --out godot/assets/models/weapon_pistol.glb
+사용 (게임용 — Mixamo 손):
+  blender -b --factory-startup --python art/blender/make_pistol.py --       --arms-fbx art/source/mixamo/swat_pistol/Swat.fbx       --arms-anim "art/source/mixamo/swat_pistol/pistol idle.fbx"       --out godot/assets/models/weapon_pistol.glb
+  (--arms-fbx 를 빼면 도형으로 만든 간단한 손 — Mixamo 원본이 없는 PC 용)
 
 좌표 (Blender): +Y = 총구 쪽(Godot -Z), +Z = 위, +X = 오른쪽, 1 = 1 m. 원점 = 손잡이 가운데(오른손이 쥐는 곳).
 
@@ -34,10 +35,17 @@ def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     p = argparse.ArgumentParser()
     p.add_argument("--out", required=True)
+    p.add_argument("--arms-fbx", default="", help="Mixamo 캐릭터 FBX — 주면 스크립트 손 대신 이 캐릭터의 팔(팔꿈치 아래)을 쓴다")
+    p.add_argument("--arms-anim", default="", help="두 손으로 권총을 쥔 Mixamo 동작 FBX (예: pistol idle)")
+    p.add_argument("--arms-frame", type=int, default=10, help="그 동작에서 손 모양을 가져올 프레임")
+    p.add_argument("--grip", default="0.035,0.020,0.004,6",
+                   help="오른손 손목에서 손잡이까지: 손끝 방향 m, 위 m, 오른쪽 m, 총구 좌우 각도(도)")
+    p.add_argument("--max-texture", type=int, default=1024)
+    p.add_argument("--max-tris", type=int, default=4900, help="TECH_SPEC 5.3 weapon_ 5000 안쪽")
     return p.parse_args(argv)
 
 
-def material(name, color, rough, metal=0.0, emit=None):
+def material(name, color, rough, metal=0.0, emit=None, strength=6.0):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     b = m.node_tree.nodes["Principled BSDF"]
@@ -46,7 +54,7 @@ def material(name, color, rough, metal=0.0, emit=None):
     b.inputs["Metallic"].default_value = metal    # 어두운 맵에서 새까매지지 않게 낮게 (PR #3)
     if emit:
         b.inputs["Emission Color"].default_value = (*emit, 1)
-        b.inputs["Emission Strength"].default_value = 6.0
+        b.inputs["Emission Strength"].default_value = strength
     return m
 
 
@@ -59,7 +67,7 @@ def mats():
     M["grip"] = material("GripStipple", (0.009, 0.009, 0.010), 0.95)
     M["steel"] = material("Steel", (0.45, 0.45, 0.47), 0.3, 0.5)
     M["bore"] = material("Bore", (0.005, 0.005, 0.005), 0.9)
-    M["glass"] = material("OpticGlass", (0.1, 0.18, 0.16), 0.05, 0.0)
+    M["glass"] = material("OpticGlass", (0.12, 0.2, 0.14), 0.05, 0.0, emit=(0.35, 0.18, 0.05), strength=0.5)   # 무지갯빛 코팅 렌즈 느낌 (초록 + 주황 빛)
     M["dot"] = material("RedDot", (1.0, 0.05, 0.03), 0.4, 0.0, emit=(1.0, 0.05, 0.02))
     M["glove"] = material("Glove", (0.15, 0.095, 0.05), 0.8)          # 코요테색(황갈색) 전술 장갑 — 검은 총과 구분되게
     M["knuckle"] = material("GloveKnuckle", (0.012, 0.012, 0.011), 0.6)      # 검은 마디 보호대
@@ -152,29 +160,41 @@ def set_origin(o, point):
 
 
 def build_slide():
+    """사진 속 긴 슬라이드: 위 모서리를 깎은 긴 몸통, 뒤쪽 세로 톱니, 앞쪽 아래 비스듬한 톱니, 뒤 가늠자."""
     L = SLIDE_Y1 - SLIDE_Y0
-    parts = [box((0, (SLIDE_Y0 + SLIDE_Y1) / 2, 0.058), (0.026, L, 0.030), "slide", bevel=0.0025)]
-    for i in range(7):                                          # 뒤쪽 톱니(세레이션)
-        y = SLIDE_Y0 + 0.008 + i * 0.0045
-        parts.append(box((0, y, 0.057), (0.0275, 0.0018, 0.022), "frame"))
-    for i in range(5):                                          # 앞쪽 톱니
-        y = SLIDE_Y1 - 0.042 + i * 0.0045
-        parts.append(box((0, y, 0.057), (0.0275, 0.0018, 0.018), "frame"))
-    parts.append(box((0.0132, 0.030, 0.064), (0.001, 0.034, 0.010), "bore"))       # 탄피 배출구
-    parts.append(box((0, SLIDE_Y1 - 0.008, 0.0765), (0.004, 0.006, 0.005), "steel"))  # 앞 가늠쇠
-    parts.append(box((0, SLIDE_Y0 + 0.006, 0.0775), (0.020, 0.006, 0.007), "frame"))  # 뒤 가늠자
+    cy = (SLIDE_Y0 + SLIDE_Y1) / 2
+    parts = [
+        box((0, cy, 0.056), (0.025, L, 0.026), "slide", bevel=0.0035),              # 슬라이드 몸통 (위 모서리 둥글게)
+        box((0, cy + 0.004, 0.0705), (0.017, L - 0.010, 0.004), "slide", bevel=0.0015),  # 윗면 (좁게 → 깎인 느낌)
+    ]
+    for i in range(8):                                          # 뒤쪽 세로 톱니 (양옆 홈)
+        y = SLIDE_Y0 + 0.010 + i * 0.0042
+        parts.append(box((0, y, 0.058), (0.0262, 0.0016, 0.020), "bore"))
+    slant = Matrix.Rotation(math.radians(-28), 4, "X")         # 앞쪽 아래 비스듬한 톱니
+    for i in range(5):
+        y = SLIDE_Y1 - 0.050 + i * 0.0048
+        parts.append(box((0, y, 0.049), (0.0262, 0.0016, 0.012), "bore", rot=slant))
+    parts.append(box((0.0127, 0.028, 0.063), (0.001, 0.032, 0.009), "bore"))       # 탄피 배출구
+    parts.append(box((0, SLIDE_Y1 - 0.007, 0.0745), (0.0035, 0.006, 0.005), "steel"))  # 앞 가늠쇠
+    parts.append(box((0, SLIDE_Y0 + 0.006, 0.0745), (0.021, 0.008, 0.009), "frame", bevel=0.001))  # 뒤 가늠자 (조준경 뒤)
+    parts.append(box((0, SLIDE_Y0 + 0.006, 0.0795), (0.004, 0.008, 0.002), "bore"))  # 가늠자 홈
     parts.append(cyl((0, SLIDE_Y1 - 0.002, BORE_Z), (0, SLIDE_Y1 + 0.0012, BORE_Z), 0.0062, "steel", segs=12))
     parts.append(cyl((0, SLIDE_Y1 - 0.001, BORE_Z), (0, SLIDE_Y1 + 0.0014, BORE_Z), 0.0042, "bore", segs=12))
     slide = join(parts, "Slide")
 
+    hood = Matrix.Rotation(math.radians(24), 4, "X")            # 앞이 비스듬히 솟은 조준경 덮개
     optic = join([
-        box((0, 0.008, 0.083), (0.024, 0.040, 0.020), "frame", bevel=0.002),        # 조준경 몸통
-        box((0, 0.012, 0.086), (0.018, 0.030, 0.012), "glass"),                     # 유리창 (앞뒤로 뚫린 느낌)
-        ball((0, 0.026, 0.086), 0.0012, "dot", segs=6),                              # 빨간 점
-        box((0.0125, 0.0, 0.086), (0.002, 0.012, 0.010), "steel"),                   # 옆 버튼
+        box((0, 0.002, 0.0765), (0.024, 0.036, 0.006), "frame", bevel=0.001),       # 받침
+        box((-0.0105, 0.004, 0.086), (0.003, 0.030, 0.016), "frame", bevel=0.001),  # 왼쪽 벽
+        box((0.0105, 0.004, 0.086), (0.003, 0.030, 0.016), "frame", bevel=0.001),   # 오른쪽 벽
+        box((0, 0.012, 0.0945), (0.024, 0.020, 0.003), "frame", rot=hood),          # 덮개 (비스듬)
+        box((0, -0.010, 0.0835), (0.018, 0.010, 0.010), "frame", bevel=0.001),      # 뒤 몸통 (전지)
+        box((0, 0.016, 0.0865), (0.018, 0.002, 0.014), "glass"),                    # 렌즈 (무지갯빛)
+        ball((0, 0.0165, 0.0865), 0.0011, "dot", segs=6),                            # 빨간 점
+        box((0.0125, -0.008, 0.083), (0.002, 0.008, 0.006), "steel"),                # 옆 버튼
     ], "Optic")
     set_origin(slide, (0, 0, BORE_Z))
-    set_origin(optic, (0, 0.008, 0.083))
+    set_origin(optic, (0, 0.002, 0.0765))
     # 조준경을 슬라이드의 자식으로 (슬라이드와 함께 움직임). 위치는 슬라이드 기준으로 다시 적는다
     world = optic.location.copy()
     optic.parent = slide
@@ -184,19 +204,25 @@ def build_slide():
 
 
 def build_frame():
+    """사진 속 몸통: 슬라이드 끝까지 이어진 몸통 + 아래 레일(홈 3개), 각진 방아쇠울, 비버테일·공이치기,
+    긴 슬라이드 멈치와 디코커, 손잡이 판(오돌토돌) 양쪽 + 나사 두 개씩."""
     parts = [
-        box((0, 0.050, 0.036), (0.022, 0.170, 0.018), "frame", bevel=0.002),        # 몸통 (슬라이드 아래)
-        box((0, 0.118, 0.024), (0.018, 0.034, 0.006), "frame"),                      # 앞 레일
-        box(grip_point(0, 0, 0), (0.030, 0.052, 0.108), "grip", rot=GRIP_ROT, bevel=0.006),  # 손잡이
-        box((0, 0.038, 0.004), (0.010, 0.004, 0.026), "frame"),                      # 방아쇠울 앞
-        box((0, 0.019, -0.009), (0.010, 0.040, 0.004), "frame"),                     # 방아쇠울 아래
-        box((0, -0.042, 0.050), (0.018, 0.012, 0.012), "frame", bevel=0.002),        # 뒤 비버테일
-        box((0, -0.050, 0.060), (0.008, 0.008, 0.010), "frame"),                     # 공이치기
-        box((-0.0125, 0.012, 0.042), (0.004, 0.024, 0.004), "steel"),                # 슬라이드 멈치 (왼쪽)
+        box((0, 0.055, 0.035), (0.022, 0.180, 0.018), "frame", bevel=0.0025),       # 몸통 (앞 끝까지)
+        box((0, 0.112, 0.0235), (0.019, 0.050, 0.007), "frame", bevel=0.001),       # 아래 레일
+        box(grip_point(0, 0, 0), (0.028, 0.050, 0.108), "frame", rot=GRIP_ROT, bevel=0.006),  # 손잡이 뼈대
+        box((0, 0.043, 0.006), (0.010, 0.005, 0.030), "frame"),                     # 방아쇠울 앞 (각지게)
+        box((0, 0.020, -0.0085), (0.010, 0.050, 0.005), "frame"),                   # 방아쇠울 아래
+        box((0, -0.040, 0.049), (0.020, 0.018, 0.012), "frame", bevel=0.003),       # 비버테일
+        box((0, -0.047, 0.062), (0.008, 0.008, 0.012), "frame", bevel=0.001),       # 공이치기
+        box((-0.0125, 0.016, 0.043), (0.004, 0.032, 0.004), "steel"),               # 슬라이드 멈치 (왼쪽, 길게)
+        box((-0.0125, -0.006, 0.030), (0.004, 0.014, 0.005), "frame"),              # 디코커
     ]
-    for gx in (0.0152, -0.0152):                                                     # 손잡이 나사 두 개씩
-        for gz in (0.022, -0.040):
-            parts.append(cyl(grip_point(gx * 0.98, 0.004, gz), grip_point(gx * 1.12, 0.004, gz), 0.0028, "steel", segs=8))
+    for i in range(3):                                                              # 레일 홈
+        parts.append(box((0, 0.096 + i * 0.012, 0.0195), (0.0195, 0.004, 0.002), "bore"))
+    for side in (1, -1):                                                            # 손잡이 판 양쪽 (오돌토돌)
+        parts.append(box(grip_point(side * 0.0152, 0.004, -0.010), (0.0026, 0.040, 0.090), "grip", rot=GRIP_ROT, bevel=0.001))
+        for gz in (0.024, -0.042):                                                  # 나사 위·아래
+            parts.append(cyl(grip_point(side * 0.0160, 0.004, gz), grip_point(side * 0.0172, 0.004, gz), 0.0026, "steel", segs=8))
     return join(parts, "Frame")
 
 
@@ -210,8 +236,8 @@ def build_trigger():
 def build_magazine():
     top = grip_point(0, 0.002, 0.050)
     body = box(grip_point(0, 0.002, -0.004), (0.022, 0.034, 0.108), "frame", rot=GRIP_ROT)
-    base = box(grip_point(0, 0.002, -0.061), (0.032, 0.054, 0.008), "frame", rot=GRIP_ROT, bevel=0.002)
-    lip = box(grip_point(0, 0.006, 0.052), (0.010, 0.020, 0.004), "steel", rot=GRIP_ROT)    # 맨 위 탄 (황동색은 생략)
+    base = box(grip_point(0, 0.004, -0.062), (0.034, 0.052, 0.010), "frame", rot=GRIP_ROT, bevel=0.0025)   # 넓은 바닥판
+    lip = box(grip_point(0, 0.006, 0.052), (0.010, 0.020, 0.004), "steel", rot=GRIP_ROT)
     mag = join([body, base, lip], "Magazine")
     set_origin(mag, top)
     return mag
@@ -251,6 +277,110 @@ def build_hand_left():
     return hand
 
 
+def build_mixamo_hands(a):
+    """Mixamo 캐릭터를 권총 쥔 자세로 굳히고, 팔꿈치 아래(ForeArm·Hand 뼈에 붙은 부분)만 남겨
+    권총 좌표(원점 = 손잡이)로 옮긴다. 뼈대는 버린다 (TECH_SPEC D6 — 손은 총과 함께 움직인다).
+    원본 FBX 는 art/source/ (git 제외, 재배포 금지). glb 에는 잘라 낸 팔만 들어간다."""
+    before = set(bpy.context.scene.objects)                             # 총 부품은 건드리지 않는다
+    bpy.ops.import_scene.fbx(filepath=a.arms_fbx)
+    arm = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
+    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH" and o not in before]
+    bpy.ops.import_scene.fbx(filepath=a.arms_anim)
+    arm2 = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE" and o != arm)
+    act = arm2.animation_data.action
+    for o in list(bpy.context.scene.objects):
+        if o == arm2 or o.parent == arm2:
+            bpy.data.objects.remove(o, do_unlink=True)
+    arm.animation_data_create()
+    arm.animation_data.action = act
+    if getattr(act, "slots", None):
+        arm.animation_data.action_slot = act.slots[0]
+    bpy.context.scene.frame_set(a.arms_frame)
+
+    def bone(n):
+        return next(b for b in arm.pose.bones if b.name.endswith(n))
+    rhb = bone("RightHand")
+    rh = arm.matrix_world @ rhb.head
+    d = (arm.matrix_world.to_3x3() @ (rhb.tail - rhb.head)).normalized()
+    f, u, x, yaw = [float(v) for v in a.grip.split(",")]
+    F = Vector((math.sin(math.radians(yaw)), -math.cos(math.radians(yaw)), 0)).normalized()   # 캐릭터는 -Y 를 본다
+    U = Vector((0, 0, 1))
+    R = F.cross(U)
+    gun = Matrix((R, F, U)).transposed().to_4x4()
+    gun.translation = rh + d * f + U * u + R * x
+    to_gun = gun.inverted()
+
+    parts = {"Right": [], "Left": []}
+    for m in meshes:
+        bpy.context.view_layer.objects.active = m
+        for mod in list(m.modifiers):
+            if mod.type == "ARMATURE":
+                bpy.ops.object.modifier_apply(modifier=mod.name)          # 자세를 메시에 굳힘
+        world = m.matrix_world.copy()
+        m.parent = None
+        m.matrix_world = world
+        for side in ("Right", "Left"):
+            c = m.copy()
+            c.data = m.data.copy()
+            bpy.context.scene.collection.objects.link(c)
+            keep = {g.index for g in c.vertex_groups if g.name.split(":")[-1].startswith(side) and
+                    any(k in g.name for k in ("ForeArm", "Hand"))}
+            bm = bmesh.new()
+            bm.from_mesh(c.data)
+            dl = bm.verts.layers.deform.active
+            kill = [v for v in bm.verts if not dl or sum(w for gi, w in v[dl].items() if gi in keep) < 0.5]
+            bmesh.ops.delete(bm, geom=kill, context="VERTS")
+            bm.to_mesh(c.data)
+            bm.free()
+            if len(c.data.polygons):
+                c.vertex_groups.clear()
+                c.matrix_world = to_gun @ c.matrix_world
+                parts[side].append(c)
+            else:
+                bpy.data.objects.remove(c, do_unlink=True)
+        bpy.data.objects.remove(m, do_unlink=True)
+    bpy.data.objects.remove(arm, do_unlink=True)
+    for o in list(bpy.context.scene.objects):                            # FBX 에서 따라온 빈 물체(Geo 등) 정리
+        if o.type == "EMPTY" and o not in before:
+            bpy.data.objects.remove(o, do_unlink=True)
+    hands = []
+    for side, objs in parts.items():
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in objs:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = objs[0]
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        h = join(objs, "Hand" + side)
+        hands.append(h)
+    hl = next(h for h in hands if h.name == "HandLeft")
+    c = sum((Vector(v.co) for v in hl.data.vertices), Vector()) / len(hl.data.vertices)
+    set_origin(hl, c)                                                    # 왼손만 통째로 옮기므로 원점을 손 가운데로
+    for img in bpy.data.images:                                          # TECH_SPEC 5.2 그림 1024 이하
+        if img.size[0] > a.max_texture or img.size[1] > a.max_texture:
+            k = a.max_texture / max(img.size)
+            img.scale(int(img.size[0] * k), int(img.size[1] * k))
+            img.pack()
+    return hands
+
+
+def limit_tris(limit, keep_names):
+    """삼각형이 상한을 넘으면 손(팔)만 줄인다 — 총 모양은 그대로 둔다."""
+    objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    count = lambda: sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objs)
+    total = count()
+    hands = [o for o in objs if o.name in keep_names]
+    hand_tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in hands)
+    if total <= limit or not hand_tris:
+        return total
+    ratio = max(0.3, 1 - (total - limit) / hand_tris)
+    for h in hands:
+        bpy.context.view_layer.objects.active = h
+        mod = h.modifiers.new("dec", "DECIMATE")
+        mod.ratio = ratio
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    return count()
+
+
 def main():
     a = parse_args()
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -259,13 +389,18 @@ def main():
     slide = build_slide()
     trig = build_trigger()
     mag = build_magazine()
-    hr = build_hand_right()
-    hl = build_hand_left()
+    if a.arms_fbx:
+        build_mixamo_hands(a)
+    else:
+        build_hand_right()
+        build_hand_left()
+    bpy.ops.object.select_all(action="DESELECT")
     for o in bpy.context.scene.objects:
-        if o.type == "MESH":
+        if o.type == "MESH" and not (a.arms_fbx and o.name.startswith("Hand")):   # Mixamo 팔은 원래 매끈함 그대로
             o.select_set(True)
+    bpy.context.view_layer.objects.active = frame
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(35))
-    tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in bpy.context.scene.objects if o.type == "MESH")
+    tris = limit_tris(a.max_tris, {"HandRight", "HandLeft"})
     bpy.ops.export_scene.gltf(filepath=a.out, export_format="GLB", export_yup=True, export_apply=True)
     print("MAKE_PISTOL tris %d, objects %s" % (tris, sorted(o.name for o in bpy.context.scene.objects)))
     print("MAKE_PISTOL muzzle (Godot) = (0, %.3f, %.3f)" % (BORE_Z, -SLIDE_Y1))
