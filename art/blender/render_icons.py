@@ -24,7 +24,7 @@ RES = 512
 
 # 이름: 모델, 카메라 방향(상자 중심에서 카메라 쪽), 화면 회전(도), 뺄 물체 이름
 SHOTS = {
-    "icon_pistol": {"glb": "weapon_pistol.glb", "view": (1, 0, 0), "roll": 0},
+    "icon_pistol": {"glb": "weapon_pistol.glb", "view": (1, 0, 0), "roll": 0, "drop": ["Hand"]},   # 아이콘에는 손을 뺀다
     "icon_knife":  {"glb": "weapon_knife.glb",  "view": (1, 0, 0), "roll": 35},
     "icon_supply": {"glb": "prop_supply_crate.glb", "view": (0.8, -1.3, 0.9), "roll": 0, "drop": ["Parachute"]},  # 빨간 표식이 있는 -Y 면이 보이게
     "icon_ammo":   {"make": "cartridge", "view": (1, 0.25, 0.1), "roll": -30},

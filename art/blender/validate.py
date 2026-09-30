@@ -65,7 +65,7 @@ def glb_texture_sizes(path):
 
 
 # TECH_SPEC 13.3.1 ①-2: 무기는 원점 = 손잡이, 길이 약속이 있다 (발밑 원점 규칙 대신)
-WEAPON_LENGTH = {"weapon_pistol": 0.2, "weapon_knife": 0.25}
+WEAPON_LENGTH = {"weapon_pistol": 0.2, "weapon_knife": 0.25}   # 총을 쥔 손(Hand*)은 길이에서 뺀다
 WEAPON_LENGTH_TOL = 0.10            # 약속 길이의 ±10%
 
 
@@ -98,6 +98,18 @@ def check_weapon(stem, pts, fails, notes):
     # 원점(손잡이)에서 앞쪽이 더 길어야 한다 = 총구·칼끝이 +Y(Godot -Z) 쪽
     if hi[1] <= -lo[1]:
         fails.append("앞쪽(총구·칼끝)이 Godot -Z 가 아님 (원점 앞쪽이 뒤쪽보다 짧음)")
+
+
+PISTOL_PARTS = ["Frame", "Slide", "Optic", "Magazine", "Trigger", "HandRight", "HandLeft"]
+
+
+def check_pistol_parts(meshes, fails, notes):
+    """권총: B 의 코드가 이름으로 찾아 움직이는 부품이 모두 있는지 (TECH_SPEC 13.3.1 ①-2)."""
+    names = {o.name.split(".")[0] for o in meshes}
+    missing = [n for n in PISTOL_PARTS if n not in names]
+    notes.append("부품: " + ", ".join(sorted(names)))
+    if missing:
+        fails.append("권총 부품 없음: " + ", ".join(missing))
 
 
 def check(path):
@@ -138,11 +150,14 @@ def check(path):
         a.data.pose_position = "REST"
     bpy.context.view_layer.update()
     dg = bpy.context.evaluated_depsgraph_get()
-    pts = []
+    pts, gun_pts = [], []
     for o in meshes:
         ev = o.evaluated_get(dg)
         m = ev.to_mesh()
-        pts += [ev.matrix_world @ v.co for v in m.vertices]
+        vs = [ev.matrix_world @ v.co for v in m.vertices]
+        pts += vs
+        if not o.name.startswith("Hand"):          # 총을 쥔 손(HandRight·HandLeft)은 총 길이에서 뺀다
+            gun_pts += vs
         ev.to_mesh_clear()
     if pts:
         lo_z = min(p.z for p in pts)
@@ -150,7 +165,9 @@ def check(path):
         cx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
         cy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
         if prefix == "weapon_":
-            check_weapon(stem, pts, fails, notes)
+            check_weapon(stem, gun_pts, fails, notes)
+            if stem == "weapon_pistol":
+                check_pistol_parts(meshes, fails, notes)
             return name, fails, notes
         if stem == "prop_supply_crate":
             check_supply_crate(meshes, fails, notes)

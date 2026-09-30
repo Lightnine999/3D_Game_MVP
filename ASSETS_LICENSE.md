@@ -43,7 +43,7 @@
 | Slum Shanty Shack Stilt (pixellabs-slum-4808) | 3D 모델 (AI 생성, 작가 표시) | https://pixabay.com/3d-models/slum-shanty-shack-stilt-house-4808/ | PixelLabs | Pixabay Content License | 가능 | 불필요 (원본 단독 재배포 금지 → 최적화본만 커밋) | 2026-09-29 | `godot/assets/models/house/house_slum_01.glb` |
 | weathered_planks · rusty_metal_02 · concrete_wall_003 · brown_mud_leaves_01 | 질감 | https://polyhaven.com | Poly Haven | CC0 | 가능 | 불필요 | 2026-09-29 | `godot/assets/textures/polyhaven/` |
 | industrial_sunset_puresky | HDRI | https://polyhaven.com/a/industrial_sunset_puresky | Poly Haven | CC0 | 가능 | 불필요 | 2026-09-29 | `art/polyhaven/` → `textures/v2/sky_ph.png` (현재 미사용) |
-| Pistol (Ultimate Guns Pack) | 3D 모델 (권총, 길이 0.2 m 로 줄이고 원점을 손잡이로) | https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F | Quaternius | CC0 (Public Domain) | 가능 | 불필요 | 2026-09-29 | `godot/assets/models/weapon_pistol.glb`, `art/ui/icons/icon_pistol.png` (모델을 찍은 HUD 아이콘) |
+| Pistol (Ultimate Guns Pack) | 3D 모델 (권총, 길이 0.2 m 로 줄이고 원점을 손잡이로) | https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F | Quaternius | CC0 (Public Domain) | 가능 | 불필요 | 2026-09-29 | 사용 안 함 (2026-09-30 `art/blender/make_pistol.py` 직접 제작 권총으로 교체) |
 
 > **변경 사항 (CC BY 요구)**: 위 3D 모델은 모바일용으로 면 수 축소(Decimate)·텍스처 512px(폐허 1024px) 축소·실제 크기 배율·원점 이동을 했고, 일부는 색조를 바꿔 배치한다 (`art/blender/optimize_glb.py`). 제작자·라이선스는 원본 GLB 안의 정보(asset.extras)로 확인했다 (2026-09-29). 원본은 `art/source_assets/`(git 제외)에 보관.
 
@@ -73,6 +73,8 @@
 | zombie scream | 애니메이션 → `scream` (Scary Zombie Pack 포함) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_ambusher.glb` |
 | FuzZombie | 캐릭터 (워커, 경찰복, 키 2.044 → 1.85 m, 그림 2048 → 1024) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_walker.glb`, `art/ui/hud_mock_*.png` (HUD 시안 배경 그림, 게임에는 안 들어감) |
 | Getting Up | 애니메이션 → `getup` (제자리로 변환) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-29 | `godot/assets/models/zombie_ambusher.glb` |
+| Swat | 캐릭터 → 1인칭 손 (장갑·소매, 소매 파란색 → 짙은 올리브로 다시 칠함, 삼각형 줄임, 그림 1024) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-30 | `godot/assets/models/weapon_pistol.glb` (팔꿈치 아래만 잘라 권총에 붙임) |
+| pistol idle (Pistol Handgun Locomotion Pack) | 애니메이션 → 두 손으로 권총 쥔 손 모양 (10번째 프레임으로 굳힘) | https://www.mixamo.com/ | Adobe (Mixamo) | Mixamo 이용 약관 (게임 내 사용 무료, 원본 재배포 금지) | 가능 (TECH_SPEC 3.2 기준, 출시 전 Adobe 약관 재확인) | 불필요 | 2026-09-30 | `godot/assets/models/weapon_pistol.glb` (팔꿈치 아래만 잘라 권총에 붙임) |
 
 ## 사운드
 | 에셋명 | 종류 | 출처 URL | 제작자 | 라이선스 | 상업 이용 | 크레딧 표기 위치 | 다운로드일 | 사용 위치 (파일) |

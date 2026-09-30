@@ -5,11 +5,11 @@ extends Node3D
 ## B 사용법 (약속대로 play() 만 부르면 된다):
 ##   var fx = preload("res://scenes/fx/muzzle_flash.tscn").instantiate()
 ##   pistol.add_child(fx)
-##   fx.position = MUZZLE     # weapon_pistol.glb 의 총구 = 손잡이 원점에서 (0, 0.08, -0.166)
+##   fx.position = MUZZLE     # weapon_pistol.glb 의 총구 = 손잡이 원점에서 (0, 0.055, -0.160)
 ##   fx.play()
 ## 불꽃·불티는 이 노드의 -Z(총구가 향한 쪽)로 나간다. 권총 자식으로 붙이면 방향은 저절로 맞는다.
 
-const MUZZLE := Vector3(0.0, 0.08, -0.166)
+const MUZZLE := Vector3(0.0, 0.055, -0.160)
 const FLASH_TIME := 0.07     # 불꽃과 빛이 줄어드는 시간
 const LIFE := 0.2            # 불티까지 끝나고 스스로 사라지는 시간
 const LIGHT_ENERGY := 4.0
