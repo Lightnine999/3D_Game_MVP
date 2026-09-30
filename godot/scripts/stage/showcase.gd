@@ -24,12 +24,14 @@ const LINE_W := 200.0                         # 진행 실선 길이 (px) — �
 const HUD_WHITE := Color(0.96, 0.95, 0.93)    # HUD 흰색 (살짝 따뜻한 흰색 — 순백은 노을 화면에서 튄다)
 const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
 # [이름, 탄창] — 실제 총 모델명(상표)은 쓰지 않는다 (2026-09-30 저작권·상표 점검). 탄창 크기로만 구분
-const PISTOLS := [["소형 권총", 6], ["컴팩트 권총", 10], ["표준 권총", 15], ["풀사이즈 권총", 17], ["확장 탄창 권총", 24], ["롱 탄창 권총", 30]]
+# 보급 1번에 최대 15발 (2026-09-30 "총알을 줄이고 회피를 살리자"): 15 / 12 / 9 / 7발 중 무작위
+const PISTOLS := [["소형 권총", 7], ["컴팩트 권총", 9], ["표준 권총", 12], ["풀사이즈 권총", 15]]
 const RELOAD_TIME := 1.5                      # 재장전 기본 시간 (초) + 탄창이 클수록 조금 더 (30발 = 2.1초)
 const RELOAD_PER_ROUND := 0.02
-# 보급 계획 (2026-09-30 "보급이 너무 많다" 11개 → 9개, 약 20% 줄임): [달린 거리(750m 기준), 초록?] — 빨강·초록을 번갈아 약 80m 간격
+# 보급 계획: [달린 거리(750m 기준), 초록?] — 빨강·초록을 번갈아
+# 11개 → 9개 → 7개 (2026-09-30 두 번째 "20% 더 줄여": 회피를 살린다), 약 100m 간격
 # 초록 불빛 보급은 하늘에서 초록 불을 뿜으며 내려온다. 강·다리(510-530m) 위에는 떨어뜨리지 않는다
-const SUPPLY_PLAN := [[26.0, false], [105.0, true], [185.0, false], [265.0, true], [345.0, false], [425.0, true], [480.0, false], [590.0, true], [675.0, false]]
+const SUPPLY_PLAN := [[26.0, false], [125.0, true], [225.0, false], [330.0, true], [440.0, false], [585.0, true], [680.0, false]]
 const DROP_AHEAD := 55.0                      # 이만큼 앞에서 떨어지기 시작 → 착지할 때 약 30m 앞 (PRD F-20: 40-60m 앞 착지에 가깝게)
 const DROP_HEIGHT := 20.0
 const DROP_SPEED := 4.0                       # 낙하 속도 (m/s)
@@ -63,7 +65,8 @@ const PACK_LOOPS := ["p_walk", "p_run", "p_crawl", "p_crawl_run", "p_idle", "p_b
 # 붙잡은 뒤 무는 동작: 머리가 얼굴 높이(1.3-1.5m)에 머무는 것만 (2026-09-30 측정 — p_bite·p_bite2 는 바닥의 시체를 뜯는 동작이라 feed 스타일에 쓴다)
 const BITE_ANIMS := ["bite", "pack/p_neck_bite"]
 const FEED_ANIMS := ["pack/p_bite", "pack/p_bite2"]
-const GRAB_TIME := 0.9                        # 붙잡는 동작을 보여 주는 시간 (그다음 문다)
+const GRAB_TIME := 0.6                        # 붙잡는 동작을 보여 주는 시간 (그다음 문다) — 0.9 → 0.6 (2026-09-30 "루즈하다")
+const BITE_SPEED := 1.3                       # 무는 동작 빠르기
 const DEATH_ANIMS := ["death", "pack/p_death", "pack/p_dying"]
 const BLEND := 0.25                           # 동작이 바뀔 때 섞는 시간 (초) — 뚝 바뀌면 몸이 순간 튀어 끊겨 보인다 (2026-09-30)
 const HOMING_LOCK := 3.0                      # 이만큼 가까워지면 더는 방향을 틀지 않는다 → 옆으로 비키면 피할 수 있다
@@ -99,6 +102,7 @@ var _builder: StageBuilderV2
 var _camera: Camera3D
 var _pistol: Node3D
 var _vm: ViewmodelMotion
+const VM_OFFSET := Vector3(0.005, -0.013, 0.055)   # 총을 살짝 뒤(카메라 쪽)·아래로 → 오른쪽 소매가 덜 보인다 (2026-09-30)
 const VM_RELOAD_LEN := 1.21                   # 권총 재장전 동작의 원래 길이 (초) — 게임 재장전 시간에 맞춰 늘린다
 var _zombies: Array = []                      # {node, ap, kind, hp, state, x, d, t}
 var _crates: Array = []                       # {node, d, x, y, landed, taken, smoke}
@@ -150,6 +154,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	_prewarm()
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
 	_vm = ViewmodelMotion.new()
+	_vm.rest_offset = VM_OFFSET
 	camera.add_child(_vm)
 	_pistol = _vm
 	_build_hud(hud_holder)
@@ -742,7 +747,8 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					var b: String = e["bite"]
 					if ap.has_animation(b):
 						ap.get_animation(b).loop_mode = Animation.LOOP_LINEAR
-						ap.play(b, 0.25)
+						ap.play(b, 0.2)
+						ap.speed_scale = BITE_SPEED
 					_sfx("sfx_bite")
 					var mouth: Vector3 = z.global_position + Vector3(0, 1.45, 0)
 					CardFX.blood_splash(self, _camera.global_position.lerp(mouth, 0.55) + Vector3(0.18, -0.25, 0), 0.7)

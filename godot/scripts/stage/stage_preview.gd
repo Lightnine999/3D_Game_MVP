@@ -96,7 +96,7 @@ var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
 var _dead_t := 0.0
 var _killer: Node3D
 var _killer_tall := false           # 탱커처럼 키가 크면 얼굴이 더 위에 있다
-const BITE_END := 2.6               # 사망 연출: 물어뜯기가 끝나고 쓰러지기 시작하는 시각 (초)
+const BITE_END := 1.8               # 사망 연출: 물어뜯기가 끝나고 쓰러지기 시작하는 시각 (초) — 2.6 → 1.8 (물고 바로 쓰러진다)
 var _fall_from := Vector3.ZERO      # 쓰러지기 시작할 때의 카메라 각도
 var _lean := 0.0                    # 좌우 기울기 (-1 왼쪽 ~ +1 오른쪽, 옆 속도를 부드럽게 따라간다)
 var _lean_x := 0.0
@@ -267,11 +267,11 @@ func _death_cam(delta: float) -> void:
 	if _showcase and _dead_t < BITE_END:
 		_showcase.update(_dist, _x, delta)                  # 좀비가 붙잡았다가 무는 동작으로 넘어가게 (세상도 계속 움직인다)
 	var eye := Vector3(_x, EYE_HEIGHT, -_dist)
-	# 시간표 (2026-09-30 "물어뜯는 게 잘 안 보인다"): 0-0.9 붙잡힘 → 0.9-2.6 물어뜯김 → 2.6-3.7 쓰러짐 → 블랙아웃 → DEAD → Retry
-	var b0 := 0.9                                          # 무는 순간 (showcase GRAB_TIME)
+	# 시간표 (2026-09-30): 0-0.6 붙잡힘 → 0.6-1.8 물어뜯김 → 1.8-2.9 쓰러짐 → 블랙아웃 → DEAD → Retry
+	var b0 := ShowcaseDirector.GRAB_TIME                   # 무는 순간
 	var f0 := BITE_END                                     # 쓰러지기 시작
 	# 화면 피: 붙잡는 동안은 없고, 물 때부터 서서히 (무는 얼굴을 가리지 않게) → 쓰러질 때 짙게
-	var bl := clampf((_dead_t - b0) / 1.2, 0.0, 1.0) * 0.45 + clampf((_dead_t - f0) / 0.4, 0.0, 1.0) * 0.5
+	var bl := clampf((_dead_t - b0) / 0.9, 0.0, 1.0) * 0.45 + clampf((_dead_t - f0) / 0.4, 0.0, 1.0) * 0.5
 	_blood.modulate.a = bl * (0.92 + 0.08 * sin(_dead_t * 9.0))
 	if _dead_t < f0:                                      # ①② 붙잡혀 끌려가며 시선이 좀비 얼굴로 내려가고, 물 때 덜컥덜컥 흔들린다
 		var head := _showcase.head_pos(_killer) if is_instance_valid(_killer) else eye + Vector3(0, 0, -1)   # 머리 뼈를 따라간다 (무는 동작은 몸을 숙인다)
@@ -622,10 +622,10 @@ func _finish_step(delta: float) -> void:
 # 미리 비켜 흐르기 (2026-09-30 "무조건 미끄러지거나 점프해서 빠져나와야"): 넘을 수 없는 것이 바로 앞에서 몸을 막으면
 # 닿기 전에 가장 가까운 틈으로 흘러간다. 사용자가 장애물 쪽으로 키를 계속 눌러도 이것이 먼저다
 func _assist() -> void:
-	if _slide_t > 0.0 or not _grounded:
-		return
+	if _slide_t > 0.0:
+		return                                            # 공중(낮은 짐을 넘는 중)에도 돕는다 — 넘다가 옆 차로 방향을 틀어 박히던 일 (2026-09-30 416m)
 	for ob in _builder.obstacles:
-		if ob.get("top", 9.0) - _body.position.y < JUMP_MAX:
+		if ob.get("top", 9.0) - _body.position.y < (JUMP_MAX if _grounded else STEP_UP):
 			continue                                          # 넘을 수 있는 것은 _auto_jump 가 맡는다
 		var ahead: float = ob["z"] - ob.get("half_depth", 1.0) - _dist
 		if ahead > -0.2 and ahead < ASSIST_LOOK and absf(ob["x"] - _x) < ob["half_width"] + PLAYER_RADIUS:

@@ -29,6 +29,7 @@ const SLIDE_BACK := 0.028                       # 쏠 때 슬라이드가 밀리
 var running := true
 var muzzle: Node3D          # 총구 위치 (총구 섬광을 여기에 붙인다)
 var busy := false           # 장전 중
+var rest_offset := Vector3.ZERO   # 게임이 총 위치를 살짝 옮길 때 (stage showcase — 소매가 덜 보이게, 2026-09-30)
 var speed := 1.0            # 재장전 빠르기 (1 = 약 1.2초). 게임이 재장전 시간에 맞춰 늦춘다 (stage showcase, 2026-09-30)
 
 var _model: Node3D
@@ -132,5 +133,5 @@ func _process(delta: float) -> void:
 	var bob := Vector3.ZERO
 	if running:
 		bob = Vector3(sin(_t * 5.2) * 0.006, absf(sin(_t * 10.4)) * 0.008, 0.0)
-	position = REST_POS + _lift + bob + Vector3(0, 0.004, 0.035) * k
+	position = REST_POS + rest_offset + _lift + bob + Vector3(0, 0.004, 0.035) * k
 	rotation = Vector3(_aim.y + deg_to_rad(9.0) * k + _tilt.x, REST_YAW + _aim.x + _tilt.y, REST_ROLL + _tilt.z)
