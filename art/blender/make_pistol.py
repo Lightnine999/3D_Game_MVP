@@ -38,7 +38,7 @@ def parse_args():
     p.add_argument("--arms-fbx", default="", help="Mixamo 캐릭터 FBX — 주면 스크립트 손 대신 이 캐릭터의 팔(팔꿈치 아래)을 쓴다")
     p.add_argument("--arms-anim", default="", help="두 손으로 권총을 쥔 Mixamo 동작 FBX (예: pistol idle)")
     p.add_argument("--arms-frame", type=int, default=10, help="그 동작에서 손 모양을 가져올 프레임")
-    p.add_argument("--grip", default="0.035,0.020,0.004,6",
+    p.add_argument("--grip", default="0.100,0.004,0.000,6",   # 손가락이 손잡이 앞면을 감싸는 자리 (2026-09-30 맞춤)
                    help="오른손 손목에서 손잡이까지: 손끝 방향 m, 위 m, 오른쪽 m, 총구 좌우 각도(도)")
     p.add_argument("--max-texture", type=int, default=1024)
     p.add_argument("--sleeve", default="0.30,0.32,0.22",

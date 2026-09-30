@@ -16,8 +16,9 @@ extends Node3D
 signal reloaded
 
 const MODEL := "res://assets/models/weapon_pistol.glb"
-const REST_POS := Vector3(0.10, -0.11, -0.30)   # 카메라 기준 오른쪽 아래 (WU-23 "화면 오른쪽 아래"). 두 손이 화면에 들어오는 높이
-const REST_YAW := deg_to_rad(8.0)               # 총구를 살짝 안쪽으로 → 총 오른쪽 면과 두 손이 보인다
+const REST_POS := Vector3(0.10, -0.10, -0.31)   # 카메라 기준 오른쪽 아래 (WU-23 "화면 오른쪽 아래"). 두 손이 화면에 들어오는 높이
+const REST_YAW := deg_to_rad(16.0)              # 총구를 안쪽으로 → 총 오른쪽 면과 오른손 등이 보인다
+const REST_ROLL := deg_to_rad(10.0)             # 총 윗면을 살짝 왼쪽으로 기울여 → 오른손 등이 화면 쪽을 향한다
 const MUZZLE := Vector3(0.0, 0.055, -0.160)     # 손잡이 원점에서 총구 (make_pistol.py 출력)
 const GRIP_DOWN := Vector3(0.0, -0.951, 0.309)  # 탄창이 빠지는 방향 = 손잡이 축 아래쪽
 const MAX_YAW := deg_to_rad(24.0)               # 좌우로 돌릴 수 있는 한계
@@ -130,4 +131,4 @@ func _process(delta: float) -> void:
 	if running:
 		bob = Vector3(sin(_t * 5.2) * 0.006, absf(sin(_t * 10.4)) * 0.008, 0.0)
 	position = REST_POS + _lift + bob + Vector3(0, 0.004, 0.035) * k
-	rotation = Vector3(_aim.y + deg_to_rad(9.0) * k + _tilt.x, REST_YAW + _aim.x + _tilt.y, _tilt.z)
+	rotation = Vector3(_aim.y + deg_to_rad(9.0) * k + _tilt.x, REST_YAW + _aim.x + _tilt.y, REST_ROLL + _tilt.z)
