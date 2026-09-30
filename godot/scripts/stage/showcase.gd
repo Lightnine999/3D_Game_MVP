@@ -555,8 +555,7 @@ func _prewarm() -> void:
 	BulletHitFX.spawn(_warm, _warm.global_position, Vector3.FORWARD)
 	var crate: Node3D = load("res://assets/models/prop_supply_crate.glb").instantiate()
 	_warm.add_child(crate)
-	var flash: Node3D = load("res://scenes/fx/muzzle_flash.tscn").instantiate()
-	_warm.add_child(flash)
+	CardFX.muzzle(_warm)
 	for n in ["sfx_pistol_dry", "sfx_zombie_scream", "sfx_zombie_groan", "sfx_bite", "sfx_knife", "sfx_supply_pickup", "sfx_empty_click", "sfx_ui_click", "sfx_hit_obstacle"]:
 		load("res://assets/audio/%s.ogg" % n)
 
@@ -1066,10 +1065,8 @@ func _shoot(e: Dictionary) -> void:
 		_mag -= 1
 	_refresh_ammo()
 	_sfx("sfx_pistol_dry")
-	var flash: Node3D = load("res://scenes/fx/muzzle_flash.tscn").instantiate()
-	_vm.muzzle.add_child(flash)                           # 손 달린 권총의 총구 (make_pistol.py)
+	CardFX.muzzle(_vm.muzzle)                            # 총구 불꽃 카드 (scenes/fx/card_fx.gd) — 손 달린 권총의 총구 (make_pistol.py)
 	_vm.fire()                                           # 반동 + 슬라이드가 뒤로
-	flash.play()
 	if e.is_empty():
 		return                                            # 빗나감 (조준선 앞에 좀비 없음)
 	var z: Node3D = e["node"]
