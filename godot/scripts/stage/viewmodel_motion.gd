@@ -29,6 +29,7 @@ const SLIDE_BACK := 0.028                       # 쏠 때 슬라이드가 밀리
 var running := true
 var muzzle: Node3D          # 총구 위치 (총구 섬광을 여기에 붙인다)
 var busy := false           # 장전 중
+var model_path := MODEL    # 다른 권총 모델을 쓸 때 (stage showcase 는 텍스처를 입힌 weapon_pistol_hd.glb)
 var gun_scale := 1.0        # 총 부품만 키운다 (손·팔은 그대로) — _ready 전에 정한다 (stage showcase, 2026-09-30)
 var rest_offset := Vector3.ZERO   # 게임이 총 위치를 살짝 옮길 때 (stage showcase — 소매가 덜 보이게, 2026-09-30)
 var speed := 1.0            # 재장전 빠르기 (1 = 약 1.2초). 게임이 재장전 시간에 맞춰 늦춘다 (stage showcase, 2026-09-30)
@@ -50,7 +51,7 @@ var _t := 0.0
 
 func _ready() -> void:
 	position = REST_POS
-	_model = (load(MODEL) as PackedScene).instantiate()
+	_model = (load(model_path) as PackedScene).instantiate()
 	add_child(_model)
 	for part in ["Frame", "Slide", "Magazine", "Trigger"]:   # 손잡이 원점 기준으로 총만 키운다 → 쥔 자리는 그대로, 총구 쪽이 길어진다
 		var n := _model.get_node_or_null(part) as Node3D

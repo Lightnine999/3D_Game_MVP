@@ -193,6 +193,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	_vm = ViewmodelMotion.new()
 	_vm.rest_offset = VM_OFFSET
 	_vm.gun_scale = GUN_SCALE
+	_vm.model_path = "res://assets/models/weapon_pistol_hd.glb"   # 텍스처 디벨롭 버전 (tools/assets/texture_pistol.py — 원본은 그대로)
 	_vm.process_mode = Node.PROCESS_MODE_PAUSABLE          # 카메라는 일시정지 중에도 도는 노드 아래 → 권총은 따로 멈추게 (2026-09-30 "일시정지해도 손이 움직인다")
 	camera.add_child(_vm)
 	_pistol = _vm
