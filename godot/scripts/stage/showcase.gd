@@ -50,7 +50,8 @@ const STYLES := {
 	"ambusher": [["rise", 50], ["jog", 20], ["crawl", 18], ["feed", 12]],
 }
 const STYLE_SPEED := {"shamble": [1.6, 2.6], "jog": [2.6, 3.8], "sprint": [4.2, 5.8], "idle": [1.8, 3.2], "crawl": [0.9, 1.4],
-	"crawl_run": [2.2, 3.2], "rise": [3.8, 5.0], "stomp": [1.3, 1.9], "event": [5.4, 6.6], "feed": [2.8, 3.8]}
+	"crawl_run": [2.2, 3.2], "rise": [3.8, 5.0], "stomp": [1.3, 1.9], "event": [5.4, 6.6], "feed": [2.8, 3.8],
+	"berserk": [BERSERK_SPEED, BERSERK_SPEED], "pounce": [6.5, 6.5]}
 const TANK_CHARGE := 1.8                      # 탱커 돌진 배율
 const RISE_AT := 28.0                         # 누운 좀비가 일어나기 시작하는 거리 (일어나는 데 약 2.7초 — 멀리서 보인다)
 const IDLE_WAKE := [13.0, 20.0]               # 서 있던 좀비가 출발하는 거리
@@ -59,6 +60,16 @@ const EVENT_FROM := 130.0                     # 첫 이벤트 지점
 const EVENT_GAP := [70.0, 110.0]              # 이벤트 사이 거리
 const EVENT_AHEAD := 38.0                     # 이만큼 앞, 옆으로 8-11m 떨어진 곳에서 나타난다 (갑자기 튀어나오지 않게)
 const SCREAM_TIME := 0.9                      # 달려들기 전에 비명을 지르며 멈춰 있는 시간
+# 반전 (2026-09-30 "재미가 없다"): ① 광전사 — 사람이 달리는 속도의 두 배(초속 10m)로 돌진, 비명 한 번 뒤 8m 앞부터는 방향 고정(비키면 피한다)
+#   ② 길목 매복 — 풀숲에 숨어 있다가 내 바로 앞 8.5m, 내가 달리는 줄에서 벌떡 일어나 덮친다 (순간적으로 비키거나 쏘지 않으면 잡힌다)
+#   지점은 750m 기준 달린 거리. 마지막 매복은 결승 10m 전
+const BERSERK_AT := [165.0, 295.0, 420.0, 560.0, 690.0]
+const BERSERK_SPEED := 10.0                   # = 사람 달리기(5m/s) × 2
+const BERSERK_AHEAD := 42.0
+const BERSERK_LOCK := 8.0
+const POUNCE_AT := [120.0, 235.0, 360.0, 470.0, 610.0, 740.0]
+const POUNCE_AHEAD := 8.5
+const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
 const ANIM_PACK := "res://assets/models/zombie_anims.glb"
 const PACK_HIPS := 96.29514                   # 팩 뼈대의 엉덩이 높이 (뼈대 좌표, cm) — 좀비마다 키 비율로 맞춘다
@@ -112,6 +123,8 @@ var _next_wave := 0
 var _next_crate := 0
 var _next_green := 0
 var _next_event := EVENT_FROM
+var _next_berserk := 0
+var _next_pounce := 0
 static var _libs := {}                        # 종류 → 동작 라이브러리 (한 번만 만든다)
 static var _pack: AnimationPlayer
 var _mag := START_MAG                         # 탄창에 든 총알
@@ -156,6 +169,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
 	_vm = ViewmodelMotion.new()
 	_vm.rest_offset = VM_OFFSET
+	_vm.process_mode = Node.PROCESS_MODE_PAUSABLE          # 카메라는 일시정지 중에도 도는 노드 아래 → 권총은 따로 멈추게 (2026-09-30 "일시정지해도 손이 움직인다")
 	camera.add_child(_vm)
 	_pistol = _vm
 	_build_hud(hud_holder)
@@ -357,6 +371,13 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_wave < _plan.size() and dist >= _plan[_next_wave][0] - SPAWN_AHEAD:
 		_spawn(_plan[_next_wave][1], "", _plan[_next_wave][0] - dist, NAN, dist, cam_x)
 		_next_wave += 1
+	var sc750 := StageBuilderV2.STAGE_LENGTH / 750.0
+	while _next_berserk < BERSERK_AT.size() and dist >= BERSERK_AT[_next_berserk] * sc750:
+		_berserker(dist, cam_x)
+		_next_berserk += 1
+	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
+		_pouncer(dist, cam_x)
+		_next_pounce += 1
 	if dist >= _next_event and dist < StageBuilderV2.STAGE_LENGTH - 60.0:
 		_sprint_event(dist, cam_x)
 		_next_event += _rng.randf_range(EVENT_GAP[0], EVENT_GAP[1])
@@ -502,6 +523,33 @@ func _prewarm() -> void:
 		load("res://assets/audio/%s.ogg" % n)
 
 
+# 광전사: 42m 앞 길 안쪽에서 비명 → 초속 10m 돌진 (8m 앞부터 방향 고정)
+func _berserker(dist: float, cam_x: float) -> void:
+	var e := _spawn("runner", "berserk", BERSERK_AHEAD, clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5), dist, cam_x)
+	e["lock"] = BERSERK_LOCK
+	e["state"] = "scream"
+	e["after"] = "berserk"
+	e["t"] = 0.25                                         # 비명은 짧게 (0.65초)
+	var ap: AnimationPlayer = e["ap"]
+	ap.play("pack/p_scream")
+	ap.speed_scale = 1.3
+	_sfx("sfx_zombie_scream")
+	print("[berserk] %.0fm 광전사 (초속 %.0fm)" % [dist, BERSERK_SPEED])
+
+
+# 길목 매복: 내가 달리는 줄 바로 앞 8.5m 풀숲에서 벌떡 일어나 덮친다
+func _pouncer(dist: float, cam_x: float) -> void:
+	var e := _spawn("ambusher", "pounce", POUNCE_AHEAD, clampf(cam_x + _rng.randf_range(-0.3, 0.3), -7.0, 7.0), dist, cam_x)
+	e["lock"] = POUNCE_LOCK
+	var ap: AnimationPlayer = e["ap"]
+	if ap.has_animation("crouch_rise"):
+		ap.play("crouch_rise")                            # 쭈그린 채 → 벌떡 (팀원 동작, 원래 1.2초 → 약 0.45초)
+		ap.speed_scale = 2.6
+	e["rise_t"] = 0.45
+	_sfx("sfx_zombie_scream")
+	print("[pounce] %.0fm 길목 매복 x=%.1f" % [dist, e["x"]])
+
+
 # 사이드 질주: 양옆 멀리(8-11m)에서 2-3마리가 비명을 지르고 대각선으로 달려든다
 func _sprint_event(dist: float, cam_x: float) -> void:
 	var n := _rng.randi_range(2, 3)
@@ -611,7 +659,7 @@ func _move_anim(e: Dictionary, spd := -1.0) -> void:
 		_:
 			if spd >= 2.5 and (e["kind"] != "tank"):
 				ap.play(e["run"], BLEND)
-				ap.speed_scale = clampf(spd / 4.8, 0.6, 1.35)
+				ap.speed_scale = clampf(spd / 4.8, 0.6, 2.1 if e["style"] in ["berserk", "pounce"] else 1.35)
 			else:
 				ap.play(e["walk"], BLEND)
 				ap.speed_scale = clampf(spd / 1.2, 0.8, 2.2)
@@ -706,7 +754,12 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					if ahead < -10.0:
 						_despawn(e)
 					continue
-				if ahead > HOMING_LOCK or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
+				if e.has("rise_t"):                          # 길목 매복: 벌떡 일어나는 동작이 끝나면 달리기로
+					e["rise_t"] -= delta
+					if e["rise_t"] <= 0.0:
+						e.erase("rise_t")
+						_move_anim(e)
+				if ahead > e.get("lock", HOMING_LOCK) or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
 					var target := Vector2(cam_x, dist)
 					var here := Vector2(e["x"], e["d"])
 					e["dir"] = (target - here).normalized()

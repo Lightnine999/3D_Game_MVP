@@ -157,6 +157,7 @@ func _ready() -> void:
 			_showcase.catching = true                     # 좀비에게 잡힐 수 있다 (칼 1번, 그다음은 사망)
 			_showcase.melee_start.connect(_on_melee_start)
 			_km = KnifeMotion.new()
+			_km.process_mode = Node.PROCESS_MODE_PAUSABLE       # 일시정지하면 칼 동작도 멈춘다
 			_camera.add_child(_km)
 			_km.speed = KNIFE_SPEED
 			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
