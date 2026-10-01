@@ -2,7 +2,7 @@ class_name RunItemsUI
 extends CanvasLayer
 ## 팩 아이템 화면 (2026-09-30) — 주인 A. stage_preview 가 붙인다.
 ##  ① 출발 준비: 이번 판에 가지고 갈 아이템(예비 칼·시작 탄약 팩·모닥불·위험 감지)을 켜고 출발. [테스트] 팩 받기 버튼 (결제 연결 전)
-##  ② 달리는 중 아이템 칸: 1 광란의 30초 · Shift 보급 신호탄 (PC 는 숫자 키, 폰은 칸을 누른다)
+##  ② 달리는 중 아이템 칸: 1 광란의 30초 · 2 보급 신호탄 (PC 는 숫자 키, 폰은 칸을 누른다)
 ##  ③ 위험 감지: 매복·광전사가 오는 쪽 화면 가장자리가 붉게 번쩍
 ## 모양은 YOU DIED 와 같은 톤 (어두운 판 · 뼈색 글자 · 핏빛 강조)
 
@@ -10,7 +10,7 @@ signal start_run(picks: Dictionary)          # 출발 — 켠 아이템 {item: t
 signal use_item(item: String)                # 달리는 중 아이템 칸을 눌렀다
 
 const START_ITEMS := ["knife_plus", "ammo_start_pack", "bonfire", "danger_sense"]
-const RUN_ITEMS := [["frenzy_30", "1"], ["flare_supply", "Shift"]]
+const RUN_ITEMS := [["frenzy_30", "1"], ["flare_supply", "2"]]
 const BONE := Color8(222, 212, 196)
 const DIM := Color8(120, 112, 102)
 const RED := Color8(196, 32, 26)
@@ -114,7 +114,7 @@ func _refresh() -> void:
 		_checks[item].disabled = n <= 0
 		if n <= 0:
 			_checks[item].button_pressed = false
-	_info.text = "달리는 중:  1 광란의 30초 ×%d   ·   Shift 보급 신호탄 ×%d          YOU DIED 화면:  부활 ×%d" % [
+	_info.text = "달리는 중:  1 광란의 30초 ×%d   ·   2 보급 신호탄 ×%d          YOU DIED 화면:  부활 ×%d" % [
 		Inventory.count("frenzy_30"), Inventory.count("flare_supply"), Inventory.count("revive")]
 	refresh_slots({})
 

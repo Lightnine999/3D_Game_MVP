@@ -767,7 +767,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.physical_keycode == KEY_1:
 			_use_run_item("frenzy_30")
 			return
-		if event.physical_keycode == KEY_SHIFT or event.physical_keycode == KEY_2:   # 보급 신호탄: Shift (스페이스바 사격 옆, 2026-10-01) · 2 도 됨
+		if event.physical_keycode == KEY_2:               # 보급 신호탄 (1 광란과 짝 — 숫자 키로 통일, 2026-10-01)
 			_use_run_item("flare_supply")
 			return
 	var w := get_viewport().get_visible_rect().size.x
