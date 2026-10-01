@@ -14,7 +14,7 @@ const PATH := "user://inventory.json"
 const ITEMS := {
 	"revive": {"name": "부활", "kind": "consumable"},
 	"knife_plus": {"name": "예비 칼", "kind": "consumable"},
-	"frenzy_30": {"name": "광란의 10초", "kind": "consumable"},
+	"frenzy_30": {"name": "광란의 15초", "kind": "consumable"},
 	"ammo_start_pack": {"name": "시작 탄약 팩", "kind": "consumable"},
 	"flare_supply": {"name": "보급 신호탄", "kind": "consumable"},
 	"bonfire": {"name": "모닥불", "kind": "consumable"},

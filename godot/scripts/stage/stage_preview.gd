@@ -282,6 +282,7 @@ func _build_items_ui(holder: Node) -> void:
 # 출발: 켠 아이템을 적용하고 달리기 시작
 func _start_run(picks: Dictionary) -> void:
 	_loadout_open = false
+	_ui.show_tip()
 	_showcase.apply_loadout(picks)
 	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
 		var d := BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0
@@ -327,7 +328,7 @@ func _setup_offer() -> void:
 		_offer_line.text = "위험 감지면 2초 먼저 보인다"
 	elif zone == "finale" and n >= 2:
 		_offer_pack = "pack_legend"
-		_offer_line.text = "광란의 10초를 아껴 뒀다면"
+		_offer_line.text = "광란의 15초를 아껴 뒀다면"
 	elif _dist >= BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0:
 		_offer_pack = "pack_one_more"
 		_offer_line.text = "남은 %dm, 한 번 더?" % StageBuilderV2.remaining(_dist)
@@ -743,7 +744,7 @@ func _process(delta: float) -> void:
 		return
 	_step(delta)
 	if _ui:
-		_ui.refresh_slots(_showcase.run_used, _showcase.frenzy_left())
+		_ui.refresh_slots(_showcase.run_used, _showcase.frenzy_left(), _showcase.item_hints(_dist))
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
 		return

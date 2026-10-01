@@ -2,7 +2,7 @@ class_name RunItemsUI
 extends CanvasLayer
 ## 팩 아이템 화면 (2026-09-30) — 주인 A. stage_preview 가 붙인다.
 ##  ① 출발 준비: 이번 판에 가지고 갈 아이템(예비 칼·시작 탄약 팩·모닥불·위험 감지)을 켜고 출발. [테스트] 팩 받기 버튼 (결제 연결 전)
-##  ② 달리는 중 아이템 칸: 1 광란의 10초 · 2 보급 신호탄 (PC 는 숫자 키, 폰은 칸을 누른다)
+##  ② 달리는 중 아이템 칸: 1 광란의 15초 · 2 보급 신호탄 (PC 는 숫자 키, 폰은 칸을 누른다)
 ##  ③ 위험 감지: 매복·광전사가 오는 쪽 화면 가장자리가 붉게 번쩍
 ## 모양은 YOU DIED 와 같은 톤 (어두운 판 · 뼈색 글자 · 핏빛 강조)
 
@@ -104,7 +104,7 @@ func open_loadout() -> void:
 	_info = Label.new()                                   # (예전 안내 줄 — 이제 아래 키캡 줄이 대신한다)
 	_info.visible = false
 	v.add_child(_info)
-	var keys := Control.new()                             # 달리는 중 키 안내: [1] 광란의 10초 ×N  [2] 보급 신호탄 ×N   YOU DIED: 부활 ×N
+	var keys := Control.new()                             # 달리는 중 키 안내: [1] 광란의 15초 ×N  [2] 보급 신호탄 ×N   YOU DIED: 부활 ×N
 	keys.custom_minimum_size = Vector2(0, 46)
 	keys.draw.connect(_draw_keys.bind(keys))
 	v.add_child(keys)
@@ -192,8 +192,17 @@ func _pill(c: Color) -> StyleBoxFlat:
 
 
 # 아이콘 (선·면만으로 그린다 — 외부 그림 없음)
-func _draw_icon(c: Control, item: String, o: Vector2, col: Color) -> void:
+func _draw_icon(c: Control, item: String, o: Vector2, col: Color, zoom := 1.0) -> void:
+	if zoom != 1.0:
+		c.draw_set_transform(o * (1.0 - zoom), 0.0, Vector2(zoom, zoom))
 	match item:
+		"frenzy_30":                                       # 광란: 번개 + 총알
+			c.draw_colored_polygon(PackedVector2Array([o + Vector2(4, -22), o + Vector2(-10, 2), o + Vector2(-1, 2), o + Vector2(-5, 22), o + Vector2(10, -4), o + Vector2(1, -4)]), col)
+		"flare_supply":                                    # 신호탄: 막대 + 불꽃
+			c.draw_rect(Rect2(o + Vector2(-5, -4), Vector2(10, 24)), col)
+			c.draw_colored_polygon(PackedVector2Array([o + Vector2(0, -24), o + Vector2(7, -10), o + Vector2(3, -5), o + Vector2(-3, -5), o + Vector2(-7, -10)]), col)
+			c.draw_line(o + Vector2(-12, -18), o + Vector2(-8, -14), col, 2.0)
+			c.draw_line(o + Vector2(12, -18), o + Vector2(8, -14), col, 2.0)
 		"knife_plus":                                      # 칼: 날 + 손잡이
 			c.draw_colored_polygon(PackedVector2Array([o + Vector2(-4, -20), o + Vector2(6, -6), o + Vector2(4, 8), o + Vector2(-4, 8)]), col)
 			c.draw_rect(Rect2(o + Vector2(-9, 8), Vector2(18, 4)), col)
@@ -214,6 +223,8 @@ func _draw_icon(c: Control, item: String, o: Vector2, col: Color) -> void:
 				pts.append(o + Vector2(cos(a) * 22.0, sin(a) * 11.0))
 			c.draw_polyline(pts + PackedVector2Array([pts[0]]), col, 3.0)
 			c.draw_circle(o, 7.0, col)
+	if zoom != 1.0:
+		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 # 키캡 안내 줄
@@ -221,7 +232,7 @@ func _draw_keys(c: Control) -> void:
 	var f := c.get_theme_default_font()
 	var x := 6.0
 	var y := c.size.y * 0.5
-	for pair in [["1", "광란의 10초", Inventory.count("frenzy_30")], ["2", "보급 신호탄", Inventory.count("flare_supply")]]:
+	for pair in [["1", "광란의 15초", Inventory.count("frenzy_30")], ["2", "보급 신호탄", Inventory.count("flare_supply")]]:
 		var r := Rect2(Vector2(x, y - 16), Vector2(32, 32))
 		c.draw_style_box(_card_style(Color8(36, 32, 32), Color8(150, 138, 124), 1), r)
 		c.draw_string(f, Vector2(x, y + 7), pair[0], HORIZONTAL_ALIGNMENT_CENTER, 32, 20, BONE)
@@ -269,46 +280,106 @@ func _go() -> void:
 	start_run.emit(picks)
 
 
-# ── ② 달리는 중 아이템 칸 (오른쪽 위, 일시정지 아래) ───────────────
+# ── ② 달리는 중 아이템 칸 ─────────────────────────────────────
+# 2차 (2026-10-01 "1·2 키를 모를 수 있다"): 오른쪽에 큰 아이콘 버튼 두 개 — 아이콘 · 키캡 [1]/[2] · 수량 · 이름
+#   폰은 그냥 누른다. 지금 쓰면 좋을 때(총알이 바닥·끝 반전) 금빛으로 깜빡이고, 출발 직후 3초 동안 쓰는 법을 알려 준다
+const SLOT := 96.0
+var _gothic: SystemFont
+var _hint := {}
+var _tip: Label
+var _tip_t := 0.0
+var _blink := 0.0
+var _frenzy_left := 0.0
+
+
 func _build_slots() -> void:
-	var box := VBoxContainer.new()
+	_gothic = SystemFont.new()                            # 굵은 고딕 (HUD 숫자와 같은 결)
+	_gothic.font_names = PackedStringArray(["Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic", "Roboto", "sans-serif"])
+	_gothic.font_weight = 700
+	var box := HBoxContainer.new()
 	box.anchor_left = 1.0
 	box.anchor_right = 1.0
-	box.offset_left = -300
-	box.offset_right = -36
-	box.offset_top = 112
-	box.add_theme_constant_override("separation", 6)
+	box.offset_left = -(SLOT * 2 + 12 + 40)
+	box.offset_right = -40
+	box.offset_top = 150
+	box.add_theme_constant_override("separation", 12)
 	add_child(box)
 	for pair in RUN_ITEMS:
+		var item: String = pair[0]
 		var b := Button.new()
-		b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		b.custom_minimum_size = Vector2(SLOT, SLOT + 34)
 		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", 22)
 		var none := StyleBoxEmpty.new()
 		for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 			b.add_theme_stylebox_override(st, none)
-		b.add_theme_color_override("font_color", BONE)
-		b.add_theme_color_override("font_disabled_color", Color(DIM, 0.5))
-		b.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
-		b.add_theme_constant_override("shadow_offset_y", 2)
-		var item: String = pair[0]
+		b.draw.connect(_draw_slot.bind(b, item, pair[1]))
 		b.pressed.connect(func(): use_item.emit(item))
 		box.add_child(b)
 		_slots[item] = [b, pair[1]]
+	_tip = Label.new()                                    # 출발 직후 3초 안내
+	_tip.add_theme_font_override("font", _gothic)
+	_tip.add_theme_font_size_override("font_size", 24)
+	_tip.add_theme_color_override("font_color", BONE)
+	_tip.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
+	_tip.add_theme_constant_override("shadow_offset_y", 2)
+	_tip.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_tip.offset_left = -520
+	_tip.offset_right = 520
+	_tip.offset_top = -150
+	_tip.offset_bottom = -110
+	_tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tip.modulate.a = 0.0
+	add_child(_tip)
 	refresh_slots({})
 
 
-func refresh_slots(used: Dictionary, frenzy_left := 0.0) -> void:
+# 출발할 때 한 번: 가진 아이템이 있으면 쓰는 법을 알려 준다
+func show_tip() -> void:
+	var parts := []
+	if Inventory.has("frenzy_30"):
+		parts.append("[1] 광란의 15초")
+	if Inventory.has("flare_supply"):
+		parts.append("[2] 보급 신호탄")
+	if parts.is_empty():
+		return
+	_tip.text = "  ·  ".join(parts) + "   —   키를 누르거나 오른쪽 아이콘을 누르세요"
+	_tip_t = 4.0
+
+
+func refresh_slots(used: Dictionary, frenzy_left := 0.0, hint := {}) -> void:
+	_hint = hint
+	_frenzy_left = frenzy_left
 	for item in _slots:
 		var b: Button = _slots[item][0]
-		var n := Inventory.count(item)
-		var tail := ""
-		if item == "frenzy_30" and frenzy_left > 0.0:
-			tail = "  %d초" % int(ceil(frenzy_left))
-		b.text = "%s  %s ×%d%s" % [_slots[item][1], Inventory.item_name(item), n, tail]
-		b.disabled = n <= 0 or used.has(item)
-		b.add_theme_color_override("font_color", RED if tail != "" else BONE)
-		b.visible = n > 0 or used.has(item)
+		b.disabled = Inventory.count(item) <= 0 or used.has(item)
+		b.visible = Inventory.count(item) > 0 or used.has(item)
+		b.set_meta("used", used.has(item))
+		b.queue_redraw()
+
+
+func _draw_slot(b: Button, item: String, key: String) -> void:
+	var on := item == "frenzy_30" and _frenzy_left > 0.0
+	var dead := b.disabled and not on
+	var glow := _hint.has(item) and not b.disabled
+	var r := Rect2(Vector2.ZERO, Vector2(SLOT, SLOT))
+	if glow:                                              # 지금 쓰면 좋다 → 금빛 고리가 깜빡인다
+		var a := 0.45 + 0.45 * sin(_blink * 8.0)
+		b.draw_style_box(_card_style(Color(0, 0, 0, 0), Color(GOLD, a), 4), r.grow(6))
+	b.draw_style_box(_card_style(Color(0.04, 0.035, 0.04, 0.78), (RED if on else (GOLD if glow else Color8(120, 108, 96))), 2), r)
+	_draw_icon(b, item, r.get_center() + Vector2(0, -4), (RED if on else (Color8(80, 74, 70) if dead else BONE)), 1.5)
+	if on:                                                # 광란 남은 시간: 칸 아래에서 위로 줄어드는 붉은 막대 + 숫자
+		var k := clampf(_frenzy_left / 15.0, 0.0, 1.0)
+		b.draw_rect(Rect2(Vector2(4, SLOT - 6), Vector2((SLOT - 8) * k, 3)), RED)
+		b.draw_string(_gothic, Vector2(0, SLOT - 12), "%d" % int(ceil(_frenzy_left)), HORIZONTAL_ALIGNMENT_CENTER, SLOT, 26, Color.WHITE)
+	var kr := Rect2(Vector2(-8, -8), Vector2(30, 30))       # 키캡
+	b.draw_style_box(_card_style(Color8(30, 26, 26), Color8(190, 176, 150), 1), kr)
+	b.draw_string(_gothic, Vector2(-8, 14), key, HORIZONTAL_ALIGNMENT_CENTER, 30, 20, BONE)
+	var n := Inventory.count(item)                        # 수량 (오른쪽 위)
+	b.draw_string(_gothic, Vector2(SLOT - 46, 22), "×%d" % n, HORIZONTAL_ALIGNMENT_RIGHT, 40, 20, (GOLD if n > 0 else DIM))
+	var name := Inventory.item_name(item)
+	if b.get_meta("used", false) and not on:
+		name = "사용함"
+	b.draw_string(_gothic, Vector2(-20, SLOT + 26), name, HORIZONTAL_ALIGNMENT_CENTER, SLOT + 40, 18, (DIM if dead else BONE))
 
 
 func hide_slots() -> void:
@@ -361,6 +432,13 @@ func warn(side: int) -> void:
 
 
 func _process(delta: float) -> void:
+	_blink += delta
+	if _tip:
+		_tip_t -= delta
+		_tip.modulate.a = clampf(_tip_t / 0.6, 0.0, 1.0)
+	if not _hint.is_empty():
+		for item in _slots:
+			_slots[item][0].queue_redraw()
 	for side in _edges:
 		_edge_t[side] = maxf(_edge_t[side] - delta / 0.9, 0.0)
 		var t: float = _edge_t[side]

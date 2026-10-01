@@ -20,6 +20,8 @@ const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
 # 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 권총 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
 # 새 탄창 크기가 된다. 받은 총알은 예비탄으로 쟁여 두고 R(폰 RELOAD)로 재장전한다 — 재장전은 시간이 걸린다
+const HUD_TOP := 48.0                         # 총알 줄 윗변 (2026-10-01 "너무 상단에 붙었다" 22 → 48)
+const HUD_K := 1.2                            # 총알·총 HUD 크기 배율
 const LINE_W := 200.0                         # 진행 실선 길이 (px) — 왼쪽 위 거리 숫자 아래
 const HUD_WHITE := Color(0.96, 0.95, 0.93)    # HUD 흰색 (살짝 따뜻한 흰색 — 순백은 노을 화면에서 튄다)
 const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
@@ -124,11 +126,11 @@ var _grace_t := 0.0
 signal danger(side: int)                      # 위험 감지: 매복·광전사가 오는 쪽 (-1 왼쪽 / 0 앞 / 1 오른쪽)
 var danger_sense := false                     # 이번 판에 위험 감지를 가져왔다
 var run_used := {}                            # 이번 판에 쓴 달리는 중 아이템 (한 판에 종류별 1번)
-var _frenzy_t := 0.0                          # 광란의 10초 남은 시간 (총알 무한 · 재장전 없음)
+var _frenzy_t := 0.0                          # 광란의 15초 남은 시간 (총알 무한 · 재장전 없음)
 var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
 var _warned_pounce := -1
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
-const FRENZY_TIME := 10.0                       # 30 → 10초 (2026-10-01 "너무 길다")
+const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
 const START_AMMO_PACK := 7
 const FLARE_AHEAD := 32.0
 const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
@@ -231,14 +233,14 @@ func _build_hud(holder: Node) -> void:
 	heavy.font_names = PackedStringArray(["Impact", "Arial Narrow", "Arial Black", "Roboto Condensed", "sans-serif"])
 	heavy.font_weight = 800
 	_hud_bullets = Control.new()                       # 총알 줄 (쏠 때마다 하나씩 사라진다 — _draw_bullets)
-	_hud_bullets.position = Vector2(w / 2 - 250, 22)
-	_hud_bullets.size = Vector2(500, 44)
+	_hud_bullets.position = Vector2(w / 2 - 300, HUD_TOP)   # 2026-10-01: 조금 내리고(22 → 48) 크게(×1.2), 총알 줄 + 예비탄 묶음을 화면 가운데로 (_refresh_ammo)
+	_hud_bullets.size = Vector2(600, 54)
 	_hud_bullets.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_bullets.draw.connect(_draw_bullets)
 	layer.add_child(_hud_bullets)
 	_hud_reserve = Label.new()                         # 예비탄 숫자 (총알 줄 오른쪽, 세로줄 뒤)
 	_hud_reserve.add_theme_font_override("font", heavy)
-	_hud_reserve.add_theme_font_size_override("font_size", 50)
+	_hud_reserve.add_theme_font_size_override("font_size", 60)
 	_white_label(_hud_reserve)
 	layer.add_child(_hud_reserve)
 	_tex_pistol = _white_icon("icon_pistol.png")
@@ -246,19 +248,19 @@ func _build_hud(holder: Node) -> void:
 	_hud_pistol.texture = _tex_pistol
 	_hud_pistol.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_hud_pistol.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_hud_pistol.position = Vector2(w / 2 - 70, 72)
-	_hud_pistol.size = Vector2(76, 54)
+	_hud_pistol.position = Vector2(w / 2 - 84, HUD_TOP + 60)
+	_hud_pistol.size = Vector2(90, 64)
 	layer.add_child(_hud_pistol)
 	var knife := TextureRect.new()
 	knife.texture = _white_icon("icon_knife.png")
 	knife.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	knife.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	knife.position = Vector2(w / 2 + 22, 76)
-	knife.size = Vector2(50, 46)
+	knife.position = Vector2(w / 2 + 26, HUD_TOP + 64)
+	knife.size = Vector2(60, 55)
 	layer.add_child(knife)
 	_hud_knife = knife
 	_hud_gun = Label.new()                             # 새 총을 주웠을 때만 잠깐 뜬다 (무기 아이콘 아래)
-	_hud_gun.position = Vector2(w / 2 - 150, 128)
+	_hud_gun.position = Vector2(w / 2 - 150, HUD_TOP + 128)
 	_hud_gun.size = Vector2(300, 28)
 	_hud_gun.modulate.a = 0.0
 	_hud_gun.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -319,16 +321,27 @@ func skip_to(d: float) -> void:
 	print("[items] 모닥불: %.0fm 부터" % d)
 
 
-# 광란의 10초 (한 판 1번)
+# 광란의 15초 (한 판 1번)
 func use_frenzy() -> bool:
 	if run_used.has("frenzy_30") or not Inventory.use("frenzy_30"):
 		return false
 	run_used["frenzy_30"] = true
 	_frenzy_t = FRENZY_TIME
 	_reload_left = 0.0
+	_refresh_ammo()
 	_sfx("sfx_zombie_scream")
-	print("[items] 광란의 10초")
+	print("[items] 광란의 15초")
 	return true
+
+
+# 아이템 칸을 빛나게 할 때 (지금 쓰면 좋다): 광란 = 총알이 다 떨어졌거나 끝 반전 · 신호탄 = 총알 3발 이하
+func item_hints(dist: float) -> Dictionary:
+	var h := {}
+	if (_mag + _reserve <= 0) or (_finale >= 1 and _finale < 3) or dist >= FINALE_AT * StageBuilderV2.STAGE_LENGTH / 750.0 - 10.0:
+		h["frenzy_30"] = true
+	if _mag + _reserve <= 3:
+		h["flare_supply"] = true
+	return h
 
 
 func frenzy_left() -> float:
@@ -394,16 +407,21 @@ func _gold_pistol() -> void:
 
 func _refresh_ammo() -> void:
 	_hud_bullets.queue_redraw()
-	_hud_reserve.text = "∞" if INFINITE_AMMO else str(_reserve)
+	_hud_reserve.text = "∞" if (INFINITE_AMMO or _frenzy_t > 0.0) else str(_reserve)   # 광란 중에는 무한대
+	_hud_reserve.add_theme_color_override("font_color", Color(1.0, 0.36, 0.26) if _frenzy_t > 0.0 else HUD_WHITE)
 	var row_w := _bullet_row_width(_mag_cap)
-	_hud_reserve.position = Vector2(_hud_bullets.position.x + (_hud_bullets.size.x + row_w) * 0.5 + 18, 8)
+	var rw: float = _hud_reserve.get_theme_font("font").get_string_size(_hud_reserve.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 60).x
+	var group := row_w + 22.0 + rw                       # 총알 줄 + 세로줄 + 예비탄 숫자 — 이 묶음을 화면 가운데로
+	var x0 := (_hud_bullets.size.x - row_w) * 0.5
+	_hud_bullets.position.x = 1560.0 * 0.5 - group * 0.5 - x0
+	_hud_reserve.position = Vector2(_hud_bullets.position.x + x0 + row_w + 22.0, HUD_TOP + _hud_bullets.size.y * 0.5 - 44.0)
 	_hud_gun.text = "%s  %d발 탄창" % [_gun_name, _mag_cap]
 	_hud_pistol.modulate.a = 1.0 if (_mag + _reserve > 0 or INFINITE_AMMO) else 0.3   # 총알이 하나도 없으면 흐리게
 
 
 # 총알 줄: 탄창 크기가 클수록 촘촘하게 (6발 = 굵게, 30발 = 가늘게)
 func _bullet_dims(cap: int) -> Vector2:
-	return Vector2(10.0, 34.0) if cap <= 12 else (Vector2(8.0, 30.0) if cap <= 20 else Vector2(6.0, 26.0))
+	return (Vector2(10.0, 34.0) if cap <= 12 else (Vector2(8.0, 30.0) if cap <= 20 else Vector2(6.0, 26.0))) * HUD_K
 
 
 func _bullet_row_width(cap: int) -> float:
