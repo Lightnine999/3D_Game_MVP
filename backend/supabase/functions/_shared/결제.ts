@@ -3,6 +3,7 @@ export type Order = {
   user_id: string;
   product_id: string;
   amount: number;
+  catalog_version: number;
   status: "ready" | "paid" | "failed";
   payment_key?: string | null;
 };
@@ -32,19 +33,21 @@ export type PackageProduct = {
   readonly components: Readonly<Record<string, number>>;
 };
 
+export const CATALOG_VERSION = 2;
+
 // New sales only. Existing single-item orders are settled using their stored order.
 const PRODUCTS: Readonly<Record<string, PackageProduct>> = Object.freeze({
   pack_survival_kit: Object.freeze({
     product_id: "pack_survival_kit", amount: 1100, name: "생존 키트",
-    components: Object.freeze({ spare_knife: 1, ammo_start_pack: 1, supply_flare: 1 }),
+    components: Object.freeze({ knife_plus: 1, ammo_start_pack: 1, flare_supply: 1, adrenaline: 1 }),
   }),
   pack_one_more: Object.freeze({
     product_id: "pack_one_more", amount: 3300, name: "한 번 더 패키지",
-    components: Object.freeze({ revive: 2, frenzy_30s: 1, campfire: 1 }),
+    components: Object.freeze({ revive: 1, frenzy_30: 1, bonfire: 1 }),
   }),
   pack_legend: Object.freeze({
     product_id: "pack_legend", amount: 5500, name: "전설의 생존자",
-    components: Object.freeze({ revive: 3, spare_knife: 2, frenzy_30s: 2, danger_sense: 2, golden_pistol_skin: 1, supporter_badge: 1 }),
+    components: Object.freeze({ revive: 2, knife_plus: 2, frenzy_30: 2, danger_sense: 2, gold_pistol: 1, supporter_badge: 1 }),
   }),
 });
 
@@ -61,6 +64,7 @@ export async function confirmOnce(
   if (request.orderId !== order.order_id || !request.paymentKey) return "invalid_request";
   if (order.user_id !== userId) return "not_owner";
   if (!Number.isSafeInteger(request.amount) || request.amount !== order.amount) return "amount_mismatch";
+  if (order.catalog_version !== 1 && order.catalog_version !== 2) return "unknown_catalog_version";
   if (order.status === "paid") {
     return order.payment_key === request.paymentKey ? "already_paid" : "already_paid_conflict";
   }

@@ -19,7 +19,7 @@ func _run() -> void:
 		check(false, "검증·원자적 저장·복구 구현")
 		quit(1)
 		return
-	model.storage_path = "res://tests/게임_설정_테스트.cfg"
+	model.storage_path = "user://게임_설정_테스트.cfg"
 	check(model.load_settings(), "없는 파일은 기본값으로 시작")
 	check(model.save_settings({"control_mode":"tilt", "sensitivity":9, "sfx_volume":-2, "bgm_volume":0.25, "tilt_zero":0.125, "tutorial_seen":true}), "설정 원자적 저장")
 	var second = script.new()
@@ -35,7 +35,7 @@ func _run() -> void:
 	file.close()
 	check(not second.load_settings() and second.values() == before, "손상된 파일 로드 실패시 기존 메모리 설정 보존")
 	check(FileAccess.get_file_as_string(second.storage_path) == "[broken", "손상 파일 자동 덮어쓰기 금지")
-	second.storage_path = "res://tests/missing_directory/settings.cfg"
+	second.storage_path = "user://missing_directory/settings.cfg"
 	check(not second.save_settings({"sensitivity":0.5}) and second.values() == before, "저장 실패시 메모리 설정 보존")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(model.storage_path))
 	await _test_screen()

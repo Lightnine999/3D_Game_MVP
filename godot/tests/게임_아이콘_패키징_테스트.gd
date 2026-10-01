@@ -14,8 +14,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var failed := false
-	for filename in ICONS.values():
-		var path: String = "res://assets/ui/" + filename
+	for filename in ICONS:
+		var path: String = "res://assets/ui/icons/" + filename
 		if not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
 			printerr("FAIL: exported HUD icon missing: ", path)
 			failed = true

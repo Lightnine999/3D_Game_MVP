@@ -1,4 +1,5 @@
--- Explicitly authorized Server 1 deployment verification only.
+-- Catalog v2 verification fixture: run only after separate deployment approval.
+-- Local source alignment does not authorize executing this transaction.
 -- Uses new random, transaction-local Auth fixtures; NEVER an existing user's ID.
 -- All changes roll back. No Toss, email, Auth login, or LLM API call is made.
 begin;
@@ -26,14 +27,17 @@ begin
   insert into auth.users(id, aud, role, created_at, updated_at, is_anonymous)
   values (u, 'authenticated', 'authenticated', now(), now(), true);
   for p in select * from (values
-    ('pack_survival_kit',1100,'{"spare_knife":1,"ammo_start_pack":1,"supply_flare":1}'::jsonb),
-    ('pack_one_more',3300,'{"revive":2,"frenzy_30s":1,"campfire":1}'::jsonb),
-    ('pack_legend',5500,'{"revive":3,"spare_knife":2,"frenzy_30s":2,"danger_sense":2,"golden_pistol_skin":1,"supporter_badge":1}'::jsonb)
+    ('pack_survival_kit',1100,'{"knife_plus":1,"ammo_start_pack":1,"flare_supply":1,"adrenaline":1}'::jsonb),
+    ('pack_one_more',3300,'{"revive":1,"frenzy_30":1,"bonfire":1}'::jsonb),
+    ('pack_legend',5500,'{"revive":2,"knife_plus":2,"frenzy_30":2,"danger_sense":2,"gold_pistol":1,"supporter_badge":1}'::jsonb)
   ) as packages(product_id, amount, components)
   loop
     -- The fixture owner is fresh and private to this transaction.
     delete from public.inventory where user_id=u;
-    perform public.create_order(u,prefix||'_'||p.amount::text,p.product_id,p.amount);
+    actual := public.create_order(u,prefix||'_'||p.amount::text,p.product_id,p.amount);
+    if (actual->>'catalog_version')::integer is distinct from 2 then
+      raise exception 'catalog v2 migration is required';
+    end if;
     first_result := public.finalize_payment(prefix||'_'||p.amount::text,u,'synthetic_no_toss_'||prefix||p.amount::text,p.amount);
     replay_result := public.finalize_payment(prefix||'_'||p.amount::text,u,'synthetic_no_toss_'||prefix||p.amount::text,p.amount);
     select jsonb_object_agg(item_id,quantity) into actual from public.inventory where user_id=u;
@@ -49,8 +53,8 @@ begin
   -- The legend inventory is still present; a second order accumulates consumables only.
   perform public.create_order(u,prefix||'_second','pack_legend',5500);
   perform public.finalize_payment(prefix||'_second',u,'synthetic_no_toss_'||prefix||'_second',5500);
-  select jsonb_object_agg(key,case when key in ('golden_pistol_skin','supporter_badge') then 1 else value::integer*2 end)
-  into expected from jsonb_each_text('{"revive":3,"spare_knife":2,"frenzy_30s":2,"danger_sense":2,"golden_pistol_skin":1,"supporter_badge":1}'::jsonb);
+  select jsonb_object_agg(key,case when key in ('gold_pistol','supporter_badge') then 1 else value::integer*2 end)
+  into expected from jsonb_each_text('{"revive":2,"knife_plus":2,"frenzy_30":2,"danger_sense":2,"gold_pistol":1,"supporter_badge":1}'::jsonb);
   select jsonb_object_agg(item_id,quantity) into actual from public.inventory where user_id=u;
   if actual is distinct from expected then raise exception 'permanent cap or consumable accumulation mismatch'; end if;
   denied:=false;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 const moduleUrl = new URL("../supabase/functions/_shared/결제.ts", import.meta.url).href;
-const order = { order_id: "order_001", user_id: "user-a", product_id: "ammo_start_pack", amount: 1100, status: "ready" };
+const order = { catalog_version: 1, order_id: "order_001", user_id: "user-a", product_id: "ammo_start_pack", amount: 1100, status: "ready" };
 const request = { paymentKey: "test-payment", orderId: "order_001", amount: 1100 };
 const approved = { paymentKey: "test-payment", orderId: "order_001", totalAmount: 1100, status: "DONE" };
 

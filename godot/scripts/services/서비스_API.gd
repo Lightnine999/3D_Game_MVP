@@ -75,7 +75,12 @@ func fetch_inventory_item(item_id: String) -> Dictionary:
 		return _failure("remote_session_required")
 	var owner := _auth.get_user_id()
 	var epoch := _auth._session_epoch
-	var response: Dictionary = await _get_own_rows("/rest/v1/inventory?item_id=eq.%s&select=item_id,quantity" % item_id)
+	var catalog = preload("res://scripts/services/게임_상품_표시.gd")
+	var ids: Array[String] = [item_id]
+	if catalog.LEGACY_ALIASES.has(item_id):
+		ids.append(catalog.LEGACY_ALIASES[item_id])
+	var filter := "eq." + item_id if ids.size() == 1 else "in.(%s)" % ",".join(ids)
+	var response: Dictionary = await _get_own_rows("/rest/v1/inventory?item_id=%s&select=item_id,quantity" % filter)
 	if owner != _auth.get_user_id() or epoch != _auth._session_epoch or not _auth.has_remote_session():
 		return _failure("identity_changed")
 	if not response.get("ok", false):
@@ -85,12 +90,23 @@ func fetch_inventory_item(item_id: String) -> Dictionary:
 		return _failure("inventory_unavailable")
 	if rows is Array and rows.is_empty():
 		return {"ok": true, "item": {"item_id": item_id, "quantity": 0}, "missing": true}
-	if not rows is Array or rows.size() != 1 or not rows[0] is Dictionary or rows[0].get("item_id") != item_id:
+	if not rows is Array or rows.size() > ids.size():
 		return _failure("inventory_unavailable")
-	var quantity: Variant = rows[0].get("quantity")
-	if typeof(quantity) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(quantity)) or quantity < 0 or quantity != int(quantity):
-		return _failure("inventory_unavailable")
-	return {"ok": true, "item": rows[0]}
+	var total := 0
+	var seen := {}
+	for row in rows:
+		if not row is Dictionary or not row.get("item_id") is String or row.get("item_id") not in ids or seen.has(row.get("item_id")):
+			return _failure("inventory_unavailable")
+		seen[row.item_id] = true
+		var quantity: Variant = row.get("quantity")
+		if typeof(quantity) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(quantity)) or quantity < 0 or quantity >= 9223372036854775807 or quantity != int(quantity):
+			return _failure("inventory_unavailable")
+		if int(quantity) > 9223372036854775807 - total:
+			return _failure("inventory_unavailable")
+		total += int(quantity)
+	if item_id in catalog.PERMANENT_ITEMS:
+		total = mini(total, 1)
+	return {"ok": true, "item": {"item_id": item_id, "quantity": total}}
 
 
 func fetch_latest_support_thread() -> Dictionary:

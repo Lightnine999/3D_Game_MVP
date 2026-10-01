@@ -51,13 +51,13 @@ func _run() -> void:
 		if not str(switch_at.path).is_empty() and path.contains(switch_at.path):
 			auth._user_id = "other-owner"
 		if path.ends_with("/create-toss-order"):
-			return {"ok": true, "status": 201, "data": {"orderId": "order-one", "productId": "pack_survival_kit", "amount": 1100, "orderName": "시작 탄약 팩", "status": "ready"}}
+			return {"ok": true, "status": 201, "data": {"orderId": "order-one", "productId": "pack_survival_kit", "amount": 1100, "orderName": "시작 탄약 팩", "status": "ready", "catalogVersion": 2}}
 		if path.ends_with("/confirm-toss-payment"):
 			return {"ok": true, "status": 200, "data": {"orderId": "order-one", "status": "paid"}}
 		if path.begins_with("/rest/v1/toss_orders?"):
 			return {"ok": true, "status": 200, "data": [{"order_id": "order-one", "status": "paid", "product_id": "pack_survival_kit", "amount": 1100}]}
 		if path.begins_with("/rest/v1/inventory?"):
-			var item_id := path.get_slice("item_id=eq.", 1).get_slice("&", 0)
+			var item_id := path.get_slice("item_id=", 1).trim_prefix("eq.").trim_prefix("in.(").get_slice(",", 0).get_slice("&", 0)
 			return {"ok": true, "status": 200, "data": [{"item_id": item_id, "quantity": 1}]}
 		return {"ok": false, "status": 404}
 	var native := FakeNative.new()
@@ -76,9 +76,10 @@ func _run() -> void:
 		printerr("FAIL: catalog setter missing")
 		payment.queue_free(); native.queue_free(); api.queue_free(); auth.queue_free(); quit(1); return
 	payment.set_catalog_ready(true)
+	payment.set_catalog_version(2)
 	var result: Dictionary = await payment.start_purchase("pack_survival_kit")
 	var paths := calls.map(func(item: Dictionary) -> String: return item["path"])
-	var ok: bool = result.get("ok", false) and result.get("status", "") == "paid" and native.opens == 1 and native.customer_key.begins_with("customer-") and paths.size() == 6 and paths[0].ends_with("/create-toss-order") and paths[1].ends_with("/confirm-toss-payment") and paths[2].begins_with("/rest/v1/toss_orders?") and paths[3].begins_with("/rest/v1/inventory?") and calls[0].body == {"product_id": "pack_survival_kit"} and calls[1].body.get("paymentKey") == "mock-payment-key" and calls[1].body.get("orderId") == "order-one" and calls[1].body.get("amount") == 1100 and calls[1].body.size() == 3
+	var ok: bool = result.get("ok", false) and result.get("status", "") == "paid" and native.opens == 1 and native.customer_key.begins_with("customer-") and paths.size() == 7 and paths[0].ends_with("/create-toss-order") and paths[1].ends_with("/confirm-toss-payment") and paths[2].begins_with("/rest/v1/toss_orders?") and paths[3].begins_with("/rest/v1/inventory?") and calls[0].body == {"product_id": "pack_survival_kit"} and calls[1].body.get("paymentKey") == "mock-payment-key" and calls[1].body.get("orderId") == "order-one" and calls[1].body.get("amount") == 1100 and calls[1].body.size() == 3
 	if not ok:
 		printerr("FAIL: 서버 주문·승인·재조회 흐름 불일치: outcome=%s, paths=%s" % [str(result.get("status", result.get("error", "none"))), str(paths)])
 	for stage in ["confirm-toss-payment", "/rest/v1/toss_orders?", "/rest/v1/inventory?"]:

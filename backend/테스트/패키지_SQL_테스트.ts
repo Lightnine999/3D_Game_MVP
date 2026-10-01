@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { priceFor } from "../supabase/functions/_shared/결제.ts";
+// Applied migration is immutable historical revision 1, not today's catalog.
+const historicalRecipes: Record<string, Record<string, number>> = {
+  pack_survival_kit: { spare_knife: 1, ammo_start_pack: 1, supply_flare: 1 },
+  pack_one_more: { revive: 2, frenzy_30s: 1, campfire: 1 },
+  pack_legend: { revive: 3, spare_knife: 2, frenzy_30s: 2, danger_sense: 2, golden_pistol_skin: 1, supporter_badge: 1 },
+};
 
 const migration = new URL("../supabase/migrations/20261001041335_패키지_상품_지급.sql", import.meta.url);
 function sql(): string {
@@ -25,14 +30,14 @@ Deno.test("SQL 구조: 신규 주문은 세 패키지만 허용하고 기존 단
   assert.doesNotMatch(source, /delete from|truncate|drop table|disable row level security|drop policy/i);
 });
 
-Deno.test("SQL 구조: 실제 지급 레시피는 TS 세 패키지와 같고 단품은 하나만 지급한다", () => {
+Deno.test("SQL 구조: 과거 v1 지급 레시피는 원래 세 패키지와 같고 단품은 하나만 지급한다", () => {
   const source = sql();
   const recipeCase = source.match(/recipe := case saved\.product_id([\s\S]*?)end;/i);
   assert.ok(recipeCase);
   const recipes = Object.fromEntries([...recipeCase[1].matchAll(/when '([^']+)' then '([^']+)'::jsonb/g)].map((m) => [m[1], JSON.parse(m[2])]));
   assert.deepEqual(Object.keys(recipes).sort(), ["pack_survival_kit", "pack_one_more", "pack_legend", "ammo_start_pack", "supporter_badge"].sort());
   for (const id of ["pack_survival_kit", "pack_one_more", "pack_legend"]) {
-    assert.deepEqual(recipes[id], priceFor(id)?.components);
+    assert.deepEqual(recipes[id], historicalRecipes[id]);
   }
   assert.deepEqual(recipes.ammo_start_pack, { ammo_start_pack: 1 });
   assert.deepEqual(recipes.supporter_badge, { supporter_badge: 1 });

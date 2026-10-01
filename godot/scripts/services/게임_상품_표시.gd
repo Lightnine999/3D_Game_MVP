@@ -1,17 +1,19 @@
 extends RefCounted
 
 # Display only: not a server catalog, grant table, or ownership lookup.
-const ITEM_NAMES := {"revive": "부활", "spare_knife": "예비 칼", "frenzy_30s": "광란의30초", "ammo_start_pack": "시작탄약팩", "supply_flare": "보급신호탄", "campfire": "모닥불", "danger_sense": "위험감지", "golden_pistol_skin": "황금권총스킨", "supporter_badge": "서포터배지"}
+const ITEM_NAMES := {"revive": "부활", "knife_plus": "예비 칼", "frenzy_30": "광란의 15초", "ammo_start_pack": "시작탄약팩", "flare_supply": "보급신호탄", "bonfire": "모닥불", "danger_sense": "위험감지", "gold_pistol": "황금권총스킨", "supporter_badge": "서포터배지", "adrenaline": "아드레날린"}
+const LEGACY_ALIASES := {"knife_plus": "spare_knife", "frenzy_30": "frenzy_30s", "flare_supply": "supply_flare", "bonfire": "campfire", "gold_pistol": "golden_pistol_skin"}
+const PERMANENT_ITEMS := ["gold_pistol", "supporter_badge"]
 # Verification/display recipes only. Never used to grant inventory locally.
 const COMPONENTS := {
-	"pack_survival_kit": {"spare_knife": 1, "ammo_start_pack": 1, "supply_flare": 1},
-	"pack_one_more": {"revive": 2, "frenzy_30s": 1, "campfire": 1},
-	"pack_legend": {"revive": 3, "spare_knife": 2, "frenzy_30s": 2, "danger_sense": 2, "golden_pistol_skin": 1, "supporter_badge": 1},
+	"pack_survival_kit": {"knife_plus": 1, "ammo_start_pack": 1, "flare_supply": 1, "adrenaline": 1},
+	"pack_one_more": {"revive": 1, "frenzy_30": 1, "bonfire": 1},
+	"pack_legend": {"revive": 2, "knife_plus": 2, "frenzy_30": 2, "danger_sense": 2, "gold_pistol": 1, "supporter_badge": 1},
 }
 const PRODUCTS := [
-	{"id": "pack_survival_kit", "name": "생존 키트", "price": 1100, "price_text": "1,100원", "button": "BuySurvivalKit", "art": "res://assets/ui/상품_생존키트.png", "contents": "예비 칼 ×1\n시작 탄약 팩 ×1\n보급 신호탄 ×1", "featured": false},
-	{"id": "pack_one_more", "name": "한 번 더 패키지", "price": 3300, "price_text": "3,300원", "button": "BuyOneMore", "art": "res://assets/ui/상품_한번더.png", "contents": "부활 ×2\n광란의 30초 ×1\n모닥불 ×1", "featured": true},
-	{"id": "pack_legend", "name": "전설의 생존자", "price": 5500, "price_text": "5,500원", "button": "BuyLegend", "art": "res://assets/ui/상품_전설의생존자.png", "contents": "부활 ×3 · 예비 칼 ×2\n광란의 30초 ×2 · 위험 감지 ×2\n황금 권총 스킨 (영구)\n서포터 배지 (영구)", "featured": false},
+	{"id": "pack_survival_kit", "name": "생존 키트", "price": 1100, "price_text": "1,100원", "button": "BuySurvivalKit", "art": "res://assets/ui/상품_생존키트.png", "contents": "예비 칼 ×1\n시작 탄약 팩 ×1\n보급 신호탄 ×1\n아드레날린 ×1", "featured": false},
+	{"id": "pack_one_more", "name": "한 번 더 패키지", "price": 3300, "price_text": "3,300원", "button": "BuyOneMore", "art": "res://assets/ui/상품_한번더.png", "contents": "부활 ×1\n광란의 15초 ×1\n모닥불 ×1", "featured": true},
+	{"id": "pack_legend", "name": "전설의 생존자", "price": 5500, "price_text": "5,500원", "button": "BuyLegend", "art": "res://assets/ui/상품_전설의생존자.png", "contents": "부활 ×2 · 예비 칼 ×2\n광란의 15초 ×2 · 위험 감지 ×2\n황금 권총 스킨 (영구)\n서포터 배지 (영구)", "featured": false},
 ]
 
 static func product(product_id: String) -> Dictionary:

@@ -12,11 +12,11 @@ func check(value: bool, message: String) -> void:
 
 func _run() -> void:
 	check(Catalog.COMPONENTS == {
-		"pack_survival_kit": {"spare_knife": 1, "ammo_start_pack": 1, "supply_flare": 1},
-		"pack_one_more": {"revive": 2, "frenzy_30s": 1, "campfire": 1},
-		"pack_legend": {"revive": 3, "spare_knife": 2, "frenzy_30s": 2, "danger_sense": 2, "golden_pistol_skin": 1, "supporter_badge": 1},
+		"pack_survival_kit": {"knife_plus": 1, "ammo_start_pack": 1, "flare_supply": 1, "adrenaline": 1},
+		"pack_one_more": {"revive": 1, "frenzy_30": 1, "bonfire": 1},
+		"pack_legend": {"revive": 2, "knife_plus": 2, "frenzy_30": 2, "danger_sense": 2, "gold_pistol": 1, "supporter_badge": 1},
 	}, "exact component recipes (display/verification only)")
-	check(Catalog.ITEM_NAMES.size() == 9, "nine inventory components")
+	check(Catalog.ITEM_NAMES.size() == 10, "ten inventory components")
 	var auth := FlowTest.FakeAuth.new()
 	auth._user_id = "mock-owner"
 	auth._access_token = "mock-access"
@@ -28,6 +28,7 @@ func _run() -> void:
 	api.configure(auth, "https://example.invalid", "sb_publishable_mock")
 	payment.configure(auth, api, "test_gck_mock", native)
 	payment.set_catalog_ready(true)
+	payment.set_catalog_version(2)
 	var state := {"product": "", "amount": 7777, "confirmation": "paid", "order_status": "paid", "quantity": 4, "wrong_item": false, "failure_item": "", "switch_path": "", "order_amount": 7777}
 	var calls: Array[String] = []
 	api.transport_override = func(_method: int, path: String, payload: String, _token: String) -> Dictionary:
@@ -35,13 +36,13 @@ func _run() -> void:
 		if not str(state.switch_path).is_empty() and path.contains(state.switch_path): auth._session_epoch += 1
 		if path.ends_with("/create-toss-order"):
 			check(JSON.parse_string(payload) == {"product_id": state.product}, "only selected package sent")
-			return {"ok": true, "status": 201, "data": {"orderId": "mock-order", "productId": state.product, "orderName": "서버 상품명", "amount": state.amount, "status": "ready"}}
+			return {"ok": true, "status": 201, "data": {"orderId": "mock-order", "productId": state.product, "orderName": "서버 상품명", "amount": state.amount, "status": "ready", "catalogVersion": 2}}
 		if path.ends_with("/confirm-toss-payment"):
 			check(JSON.parse_string(payload).amount == state.amount, "server order amount authoritative")
 			return {"ok": true, "status": 200, "data": {"orderId": "mock-order", "status": state.confirmation}}
 		if path.begins_with("/rest/v1/toss_orders?"):
 			return {"ok": true, "status": 200, "data": [{"order_id": "mock-order", "status": state.order_status, "amount": state.order_amount, "product_id": state.product}]}
-		var id := path.get_slice("item_id=eq.", 1).get_slice("&", 0)
+		var id := path.get_slice("item_id=", 1).trim_prefix("eq.").trim_prefix("in.(").get_slice(",", 0).get_slice("&", 0)
 		if id == state.failure_item: return {"ok": false, "error": "network_unavailable"}
 		return {"ok": true, "status": 200, "data": [{"item_id": state.product if state.wrong_item else id, "quantity": state.quantity}]}
 	for id in Catalog.COMPONENTS:
@@ -50,13 +51,15 @@ func _run() -> void:
 		var result: Dictionary = await payment.start_purchase(id)
 		check(result.get("ok", false), "complete package " + id)
 		var expected: Array[String] = ["/functions/v1/create-toss-order", "/functions/v1/confirm-toss-payment", "/rest/v1/toss_orders?order_id=eq.mock-order&select=order_id,status,product_id,amount"]
-		for item in Catalog.COMPONENTS[id]: expected.append("/rest/v1/inventory?item_id=eq.%s&select=item_id,quantity" % item)
+		for item in Catalog.COMPONENTS[id]:
+			var filter: String = "in.(%s,%s)" % [item, Catalog.LEGACY_ALIASES[item]] if Catalog.LEGACY_ALIASES.has(item) else "eq." + item
+			expected.append("/rest/v1/inventory?item_id=%s&select=item_id,quantity" % filter)
 		check(calls == expected, "exact ordered component reads, no package inventory: " + id)
 	state.product = "pack_legend"
 	state.confirmation = "already_paid"
 	state.quantity = 0
 	check((await payment.start_purchase(state.product)).get("ok", false), "already_paid and valid zero inventory do not fabricate a grant")
-	for stage in ["create-toss-order", "confirm-toss-payment", "toss_orders?", "item_id=eq.golden_pistol_skin"]:
+	for stage in ["create-toss-order", "confirm-toss-payment", "toss_orders?", "item_id=in.(gold_pistol"]:
 		state.switch_path = stage
 		check((await payment.start_purchase(state.product)).get("error") == "identity_changed", "same-owner epoch invalidation: " + stage)
 	state.switch_path = ""

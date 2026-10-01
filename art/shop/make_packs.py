@@ -93,6 +93,18 @@ DEFS = r"""
     <path d="M192 22 L210 26 L210 34 L192 38 Z" fill="#bdb8ae"/>
     <line x1="210" y1="30" x2="262" y2="30" stroke="#dcdcdc" stroke-width="3"/>
   </g>
+  <!-- 아드레날린 주사기 (호박색 — 붉은 부활 주사기와 구분) -->
+  <g id="syringe-adren">
+    <ellipse cx="130" cy="30" rx="150" ry="55" fill="url(#fireglow)" opacity=".8"/>
+    <rect x="0" y="22" width="16" height="16" rx="3" fill="#cfcac0"/>
+    <rect x="14" y="27" width="40" height="6" fill="#bdb8ae"/>
+    <rect x="52" y="12" width="140" height="36" rx="8" fill="#e8eef0" fill-opacity=".35" stroke="#f2f6f7" stroke-width="3"/>
+    <rect x="60" y="18" width="126" height="24" rx="5" fill="#f2b01e"/>
+    <rect x="60" y="18" width="126" height="7" rx="3" fill="#ffe08a" opacity=".7"/>
+    <g stroke="#f2f6f7" stroke-width="2"><line x1="90" y1="12" x2="90" y2="22"/><line x1="120" y1="12" x2="120" y2="22"/><line x1="150" y1="12" x2="150" y2="22"/></g>
+    <path d="M192 22 L210 26 L210 34 L192 38 Z" fill="#bdb8ae"/>
+    <line x1="210" y1="30" x2="262" y2="30" stroke="#dcdcdc" stroke-width="3"/>
+  </g>
 
   <!-- 모닥불 폭 170 -->
   <g id="bonfire">
@@ -173,6 +185,7 @@ AMMO_TIN = """
   <g transform="translate(-250,-60) rotate(-8)" filter="url(#shadow)"><use href="#knife" transform="scale(1.6)"/></g>
   <g transform="translate(90,-150) rotate(12)" filter="url(#shadow)"><use href="#flare" transform="scale(1.05)"/></g>
   <g transform="translate(-120,-30)" filter="url(#shadow)"><use href="#ammobox" transform="scale(1.3)"/></g>
+  <g transform="translate(-255,-125) rotate(-3)" filter="url(#shadow)"><use href="#syringe-adren" transform="scale(.8)"/></g>
   <!-- 앞면 -->
   <path d="M-320 20 L320 20 L300 220 L-300 220 Z" fill="url(#olive)"/>
   <path d="M-320 20 L320 20" stroke="#8a915e" stroke-width="8"/>
@@ -192,8 +205,7 @@ SUPPLY_CRATE = """
   <path d="M-330 -130 L330 -130 L330 40 L-330 40 Z" fill="#1d120a"/>
   <!-- 소품 -->
   <g transform="translate(-40,-150)"><use href="#bonfire" transform="scale(1.05)"/></g>
-  <g transform="translate(-330,-120) rotate(-10)" filter="url(#shadow)"><use href="#syringe" transform="scale(1.25)"/></g>
-  <g transform="translate(-300,-60) rotate(3)" filter="url(#shadow)"><use href="#syringe" transform="scale(1.25)"/></g>
+  <g transform="translate(-310,-90) rotate(-4)" filter="url(#shadow)"><use href="#syringe" transform="scale(1.25)"/></g>
   <g transform="translate(150,-150) rotate(14)" filter="url(#shadow)"><use href="#mag-hot" transform="scale(1.1)"/></g>
   <!-- 앞면 (판자) -->
   <path d="M-350 20 L350 20 L330 230 L-330 230 Z" fill="url(#wood)"/>
@@ -227,18 +239,17 @@ LEGEND_CASE = """
   <g transform="translate(22,92)" filter="url(#shadow)"><use href="#mag" transform="scale(.7)"/></g><g transform="translate(66,92)" filter="url(#shadow)"><use href="#mag" transform="scale(.7)"/></g>
   <g transform="translate(150,10)" filter="url(#shadow)"><use href="#syringe" transform="scale(.75)"/></g>
   <g transform="translate(150,45)" filter="url(#shadow)"><use href="#syringe" transform="scale(.75)"/></g>
-  <g transform="translate(150,80)" filter="url(#shadow)"><use href="#syringe" transform="scale(.75)"/></g>
   <g transform="translate(255,172)" filter="url(#shadow)"><use href="#badge" transform="scale(.9)"/></g>
   <!-- 금 모서리 -->
   <g fill="url(#gold)"><path d="M-380 -170 h60 v14 h-46 v46 h-14 z"/><path d="M380 -170 h-60 v14 h46 v46 h14 z"/><path d="M-380 250 h60 v-14 h-46 v-46 h-14 z"/><path d="M380 250 h-60 v-14 h46 v-46 h14 z"/></g>
 </g>"""
 
 CARDS = [
-    ("pack_survival_kit", "생존 키트", "처음 몇 번 쓰러진 당신에게", [("예비 칼", "×1"), ("시작 탄약 팩", "×1"), ("보급 신호탄", "×1")],
+    ("pack_survival_kit", "생존 키트", "처음 몇 번 쓰러진 당신에게", [("예비 칼", "×1"), ("시작 탄약 팩", "×1"), ("보급 신호탄", "×1"), ("아드레날린", "×1")],
      "₩1,100", "#b9ad7a", "#5d6340", "", "", AMMO_TIN),
-    ("pack_one_more", "한 번 더", "끝을 보기 위한 두 번의 기회", [("부활", "×2"), ("광란의 30초", "×1"), ("모닥불", "×1")],
+    ("pack_one_more", "한 번 더", "끝을 보기 위한 한 번의 기회", [("부활", "×1"), ("광란의 15초", "×1"), ("모닥불", "×1")],
      "₩3,300", "#e0473a", "#a3121a", "가장 인기", "#ff6a55", SUPPLY_CRATE),
-    ("pack_legend", "전설의 생존자", "끝까지 살아남는 자의 상자", [("부활", "×3"), ("예비 칼", "×2"), ("광란의 30초", "×2"), ("위험 감지", "×2"), ("황금 권총", "영구"), ("서포터 배지", "영구")],
+    ("pack_legend", "전설의 생존자", "끝까지 살아남는 자의 상자", [("부활", "×2"), ("예비 칼", "×2"), ("광란의 15초", "×2"), ("위험 감지", "×2"), ("황금 권총", "영구"), ("서포터 배지", "영구")],
      "₩5,500", "#e2b24a", "#8a5f14", "최고 가치", "#ffd978", LEGEND_CASE),
 ]
 

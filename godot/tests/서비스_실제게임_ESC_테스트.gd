@@ -36,6 +36,8 @@ func _run() -> void:
 	root.add_child(shell)
 	await process_frame
 	var stage := shell.find_child("StagePreview", true, false)
+	stage._ui.confirm()
+	await process_frame
 	var support := shell.find_child("PauseSupportButton", true, false) as Button
 	var ok: bool = stage != null and support != null and not paused
 	var checks: Array[Dictionary] = [{"point": "initial", "paused": paused, "visible": support.visible}]

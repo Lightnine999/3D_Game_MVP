@@ -34,6 +34,7 @@ func _run() -> void:
 		var stage: Node = shell.get("_stage")
 		check(stage != null and stage.service_managed, "actual service managed stage")
 		stage.set_process(false)
+		stage._ui.confirm()
 		var sound := AudioStreamPlayer.new()
 		sound.volume_db = -6.0
 		stage.add_child(sound)
@@ -58,6 +59,7 @@ func _run() -> void:
 		shell = entry._game
 		stage = shell._stage
 		stage.set_process(false)
+		stage._ui.confirm()
 		shell._toggle_test_panel()
 		await process_frame
 		check(shell._test_panel.size.y >= 250, "test panel has an actual visible scroll viewport")
@@ -92,12 +94,26 @@ func _run() -> void:
 		check(entry._game != null, "second attempt bypasses tutorial")
 		stage = entry._game._stage
 		stage.set_process(false)
+		stage._ui.confirm()
 		stage._dead = true
-		stage._dead_t = 4.0
+		stage._dead_t = 10.0
 		stage._process(0.0)
+		check(entry._game != null, "death offer stays before result choice")
+		stage._retry.pressed.emit()
 		await process_frame
 		check(entry._screen.name == "ResultScreen" and not entry._last_run.cleared, "real death path to result")
 		check(entry._progress.snapshot(auth.get_user_id()).runs_count == 2, "death saves once")
+		var pending_before: int = entry._outbox.pending_for(auth.get_user_id()).size()
+		entry._screen.retry_requested.emit()
+		await process_frame
+		stage = entry._game._stage
+		stage.set_process(false)
+		Inventory.add("knife_plus")
+		stage._showcase.apply_loadout({"knife_plus": true})
+		stage._finish_service_run(false, "local item test")
+		await process_frame
+		check(entry._last_run.test_mode and entry._progress.snapshot(auth.get_user_id()).runs_count == 2, "team local loadout excludes normal records")
+		check(entry._outbox.pending_for(auth.get_user_id()).size() == pending_before, "team test items never enqueue server progress or grants")
 		entry._show_settings()
 		check(entry._screen.find_child("TiltAvailability", true, false).text.contains("PC"), "PC tilt explicitly unavailable")
 		entry._screen.saved.emit({"sensitivity": 1.5})

@@ -37,7 +37,7 @@ func _run() -> void:
 	check(screen.name == "TutorialScreen" and screen.find_children("TutorialSection*","Label",true,false).size() == 3, "튜토리얼 한 화면 세 부분")
 	var content := ""
 	for label in screen.find_children("TutorialSection*","Label",true,false): content += label.text
-	check("A/D" in content and "드래그" in content and "Space" in content and "FIRE" in content and "R / RELOAD" in content and "1회" in content and "Esc / P" in content, "실제 조작·보급·칼·일시정지 안내")
+	check("A/D" in content and "드래그" in content and "Space" in content and "오른쪽" in content and "자동 재장전" in content and "1회" in content and "Esc / P" in content, "실제 조작·보급·칼·일시정지 안내")
 	var completed := []
 	screen.tutorial_finished.connect(func(): completed.append(true))
 	screen.find_child("PlayButton",true,false).pressed.emit()

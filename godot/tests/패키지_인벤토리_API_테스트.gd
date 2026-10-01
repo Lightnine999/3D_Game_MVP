@@ -31,7 +31,8 @@ func _run() -> void:
 	for id in Catalog.ITEM_NAMES:
 		var result: Dictionary = await api.fetch_inventory_item(id)
 		check(result.get("ok", false) and result.get("item", {}) == {"item_id": id, "quantity": 0} and result.get("missing", false), "confirmed empty = zero: " + id)
-		check(calls[-1] == "/rest/v1/inventory?item_id=eq.%s&select=item_id,quantity" % id, "component path " + id)
+		var filter: String = "in.(%s,%s)" % [id, Catalog.LEGACY_ALIASES[id]] if Catalog.LEGACY_ALIASES.has(id) else "eq." + id
+		check(calls[-1] == "/rest/v1/inventory?item_id=%s&select=item_id,quantity" % filter, "component path " + id)
 	for response in [{"ok": false, "error": "network_unavailable"}, {"ok": false, "status": 401}, {"ok": true, "status": 204, "data": []}, {"ok": true, "status": 200, "data": {}}, {"ok": true, "status": 200, "data": [{"item_id": "pack_legend", "quantity": 0}]}]:
 		state.response = response
 		check(not (await api.fetch_inventory_item("revive")).get("ok", false), "errors never zero")

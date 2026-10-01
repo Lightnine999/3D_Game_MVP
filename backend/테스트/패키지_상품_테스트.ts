@@ -18,7 +18,7 @@ Deno.test("패키지 주문은 외부 응답 형식을 유지하고 클라이언
     assert.equal(response.status, 201);
     const body = await response.json();
     assert.match(body.orderId, /^[0-9a-f-]{36}$/);
-    assert.deepEqual(body, { orderId: saved[0].order_id, productId: id, amount: product.amount, orderName: product.name, status: "ready" });
+    assert.deepEqual(body, { orderId: saved[0].order_id, productId: id, amount: product.amount, orderName: product.name, status: "ready", catalogVersion: 2 });
     assert.equal(saved[0].product_id, id);
     assert.equal(saved[0].user_id, "owner");
     assert.equal("components" in saved[0], false);
@@ -47,9 +47,9 @@ Deno.test("저장된 상품 ID가 다르면 정상 주문으로 공개하지 않
 });
 
 const expectedPackages = {
-  pack_survival_kit: { amount: 1100, name: "생존 키트", components: { spare_knife: 1, ammo_start_pack: 1, supply_flare: 1 } },
-  pack_one_more: { amount: 3300, name: "한 번 더 패키지", components: { revive: 2, frenzy_30s: 1, campfire: 1 } },
-  pack_legend: { amount: 5500, name: "전설의 생존자", components: { revive: 3, spare_knife: 2, frenzy_30s: 2, danger_sense: 2, golden_pistol_skin: 1, supporter_badge: 1 } },
+  pack_survival_kit: { amount: 1100, name: "생존 키트", components: { knife_plus: 1, ammo_start_pack: 1, flare_supply: 1, adrenaline: 1 } },
+  pack_one_more: { amount: 3300, name: "한 번 더 패키지", components: { revive: 1, frenzy_30: 1, bonfire: 1 } },
+  pack_legend: { amount: 5500, name: "전설의 생존자", components: { revive: 2, knife_plus: 2, frenzy_30: 2, danger_sense: 2, gold_pistol: 1, supporter_badge: 1 } },
 };
 
 Deno.test("신규 판매는 서버의 세 패키지 가격·이름·구성만 제공한다", async () => {

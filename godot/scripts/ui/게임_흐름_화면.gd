@@ -84,7 +84,7 @@ func _tutorial() -> void:
 	_separator()
 	_label("이동과 회피\nA/D 또는 ←/→ 방향키 · 화면 왼쪽을 좌우로 드래그\n좀비와 장애물 사이의 빈 길을 찾아 움직이세요.", "TutorialSection1")
 	_separator()
-	_label("사격과 보급\nSpace / FIRE로 사격 · R / RELOAD로 재장전\n낙하산 보급 상자에 닿아 탄약을 확보하세요.", "TutorialSection2")
+	_label("사격과 보급\nPC: Space 사격 · R 재장전\n폰: 오른쪽을 누르고 있으면 사격 · 빈 탄창은 자동 재장전\n폰: 어느 손가락으로든 드래그 이동 · 왼쪽 터치로 이동 넘겨받기\n낙하산 보급 상자에 닿아 탄약을 확보하세요.", "TutorialSection2")
 	_separator()
 	_label("칼과 일시정지\n잡혔을 때 칼로 1회 탈출합니다. 칼 없이 잡히면 사망합니다.\nEsc / P로 일시정지할 수 있습니다.", "TutorialSection3")
 	_button("확인했어요 · 도전 시작", "PlayButton", _finish_tutorial, true)

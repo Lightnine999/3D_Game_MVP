@@ -19,6 +19,7 @@ func _run() -> void:
 	root.add_child(stage)
 	await process_frame
 	stage.set_process(false)
+	stage._ui.confirm()
 	var snap: Dictionary = stage.call("service_snapshot")
 	_check(snap.get("target_distance") == 750.0, "현재 750m 수치 보존")
 	_check(snap.get("ammo") == 7 and snap.get("kills") == 0, "시작 탄약 7발·실제 권총 처치 수 보존")
@@ -42,10 +43,12 @@ func _run() -> void:
 	stage.call("_process", 0.0)
 	_check(finished.size() == 1 and finished[0].get("cleared", false), "완주 시 장면 재시작 대신 결과를 정확히 1회 전달")
 	_check(finished.size() == 1 and finished[0].get("test_mode", false), "결과에 테스트 모드 유지")
+	last.clear()
+	zombies.clear()
 	stage.queue_free()
 	await process_frame
 	_check(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT) <= initial_orphans, "반복 플레이 뒤 애니메이션 원본의 고아 노드를 남기지 않음")
-	_finish()
+	call_deferred("_finish")
 
 func _check(ok: bool, message: String) -> void:
 	if ok:

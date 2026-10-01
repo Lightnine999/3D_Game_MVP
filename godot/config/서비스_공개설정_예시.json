@@ -3,5 +3,6 @@
   "supabase_publishable_key": "YOUR_SUPABASE_PUBLISHABLE_KEY",
   "toss_test_client_key": "",
   "support_multiturn_enabled": false,
-  "package_catalog_ready": false
+  "package_catalog_ready": false,
+  "package_catalog_version": 2
 }

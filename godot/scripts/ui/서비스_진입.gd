@@ -88,7 +88,9 @@ func _load_public_config() -> void:
 		_api.configure(_auth, url, key)
 		_payment.configure(_auth, _api, str(parsed.get("toss_test_client_key", "")))
 		_support_multiturn_enabled = parsed.get("support_multiturn_enabled", false) == true
-		_package_catalog_ready = parsed.get("package_catalog_ready", false) == true
+		var version: Variant = parsed.get("package_catalog_version")
+		_package_catalog_ready = parsed.get("package_catalog_ready", false) == true and typeof(version) in [TYPE_INT, TYPE_FLOAT] and version == 2
+		_payment.set_catalog_version(2 if _package_catalog_ready else 0)
 
 
 func _replace_screen(next_screen: Control) -> void:

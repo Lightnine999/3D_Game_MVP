@@ -10,6 +10,9 @@ func configure(game_stage: Node3D) -> void:
 
 func snapshot() -> Dictionary:
 	var director: Node = stage.get("_showcase")
+	# Team inventory is local TEST data, never verified paid server ownership.
+	if director != null and not director.get("run_used").is_empty():
+		test_mode = true
 	return {
 		"distance_m": minf(float(stage.get("_dist")), StageBuilderV2.STAGE_LENGTH),
 		"target_distance": StageBuilderV2.STAGE_LENGTH,

@@ -12,6 +12,7 @@ var _client_key := ""
 var _native: Object
 var _busy := false
 var _catalog_ready := false
+var _catalog_version := 0
 
 
 func configure(auth_client: ServiceAuth, api_client: ServiceAPI, test_client_key: String, native_override: Object = null) -> void:
@@ -25,12 +26,16 @@ func set_catalog_ready(ready: bool) -> void:
 	_catalog_ready = ready
 
 
+func set_catalog_version(version: int) -> void:
+	_catalog_version = version
+
+
 func can_purchase() -> bool:
-	return _catalog_ready and _api != null and not _client_key.is_empty() and _auth != null and _auth.has_remote_session() and (_native != null or (OS.get_name() == "Android" and Engine.has_singleton(TEST_PLUGIN_NAME)))
+	return _catalog_ready and _catalog_version == 2 and _api != null and not _client_key.is_empty() and _auth != null and _auth.has_remote_session() and (_native != null or (OS.get_name() == "Android" and Engine.has_singleton(TEST_PLUGIN_NAME)))
 
 
 func start_purchase(product_id: String) -> Dictionary:
-	if not _catalog_ready:
+	if not _catalog_ready or _catalog_version != 2:
 		return _fail("catalog_not_ready")
 	if _busy:
 		return _fail("payment_in_progress")
@@ -59,6 +64,8 @@ func start_purchase(product_id: String) -> Dictionary:
 		return _finish(_fail("invalid_order"))
 	if _auth.get_user_id() != owner_id or _auth._session_epoch != owner_epoch or not _auth.has_remote_session():
 		return _finish(_fail("identity_changed"))
+	if typeof(order.get("catalogVersion")) not in [TYPE_INT, TYPE_FLOAT] or order.get("catalogVersion") != 2:
+		return _finish(_fail("catalog_version_mismatch"))
 	var order_id := str(order["orderId"])
 	var amount := int(order["amount"])
 	var customer_key := "customer-" + Crypto.new().generate_random_bytes(16).hex_encode()

@@ -54,9 +54,9 @@ func _run() -> void:
 	check(payment.calls == 0, "준비 전 주문/지급 호출 금지")
 	var catalog = load("res://scripts/services/게임_상품_표시.gd")
 	var expected := [
-		["pack_survival_kit", 1100, "예비 칼 ×1\n시작 탄약 팩 ×1\n보급 신호탄 ×1"],
-		["pack_one_more", 3300, "부활 ×2\n광란의 30초 ×1\n모닥불 ×1"],
-		["pack_legend", 5500, "부활 ×3 · 예비 칼 ×2\n광란의 30초 ×2 · 위험 감지 ×2\n황금 권총 스킨 (영구)\n서포터 배지 (영구)"],
+		["pack_survival_kit", 1100, "예비 칼 ×1\n시작 탄약 팩 ×1\n보급 신호탄 ×1\n아드레날린 ×1"],
+		["pack_one_more", 3300, "부활 ×1\n광란의 15초 ×1\n모닥불 ×1"],
+		["pack_legend", 5500, "부활 ×2 · 예비 칼 ×2\n광란의 15초 ×2 · 위험 감지 ×2\n황금 권총 스킨 (영구)\n서포터 배지 (영구)"],
 	]
 	check(catalog.PRODUCTS.size() == 3, "패키지 세 개만 판매 표시")
 	var cards := shop.find_child("PackageCards", true, false) as GridContainer
@@ -92,7 +92,7 @@ func _run() -> void:
 		api.reply = {"ok": true, "item": {"quantity": quantity}}
 		await shop.call("_refresh_inventory")
 		check(shop.find_child("InventoryStatus", true, false).text.contains(": %d개" % quantity), "확인된 실제 수량 표시")
-	check(api.queries.size() == 72, "온라인 조회마다 구성품 9개 읽기")
+	check(api.queries.size() == 80, "온라인 조회마다 구성품 10개 읽기")
 	for query in api.queries:
 		check(query in catalog.ITEM_NAMES, "패키지 ID를 보유 수량 키로 조회하지 않음")
 	api.epoch_auth = auth
