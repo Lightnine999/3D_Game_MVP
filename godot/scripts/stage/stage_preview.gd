@@ -28,7 +28,7 @@ const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
 const ADREN_RUN := 1.4
 const ADREN_SIDE := 1.8
 const ADREN_FOV := 9.0      # 빨리 달리는 동안 시야를 이만큼(도) 넓혀 속도감
-const DRAG_WIDTH_M := 18.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
+const DRAG_WIDTH_M := 24.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로 (18 → 24, 2026-10-01 폰에서 좌우가 덜 움직인다)
 const PLAYER_RADIUS := 0.35
 # 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
 const SLIDE_SPEED := 6.5    # 정면으로 막히면 이 속도로 가장 가까운 틈 쪽으로 저절로 미끄러진다 (m/s)
@@ -811,14 +811,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			_use_run_item("adrenaline")
 			return
 	var w := get_viewport().get_visible_rect().size.x
-	if event is InputEventScreenTouch:                    # 폰 (2026-10-01): 왼쪽 절반 = 누른 채 좌우로 끌어 이동 · 오른쪽 절반 = 누르고 있으면 사격 (FIRE·RELOAD 버튼 없앰, 재장전은 자동)
-		if event.pressed and event.position.x > w * 0.5 and not _loadout_open:
-			_fire_touches[event.index] = true
-		elif event.pressed and _touch_id == -1:
-			_touch_id = event.index
-			_touch_x0 = event.position.x
-			_steer_x0 = _steer_target
-		elif not event.pressed:
+	if event is InputEventScreenTouch:                    # 폰 (2026-10-01): 누른 채 좌우로 끌어 이동 (먼저 누른 손가락) · 오른쪽 절반은 누르고 있는 동안 사격도 (FIRE·RELOAD 버튼 없앰, 재장전은 자동)
+		if event.pressed:
+			if event.position.x > w * 0.5 and not _loadout_open:
+				_fire_touches[event.index] = true
+			# 이동: 먼저 누른 손가락 (오른쪽 손가락도 끌면 움직인다 — 2026-10-01 "좌우가 잘 안 먹힌다").
+			# 오른쪽으로 쏘고 있는 중에 왼쪽을 새로 누르면 이동은 왼쪽 손가락이 넘겨받는다
+			if _touch_id == -1 or (_fire_touches.has(_touch_id) and event.position.x <= w * 0.5):
+				_touch_id = event.index
+				_touch_x0 = event.position.x
+				_steer_x0 = _steer_target
+		else:
 			_fire_touches.erase(event.index)
 			if event.index == _touch_id:
 				_touch_id = -1
