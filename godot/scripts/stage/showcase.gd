@@ -126,6 +126,9 @@ signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 
 signal knifed                                 # (옛 즉시 칼) — 지금은 melee_start 로 합을 맞춘다
 signal melee_start(zombie: Node3D)            # 칼 근접전 시작: 멈춰 서서 좀비와 마주 본다 (stage_preview 가 칼 동작·카메라)
 signal brushed(side: float)
+signal killed(kind: String, by_knife: bool)   # 좀비를 쓰러뜨렸다 (미션 — mission_tracker)
+signal dodged                                 # 좀비를 쏘지 않고 비켜 지나갔다 (미션)
+signal shot                                   # 한 발 쐈다 (미션: 총 없이 연속 피하기가 0부터)
 signal quake(amp: float, dur: float)         # 다리 흔들림 (2026-10-01): 화면이 이만큼 세게 · 이 시간 동안 덜덜 떨린다
 signal burst                                  # 마지막 좀비가 바닥에서 튀어나왔다 → 화면 덜컥                   # 좀비와 스쳤다 → 어깨빵 (side: 좀비가 있는 쪽 -1 왼쪽 / +1 오른쪽)
 signal tripped                                # 기는 좀비가 발목을 잡았다 → 잠깐 휘청 (풀에 묻혀 안 보이니 죽이지는 않는다)
@@ -235,6 +238,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	if Inventory.has("gold_pistol"):
 		_gold_pistol()
 	_build_hud(hud_holder)
+	apply_start_pistol()
 
 
 # 좀비 배치 계획 (같은 씨앗이면 늘 같은 배치) — 난이도에 따라 마릿수만 다르다
@@ -276,6 +280,15 @@ func set_difficulty(d: String) -> void:
 	difficulty = d
 	_build_plan()
 	print("[difficulty] %s — 좀비 %d · 보급 %d" % [d, _plan.size(), supply_plan().size()])
+
+
+# 시작 권총: 코인으로 강화한 단계 (2026-10-01 미션 보상 — 7 / 9 / 12 / 15발). 출발 준비에서 강화하면 다시 부른다
+func apply_start_pistol() -> void:
+	var pg: Array = MissionTracker.pistol()
+	_gun_name = pg[0]
+	_mag = pg[1]
+	_mag_cap = pg[1]
+	_refresh_ammo()
 
 
 func _icon(name: String) -> Texture2D:
@@ -1247,8 +1260,10 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						continue
 					if cover <= 0.0:
 						e["passed"] = true                 # 비켜서 스쳐 지나감
+						dodged.emit()
 				elif ahead <= 0.05:
 					e["passed"] = true                     # 옆·뒤로 넘어갔다 → 끝 (뒤에서는 잡지 않는다)
+					dodged.emit()
 				if auto_fire and ahead < SHOOT_RANGE and ahead > 1.5 and (_mag > 0 or INFINITE_AMMO) and _reload_left <= 0.0 and _shot_cd <= 0.0:
 					_shoot(e)
 			"dead":
@@ -1406,6 +1421,7 @@ func start_bgm() -> void:
 
 func _shoot(e: Dictionary) -> void:
 	_shot_cd = SHOT_GAP
+	shot.emit()
 	if not INFINITE_AMMO and _frenzy_t <= 0.0:
 		_mag -= 1
 	_refresh_ammo()
@@ -1437,6 +1453,7 @@ func _kill(e: Dictionary, at: Vector3, k: float) -> void:
 	var z: Node3D = e["node"]
 	var ap: AnimationPlayer = e["ap"]
 	e["state"] = "dead"
+	killed.emit(e["kind"], is_same(e, _melee_e))
 	ap.speed_scale = 1.0
 	var dn: String = "death" if e.get("low", false) else DEATH_ANIMS[_rng.randi() % DEATH_ANIMS.size()]
 	ap.play(dn if ap.has_animation(dn) else "death", 0.15)
