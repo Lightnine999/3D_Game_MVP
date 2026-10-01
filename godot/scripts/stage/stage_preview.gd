@@ -342,14 +342,20 @@ func _start_run(picks: Dictionary) -> void:
 	_ui.show_tip()
 	_showcase.apply_loadout(picks)
 	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
-		var d := BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0
-		_body.position = Vector3(0.0, 0.0, -d)
-		_dist = d
-		_x = 0.0
-		_steer_target = 0.0
-		_lean_x = 0.0
-		_showcase.skip_to(d)
+		_warp_to(BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0)
 		_showcase.run_used["rise"] = true
+	for a in OS.get_cmdline_user_args():                 # 시험용: --start=490 이면 그 지점부터 (다리 앞 등)
+		if a.begins_with("--start="):
+			_warp_to(a.get_slice("=", 1).to_float())
+
+
+func _warp_to(d: float) -> void:
+	_body.position = Vector3(0.0, 0.0, -d)
+	_dist = d
+	_x = 0.0
+	_steer_target = 0.0
+	_lean_x = 0.0
+	_showcase.skip_to(d)
 
 
 func _use_run_item(item: String) -> void:

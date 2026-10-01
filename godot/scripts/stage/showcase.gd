@@ -82,6 +82,13 @@ const BURST_AT := 738.0                       # 늦어도 여기서는 튀어나
 const BURST_AHEAD := 6.5
 const BURST_SPEED := 1.5                      # 나(5m/s)와 합쳐 초당 6.5m → 약 1초                      # 끝의 둘은 6m 앞에서 방향 고정 → 비킬 틈 약 0.4초, 피해도 아슬아슬하게 스친다
 const POUNCE_AHEAD := 8.5
+# 다리 밑 매복 (2026-10-01 "다리 건널 때 재밌는 요소"): 다리 위 왼쪽에 버려진 차 → 오른쪽 틈으로만 지나간다.
+#   그 오른쪽 난간 밑에서 손이 먼저 올라와 매달리고(경고) → 기어올라 → 틈을 막듯 덮친다.
+#   피할 길: 매달린 동안 쏘거나 · 덮치기 직전 차 쪽(왼쪽)으로 바짝 붙거나 · 칼
+const UNDER_D := StageBuilderV2.RIVER_Z0 + 13.0      # 좀비가 올라오는 곳 (다리 위 차 바로 앞, 오른쪽 가장자리)
+const UNDER_AHEAD := 9.0                              # 이만큼 앞에 왔을 때 손이 올라온다 (너무 멀면 총에 가려 안 보인다)
+const UNDER_HANG := 0.75                              # 매달려 기어오르는 시간 (경고 시간)
+const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
 const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
 const ANIM_PACK := "res://assets/models/zombie_anims.glb"
@@ -130,6 +137,7 @@ var _frenzy_t := 0.0                          # 광란의 15초 남은 시간 (�
 var _adren_t := 0.0                           # 아드레날린 남은 시간 (빨리 달리기 · 좌우로 재빨리)
 var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
 var _warned_pounce := -1
+var _under_done := false
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
 const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
 const ADREN_TIME := 8.0                         # 아드레날린 시간 (5 → 8초, 2026-10-01 "좀 짧다")
@@ -205,6 +213,10 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	for i in ZOMBIE_COUNT:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
+	for w in _plan:                                     # 다리 위는 비운다 → 다리 밑 매복이 또렷이 보이게 (그 수만큼 다리 건너편으로 옮긴다, 총 마릿수는 그대로)
+		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 8.0:
+			w[0] += 26.0
+	_plan.sort_custom(func(p, q): return p[0] < q[0])
 	_prewarm()
 	_build_zombie_light(camera)
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
@@ -572,6 +584,9 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
 		_pouncer(dist, cam_x)
 		_next_pounce += 1
+	if not _under_done and dist >= UNDER_D - UNDER_AHEAD and dist < UNDER_D:
+		_under_done = true
+		_bridge_climber(dist, cam_x)
 	if _finale == 0 and dist >= FINALE_AT * sc750:
 		_finale = 1
 		_finale_t = FINALE_GAP
@@ -807,6 +822,24 @@ func _pouncer(dist: float, cam_x: float) -> void:
 	print("[pounce] %.0fm 길목 매복 x=%.1f" % [dist, e["x"]])
 
 
+# 다리 밑 매복: 오른쪽 난간 밖 강 위에 매달려 있다가(머리·팔만 보인다) 기어올라 덮친다
+func _bridge_climber(dist: float, cam_x: float) -> void:
+	var e := _spawn("ambusher", "pounce", UNDER_D - dist, StageBuilderV2.BRIDGE_HALF + 0.3, dist, cam_x)
+	e["spd"] = UNDER_SPEED
+	e["lock"] = POUNCE_LOCK
+	e["y"] = -0.7
+	e["climb_t"] = UNDER_HANG
+	var ap: AnimationPlayer = e["ap"]
+	if ap.has_animation("grab"):                         # 팔을 뻗은 채 난간을 붙잡고 버둥거린다
+		ap.play("grab")
+		ap.speed_scale = 0.7
+	_place(e)
+	_sfx("sfx_zombie_groan")
+	if danger_sense:
+		danger.emit(1)
+	print("[under] %.0fm 다리 밑에서 손이 올라옴" % dist)
+
+
 # 사이드 질주: 양옆 멀리(8-11m)에서 2-3마리가 비명을 지르고 대각선으로 달려든다
 func _sprint_event(dist: float, cam_x: float) -> void:
 	var n := _rng.randi_range(2, 3)
@@ -1035,6 +1068,21 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					z.position = Vector3(e["x"], 0, -e["d"])
 					if ahead < -10.0:
 						_despawn(e)
+					continue
+				if e.has("climb_t"):                         # 다리 밑 매복: 매달린 채 기어오른다 (앞으로는 안 온다 — 이 동안 쏘면 산다)
+					e["climb_t"] -= delta
+					var k := 1.0 - clampf(e["climb_t"] / UNDER_HANG, 0.0, 1.0)
+					e["y"] = lerpf(-0.7, 0.0, k * k)
+					e["x"] = lerpf(StageBuilderV2.BRIDGE_HALF + 0.3, StageBuilderV2.BRIDGE_HALF - 1.0, smoothstep(0.5, 1.0, k))
+					_place(e)
+					if e["climb_t"] <= 0.0:
+						e.erase("climb_t")
+						e["y"] = 0.0
+						if ap.has_animation("crouch_rise"):
+							ap.play("crouch_rise")
+							ap.speed_scale = 2.8
+						e["rise_t"] = 0.3
+						_sfx("sfx_zombie_scream")
 					continue
 				if e.has("burst") and e["y"] < 0.0:           # 땅속에서 솟아오른다 (0.3초)
 					e["y"] = minf(0.0, e["y"] + delta * 1.4 / 0.3)
