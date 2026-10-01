@@ -88,11 +88,9 @@ const POUNCE_AHEAD := 8.5
 const UNDER_D := StageBuilderV2.RIVER_Z0 + 13.0      # 좀비가 올라오는 곳 (다리 위 차 바로 앞, 오른쪽 가장자리)
 const UNDER_AHEAD := 9.0                              # 이만큼 앞에 왔을 때 손이 올라온다 (너무 멀면 총에 가려 안 보인다)
 const UNDER_HANG := 0.75                              # 매달려 기어오르는 시간 (경고 시간)
-# 차 안 좀비 낚시 (2026-10-01): 다리 위 차 안에 갇힌 좀비가 먼저 창문을 쾅쾅 쳐서 시선을 왼쪽으로 끈다 (해롭지 않음, 못 나온다)
-#   → 그 사이 진짜 위협은 오른쪽 난간 밑에서 올라온다
+# (차 안 좀비 낚시는 2026-10-01 시험 후 뺐다 — 낮은 폐차라 지붕 위로 머리가 튀어나와 버그처럼 보였다)
 const CAR_D := StageBuilderV2.RIVER_Z0 + 10.0         # 다리 위 차 (stage_builder_v2 _build_obstacles: x -1.4, 8도)
-const CAR_GAG_AHEAD := 17.0                           # 이만큼 앞에서부터 치기 시작
-const BANG_GAP := 0.42                                # 창문 치는 간격 (초)
+const BRIDGE_LEFT := -3.2                             # 다리 위 다른 좀비가 다니는 줄 (차 왼쪽 끝 -2.6 과 난간 -3.8 사이)
 const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
 const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
@@ -144,9 +142,7 @@ var _adren_t := 0.0                           # 아드레날린 남은 시간 (�
 var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
 var _warned_pounce := -1
 var _under_done := false
-var _car_gag: Node3D                          # 차 안 좀비 (풀에서 빌려 와 장식으로만 쓴다 — _zombies 에 넣지 않으니 잡지도 맞지도 않는다)
-var _car_gag_done := false
-var _bang_t := 0.0
+var _bridge_cleared := false
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
 const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
 const ADREN_TIME := 8.0                         # 아드레날린 시간 (5 → 8초, 2026-10-01 "좀 짧다")
@@ -593,7 +589,14 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
 		_pouncer(dist, cam_x)
 		_next_pounce += 1
-	_update_car_gag(dist, delta)
+	if not _bridge_cleared and dist >= CAR_D - 26.0:       # 다리에 들어서기 전: 다리 쪽으로 오던 좀비들을 왼쪽 줄로 비킨다
+		_bridge_cleared = true
+		for o in _zombies:
+			if o["d"] > dist and o["d"] < UNDER_D + 30.0 and o["style"] != "pounce" and o["state"] != "dead":
+				o["keep_left"] = true
+				if o["state"] != "move" and o["d"] - dist > 14.0:   # 누워 있거나 서 있는 좀비는 안개 속(멀리)에서 자리를 옮긴다
+					o["x"] = BRIDGE_LEFT + _rng.randf_range(-0.3, 0.3)
+					_place(o)
 	if not _under_done and dist >= UNDER_D - UNDER_AHEAD and dist < UNDER_D:
 		_under_done = true
 		_bridge_climber(dist, cam_x)
@@ -669,6 +672,9 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 		_:
 			_move_anim(e)
 			ap.seek(_rng.randf() * 0.8, true)             # 무리가 똑같이 걷지 않게 시작 시점을 흩뜨린다
+	if style != "pounce" and e["d"] > CAR_D - 12.0 and e["d"] < UNDER_D + 30.0 and dist < UNDER_D:
+		e["x"] = BRIDGE_LEFT + _rng.randf_range(-0.3, 0.3)   # 다리 위는 왼쪽 가장자리로 (오른쪽 난간 밑 매복이 가려지지 않게)
+		e["keep_left"] = true
 	_zombies.append(e)
 	_place(e)
 	return e
@@ -830,40 +836,6 @@ func _pouncer(dist: float, cam_x: float) -> void:
 	e["rise_t"] = 0.45
 	_sfx("sfx_zombie_scream")
 	print("[pounce] %.0fm 길목 매복 x=%.1f" % [dist, e["x"]])
-
-
-# 차 안 좀비: 운전석 쪽(오른쪽 — 내가 지나가는 쪽)에서 나를 보며 창문을 친다. 지나치면 풀로 돌려놓는다
-func _update_car_gag(dist: float, delta: float) -> void:
-	if not _car_gag_done and _car_gag == null and dist >= CAR_D - CAR_GAG_AHEAD and dist < CAR_D:
-		_car_gag = _take("walker")
-		_car_gag.position = Vector3(-0.7, -0.5, -CAR_D + 0.2)   # 앞좌석 창가 (머리·어깨·팔이 창으로 보인다)
-		var ap: AnimationPlayer = _car_gag.find_children("*", "AnimationPlayer", true, false)[0]
-		ap.get_animation("pack/p_attack").loop_mode = Animation.LOOP_LINEAR
-		ap.play("pack/p_attack")
-		ap.speed_scale = 1.5
-		_bang_t = 0.0
-		_sfx("sfx_zombie_groan")
-		print("[car] %.0fm 차 안 좀비가 창문을 친다" % dist)
-	if _car_gag == null:
-		return
-	var to_cam := _camera.global_position - _car_gag.global_position
-	_car_gag.rotation.y = atan2(-to_cam.x, -to_cam.z)     # 계속 나를 본다
-	_bang_t -= delta
-	if _bang_t <= 0.0 and dist < CAR_D + 1.0:
-		_bang_t = BANG_GAP * _rng.randf_range(0.8, 1.25)
-		_sfx("sfx_hit_obstacle")                          # 쾅
-		quake.emit(0.15, 0.18)                            # 다리가 같이 덜컥
-	if dist > CAR_D + 6.0:
-		var ap: AnimationPlayer = _car_gag.find_children("*", "AnimationPlayer", true, false)[0]
-		ap.stop()
-		ap.speed_scale = 1.0
-		_car_gag.visible = false
-		_car_gag.position = Vector3(0, -50, 0)
-		if not _pool.has("walker"):
-			_pool["walker"] = []
-		_pool["walker"].append(_car_gag)
-		_car_gag = null
-		_car_gag_done = true
 
 
 # 다리 밑 매복: 오른쪽 난간 밖 강 위에 매달려 있다가(머리·팔만 보인다) 기어올라 덮친다
@@ -1141,6 +1113,11 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						_move_anim(e)
 				if ahead > e.get("lock", HOMING_LOCK) or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
 					var target := Vector2(cam_x, dist)
+					if e.has("keep_left"):                     # 다리 위: 오른쪽 틈을 비워 두고 왼쪽 가장자리로만 온다 (매복을 지나면 풀린다)
+						if dist < UNDER_D + 2.0:
+							target.x = BRIDGE_LEFT
+						else:
+							e.erase("keep_left")
 					var here := Vector2(e["x"], e["d"])
 					if e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
 						target = _intercept(here, target, spd)
