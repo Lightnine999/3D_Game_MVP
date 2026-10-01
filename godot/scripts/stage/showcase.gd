@@ -96,6 +96,7 @@ const CAR_D := StageBuilderV2.RIVER_Z0 + 10.0         # 다리 위 차 (stage_bu
 #   "다리 들어서는 왼쪽에 한 마리 더 · 차 뒤 셋 중 하나 빼" → 다리 입구 왼쪽 서 있다 다가오는 하나 추가, 차 뒤는 둘 (멀리서 오던 일반 좀비는 치운다)
 const BRIDGE_LEFT_CROWD := [["walker", "jog", -13.0, -5.6], ["runner", "jog", -8.0, 5.2],
 	["ambusher", "idle", -8.0, -2.6], ["ambusher", "crawl", 6.0, -1.6], ["walker", "jog", 14.0, -2.9]]   # 차 뒤에는 이 둘만
+const CUT_MISS := 1.1                                 # 다리 입구 그 좀비가 내 줄에서 비껴 드는 폭 (m) — 스치면 어깨빵, 잡히지는 않는다
 const CAR_BLOCK := 1.5                                # 다리 위 좀비는 차 중심에서 이만큼 뒤에서 멈춘다 (차 폭 절반 + 여유)
 const BRIDGE_LANES := [-3.2, -0.8]                   # 다리 위 다른 좀비가 다니는 줄의 범위 (왼쪽 난간 ~ 차 오른쪽 끝 앞) — 오른쪽 틈은 비운다
 const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
@@ -227,8 +228,8 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
 	for w in _plan:                                     # 다리 위는 비운다 → 다리 밑 매복이 또렷이 보이게 (그 수만큼 다리 건너편으로 옮긴다, 총 마릿수는 그대로)
-		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 24.0:   # (+26 → +40: 옮긴 좀비가 내가 차를 지나기 전에 차 뒤로 몰려오지 않게)
-			w[0] += 40.0
+		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 34.0:   # (+26 → +40: 옮긴 좀비가 내가 차를 지나기 전에 차 뒤로 몰려오지 않게)
+			w[0] += _rng.randf_range(40.0, 75.0)            # 한 덩어리로 몰려오지 않게 흩어 놓는다 ("똑같은 셋이 패턴처럼 뛰어온다")
 	_plan.sort_custom(func(p, q): return p[0] < q[0])
 	_prewarm()
 	_build_zombie_light(camera)
@@ -699,7 +700,7 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 		_:
 			_move_anim(e)
 			ap.seek(_rng.randf() * 0.8, true)             # 무리가 똑같이 걷지 않게 시작 시점을 흩뜨린다
-	if style != "pounce" and e["d"] > CAR_D - 12.0 and e["d"] < UNDER_D + 30.0 and dist < UNDER_D:
+	if style != "pounce" and e["d"] > CAR_D - 12.0 and e["d"] < UNDER_D + 12.0 and dist < UNDER_D:
 		e["lane_x"] = _bridge_lane()                      # 다리 위는 왼쪽 절반에서 저마다 다른 줄로 (오른쪽 난간 밑 매복이 가려지지 않게)
 		e["x"] = e["lane_x"]
 	_zombies.append(e)
@@ -1151,7 +1152,7 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 							e.erase("lane_x")
 					var here := Vector2(e["x"], e["d"])
 					if e.has("cut_in"):                        # 다리 입구 그 좀비: 내 줄로 옆걸음질쳐 들어와 앞을 막는다 (앞으로는 조금만)
-						target = Vector2(cam_x, e["d"] - 1.2)
+						target = Vector2(cam_x - CUT_MISS, e["d"] - 1.2)   # 내 줄 바로 옆을 노린다 → 가만히 달려도 어깨를 스치며 비껴간다 (길을 다 막지 않게)
 					elif e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
 						target = _intercept(here, target, spd)
 					e["dir"] = (target - here).normalized()
@@ -1164,7 +1165,8 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						e["blocked"] = true
 						if ap.has_animation("grab"):
 							ap.play("grab", 0.2)
-							ap.speed_scale = 0.9
+							ap.seek(_rng.randf() * 1.0, true)
+							ap.speed_scale = _rng.randf_range(0.7, 1.15)   # 저마다 다른 박자로 버둥
 				_place(e)
 				ahead = e["d"] - dist
 				var big: bool = e["kind"] == "tank"
