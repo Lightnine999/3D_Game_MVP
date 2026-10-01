@@ -257,9 +257,11 @@ func _build_hud(holder: Node) -> void:
 	var w := 1560.0
 	# HUD (2026-09-30 "인투더데드2 처럼 깔끔한 흰색"): 어두운 상자 없이 흰색만. 가운데 위 = 장전된 총알 줄 | 예비탄,
 	# 그 아래 = 권총·칼 흰 실루엣. 왼쪽 위 = 남은 거리(m) + 바로 아래 진행 실선. 굵고 좁은 글꼴 하나로 통일
-	var heavy := SystemFont.new()
-	heavy.font_names = PackedStringArray(["Impact", "Arial Narrow", "Arial Black", "Roboto Condensed", "sans-serif"])
-	heavy.font_weight = 800
+	var heavy: Font = load("res://assets/fonts/Anton-Regular.ttf")   # Impact 같은 굵고 좁은 글꼴을 게임에 넣어 둔다 (OFL, assets/fonts — 폰에는 Impact 가 없어 다르게 나왔다)
+	var heavy_sys := SystemFont.new()                     # Anton 에 없는 글자는 기기 글꼴로
+	heavy_sys.font_names = PackedStringArray(["Impact", "Arial Black", "Apple SD Gothic Neo", "Noto Sans CJK KR", "sans-serif"])
+	heavy_sys.font_weight = 800
+	heavy.fallbacks = [heavy_sys]
 	_hud_bullets = Control.new()                       # 총알 줄 (쏠 때마다 하나씩 사라진다 — _draw_bullets)
 	_hud_bullets.position = Vector2(w / 2 - 300, HUD_TOP)   # 2026-10-01: 조금 내리고(22 → 48) 크게(×1.2), 총알 줄 + 예비탄 묶음을 화면 가운데로 (_refresh_ammo)
 	_hud_bullets.size = Vector2(600, 54)

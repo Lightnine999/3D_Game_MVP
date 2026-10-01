@@ -29,9 +29,7 @@ var _info: Label
 
 func _ready() -> void:
 	layer = 6
-	var f := SystemFont.new()
-	f.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Palatino", "Baskerville", "Times New Roman", "Noto Serif", "serif"])
-	_roman = f
+	_roman = load("res://assets/fonts/Cinzel-Variable.ttf")   # 게임에 넣어 둔 로마자 글꼴 (OFL, assets/fonts)
 	_gothic = _sys_gothic(700)
 	_gothic_m = _sys_gothic(500)
 	_build_edges()

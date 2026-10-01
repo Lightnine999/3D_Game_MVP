@@ -647,9 +647,11 @@ func _build_overlay(holder: Node) -> void:
 	layer.add_child(_fade)
 	# YOU DIED (2026-09-30 "다크소울처럼"): 화면을 다 끄지 않고, 가운데 가로 검은 띠 위에 짙은 핏빛 로마식 세리프 대문자.
 	# 천천히 나타나며 아주 조금 커진다. RETRY·사망 횟수도 같은 글꼴 (폰은 기기 세리프 글꼴로 대체)
-	var roman := SystemFont.new()
-	roman.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Palatino", "Baskerville", "Times New Roman", "Noto Serif", "serif"])
-	roman.font_weight = 400
+	# 글꼴은 게임에 넣어 둔 Cinzel (OFL, assets/fonts) — 기기 글꼴을 빌리면 폰에서 고딕으로 바뀌었다 (2026-10-01)
+	var roman: Font = load("res://assets/fonts/Cinzel-Variable.ttf")
+	var roman_sys := SystemFont.new()                     # Cinzel 에 없는 글자(한글 등)는 기기 글꼴로
+	roman_sys.font_names = PackedStringArray(["Palatino", "Noto Serif", "serif", "Apple SD Gothic Neo", "Noto Sans CJK KR", "sans-serif"])
+	roman.fallbacks = [roman_sys]
 	var died_font := FontVariation.new()
 	died_font.base_font = roman
 	died_font.spacing_glyph = 14                          # 넓은 자간
