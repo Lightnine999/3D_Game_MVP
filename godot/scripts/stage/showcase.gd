@@ -166,7 +166,8 @@ var auto_fire := true                         # 영상·통과 검사: 가까이
 var live_audio := false                       # 플레이 테스트: 소리를 실제로 낸다 (영상은 events.json 으로 나중에 입힌다)
 const SFX_DB := -7.94                         # 효과음: 절반(-6dB) → 거기서 20% 더 줄임(×0.8 = -1.94dB) (2026-09-30 "아직 크다")
 const BGM_DB := -13.94                        # 배경음도 같은 비율로 (-12 → -13.94)
-const SFX_TRIM := {"sfx_pistol_dry": -6.02}       # 소리별 추가 조정 (dB): 총소리만 절반 더 (×0.5 = -6.02dB, 2026-09-30 "총소리가 크다")
+const SFX_TRIM := {"sfx_pistol_dry": -6.02, "sfx_glock_shot": -4.0, "sfx_glock_reload": 4.0}   # 소리별 추가 조정 (dB): 총소리만 절반 더 (×0.5 = -6.02dB, 2026-09-30 "총소리가 크다") · 글록 총성·재장전 (2026-10-01)
+const WAV_SFX := ["sfx_glock_shot", "sfx_glock_reload"]   # .ogg 가 아니라 .wav 인 효과음 (Pixabay 원본을 잘라 다듬은 것, ASSETS_LICENSE 사운드)
 const FIRE_RANGE := 15.0                      # 직접 쏠 때 닿는 거리 (30 → 15m, 2026-09-30 "사정거리가 너무 길다" — 멀리서 다 쏘지 말고 피하게)
 const AIM_WIDTH := 0.9                        # 화면 가운데 조준선에서 옆으로 이만큼(+거리 × 0.06) 안에 있으면 맞는다
 var _builder: StageBuilderV2
@@ -543,7 +544,7 @@ func reload() -> void:
 	_refresh_ammo()
 	_vm.speed = VM_RELOAD_LEN / _reload_total            # 탄창 빼기·끼우기·슬라이드가 재장전 시간 동안 이어지게
 	_vm.reload()
-	_sfx("sfx_ui_click")                                 # 탄창 빼는 소리
+	_sfx("sfx_glock_reload")                             # 글록 재장전: 탄창 빼기 → 끼우기 → 슬라이드 (재장전 시간에 맞춰 1.66초로 줄임, 2026-10-01)
 	print("[reload] 시작 %.1f초 (탄창 %d / 예비 %d)" % [_reload_total, _mag, _reserve])
 
 
@@ -558,7 +559,6 @@ func _update_reload(delta: float) -> void:
 		var take := mini(_mag_cap - _mag, _reserve)
 		_mag += take
 		_reserve -= take
-		_sfx("sfx_empty_click")                          # 슬라이드 당기는 소리
 		_refresh_ammo()
 		print("[reload] 끝 → 탄창 %d / 예비 %d" % [_mag, _reserve])
 
@@ -796,8 +796,8 @@ func _prewarm() -> void:
 	var crate: Node3D = load("res://assets/models/prop_supply_crate.glb").instantiate()
 	_warm.add_child(crate)
 	CardFX.muzzle(_warm)
-	for n in ["sfx_pistol_dry", "sfx_zombie_scream", "sfx_zombie_groan", "sfx_bite", "sfx_knife", "sfx_supply_pickup", "sfx_empty_click", "sfx_ui_click", "sfx_hit_obstacle"]:
-		load("res://assets/audio/%s.ogg" % n)
+	for n in ["sfx_glock_shot", "sfx_glock_reload", "sfx_zombie_scream", "sfx_zombie_groan", "sfx_bite", "sfx_knife", "sfx_supply_pickup", "sfx_empty_click", "sfx_ui_click", "sfx_hit_obstacle"]:
+		load(_sfx_path(n))
 
 
 # 앞질러 달려들 자리: 나(초속 RUN_SPEED 로 앞으로)와 속도 spd 인 좀비가 만나는 곳
@@ -1340,12 +1340,16 @@ func fire() -> void:
 	_shoot(best)
 
 
+func _sfx_path(name: String) -> String:
+	return "res://assets/audio/%s.%s" % [name, "wav" if name in WAV_SFX else "ogg"]
+
+
 func _sfx(name: String, pitch := 1.0) -> void:
 	events.append([_time, name])
 	if not live_audio:
 		return
 	var p := AudioStreamPlayer.new()
-	p.stream = load("res://assets/audio/%s.ogg" % name)
+	p.stream = load(_sfx_path(name))
 	p.volume_db = SFX_DB + SFX_TRIM.get(name, 0.0)
 	p.pitch_scale = pitch
 	if AudioServer.get_bus_index("SFX") >= 0:
@@ -1374,7 +1378,7 @@ func _shoot(e: Dictionary) -> void:
 	if not INFINITE_AMMO and _frenzy_t <= 0.0:
 		_mag -= 1
 	_refresh_ammo()
-	_sfx("sfx_pistol_dry")
+	_sfx("sfx_glock_shot")                               # 글록 19 총성 (2026-10-01 "총소리가 맘에 안 든다")
 	CardFX.muzzle(_vm.muzzle)                            # 총구 불꽃 카드 (scenes/fx/card_fx.gd) — 손 달린 권총의 총구 (make_pistol.py)
 	_vm.fire()                                           # 반동 + 슬라이드가 뒤로
 	if e.is_empty():
