@@ -144,6 +144,11 @@ cd ~/3D_Game_MVP/godot && for m in "" "--straight" "--into" "--wiggle" "--showca
 
 ---
 
+## 4. 참고 — 이 브랜치 이전에 main 에 들어간 것 (전부 머지됨)
+- #11 750m 스테이지 / #13 팀원 동작 연결·다크소울 난이도·반전·YOU DIED·권총 텍스처 / #12 타이틀·로그인 화면 시안(세권) / #14 팩 카드 3장 / #7 백엔드(C)
+- `godot/project.godot` 은 main 값(`stage_preview.tscn`, 1920×1080)으로 되돌려 둠 (Codex 가 바꿨던 것). Codex 백업: 없음 — 필요하면 Codex 세션 기록 참고.
+- 같은 저장소를 Codex 도 만진다 → 커밋 안 된 낯선 변경은 출처부터 확인.
+
 ## 5. 상품점 연동 (백엔드 C 님께, 2026-10-01)
 
 계획: 백엔드에서 상품점 페이지를 따로 만든다. 아래 팩 카드 그림을 보여 주고, 카드를 누르면 토스 테스트 결제로 들어간다.
@@ -192,8 +197,3 @@ cd ~/3D_Game_MVP/godot && for m in "" "--straight" "--into" "--wiggle" "--showca
 1. 서버 상품 목록 (가격 정본)
 2. 게임 `godot/scripts/stage/inventory.gd` 의 `PACKS`
 3. 카드 그림 `art/shop/make_packs.py` → `python3 art/shop/make_packs.py` 로 다시 만들기
-
-## 4. 참고 — 이 브랜치 이전에 main 에 들어간 것 (전부 머지됨)
-- #11 750m 스테이지 / #13 팀원 동작 연결·다크소울 난이도·반전·YOU DIED·권총 텍스처 / #12 타이틀·로그인 화면 시안(세권) / #14 팩 카드 3장 / #7 백엔드(C)
-- `godot/project.godot` 은 main 값(`stage_preview.tscn`, 1920×1080)으로 되돌려 둠 (Codex 가 바꿨던 것). Codex 백업: 없음 — 필요하면 Codex 세션 기록 참고.
-- 같은 저장소를 Codex 도 만진다 → 커밋 안 된 낯선 변경은 출처부터 확인.
