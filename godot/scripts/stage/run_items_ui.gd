@@ -36,71 +36,200 @@ func _ready() -> void:
 
 
 # ── ① 출발 준비 ──────────────────────────────────────────────
+# 2차 디자인 (2026-10-01 "켜는 버튼이 너무 작고 심플하다"): 아이템마다 큰 카드 한 줄 (줄 전체를 누른다)
+#   왼쪽 아이콘 · 이름·설명 · 수량 · 오른쪽 큰 스위치(켜면 핏빛 "가져감"). 켠 카드는 붉은 테두리, 없는 아이템은 흐리게 "없음"
+const CARD_BG := Color8(24, 20, 22)
+const CARD_ON := Color8(44, 18, 18)
+const CARD_LINE := Color8(70, 56, 52)
+const ON_RED := Color8(184, 26, 22)
+
+
 func open_loadout() -> void:
 	_panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.03, 0.025, 0.03, 0.9)
-	sb.border_color = Color8(90, 20, 18)
+	sb.bg_color = Color(0.035, 0.028, 0.032, 0.94)
+	sb.border_color = Color8(110, 26, 22)
 	sb.set_border_width_all(2)
-	sb.set_content_margin_all(40)
+	sb.set_corner_radius_all(6)
+	sb.set_content_margin_all(36)
+	sb.shadow_color = Color(0, 0, 0, 0.6)
+	sb.shadow_size = 24
 	_panel.add_theme_stylebox_override("panel", sb)
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
 	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(_panel)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
-	v.custom_minimum_size = Vector2(760, 0)
+	v.add_theme_constant_override("separation", 12)
+	v.custom_minimum_size = Vector2(820, 0)
 	_panel.add_child(v)
-	v.add_child(_label("출발 준비", 56, BONE, _roman, true))
-	v.add_child(_label("이번 판에 가지고 갈 것을 고르세요 — 가져가면 1개씩 줄어듭니다", 20, DIM))
+	v.add_child(_label("출발 준비", 58, BONE, _roman, true))
+	var rule := ColorRect.new()                           # 제목 아래 가는 핏빛 줄
+	rule.color = Color8(120, 24, 20)
+	rule.custom_minimum_size = Vector2(0, 2)
+	v.add_child(rule)
+	v.add_child(_label("이번 판에 가져갈 아이템을 눌러 켜세요 · 가져가면 1개씩 줄어듭니다", 20, DIM, null, true))
 	for item in START_ITEMS:
-		var row := HBoxContainer.new()
-		var c := CheckButton.new()
-		c.text = "  " + Inventory.item_name(item) + "  —  " + _desc(item)
-		c.add_theme_font_size_override("font_size", 26)
-		c.add_theme_color_override("font_color", BONE)
-		c.add_theme_color_override("font_disabled_color", DIM)
-		c.focus_mode = Control.FOCUS_NONE
-		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(c)
+		var card := Button.new()
+		card.toggle_mode = true
+		card.focus_mode = Control.FOCUS_NONE
+		card.custom_minimum_size = Vector2(0, 92)
+		card.add_theme_stylebox_override("normal", _card_style(CARD_BG, CARD_LINE, 1))
+		card.add_theme_stylebox_override("hover", _card_style(Color8(32, 26, 28), Color8(120, 96, 84), 1))
+		card.add_theme_stylebox_override("pressed", _card_style(CARD_ON, ON_RED, 3))
+		card.add_theme_stylebox_override("hover_pressed", _card_style(Color8(54, 20, 20), Color8(220, 40, 32), 3))
+		card.add_theme_stylebox_override("disabled", _card_style(Color8(18, 16, 17), Color8(40, 36, 36), 1))
+		card.draw.connect(_draw_card.bind(card, item))
+		card.toggled.connect(func(_on): card.queue_redraw())
+		var name := _label(Inventory.item_name(item), 30, BONE)
+		name.position = Vector2(104, 14)
+		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(name)
+		var desc := _label(_desc(item), 20, DIM)
+		desc.position = Vector2(106, 54)
+		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(desc)
 		var n := _label("", 26, GOLD)
-		row.add_child(n)
-		v.add_child(row)
-		_checks[item] = c
+		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		n.anchor_left = 1.0
+		n.anchor_right = 1.0
+		n.offset_left = -270
+		n.offset_right = -160
+		n.offset_top = 28
+		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		card.add_child(n)
+		v.add_child(card)
+		_checks[item] = card
 		_counts[item] = n
-	_info = _label("", 20, DIM)
-	_info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_info = Label.new()                                   # (예전 안내 줄 — 이제 아래 키캡 줄이 대신한다)
+	_info.visible = false
 	v.add_child(_info)
+	var keys := Control.new()                             # 달리는 중 키 안내: [1] 광란의 10초 ×N  [2] 보급 신호탄 ×N   YOU DIED: 부활 ×N
+	keys.custom_minimum_size = Vector2(0, 46)
+	keys.draw.connect(_draw_keys.bind(keys))
+	v.add_child(keys)
+	_keys = keys
 	var go := Button.new()
 	go.text = "출발"
 	go.add_theme_font_override("font", _roman)
-	go.add_theme_font_size_override("font_size", 40)
+	go.add_theme_font_size_override("font_size", 44)
 	go.add_theme_color_override("font_color", BONE)
 	go.add_theme_color_override("font_hover_color", Color.WHITE)
-	var gs := StyleBoxFlat.new()
-	gs.bg_color = Color8(150, 18, 16)
-	gs.set_content_margin_all(14)
-	go.add_theme_stylebox_override("normal", gs)
-	var gh := gs.duplicate() as StyleBoxFlat
-	gh.bg_color = Color8(190, 28, 22)
-	go.add_theme_stylebox_override("hover", gh)
-	go.add_theme_stylebox_override("focus", gh)
+	go.add_theme_color_override("font_focus_color", Color.WHITE)
+	go.add_theme_stylebox_override("normal", _card_style(Color8(150, 18, 16), Color8(200, 40, 30), 2))
+	go.add_theme_stylebox_override("hover", _card_style(Color8(186, 26, 20), Color8(240, 80, 60), 2))
+	go.add_theme_stylebox_override("focus", _card_style(Color8(186, 26, 20), Color8(240, 80, 60), 2))
+	go.add_theme_stylebox_override("pressed", _card_style(Color8(120, 14, 12), Color8(200, 40, 30), 2))
+	go.custom_minimum_size = Vector2(0, 78)
 	go.pressed.connect(_go)
 	v.add_child(go)
 	var test := HBoxContainer.new()                        # 결제 연결 전 테스트 지급 (PRD 4.15 테스트 모드)
+	test.alignment = BoxContainer.ALIGNMENT_CENTER
 	test.add_theme_constant_override("separation", 10)
-	test.add_child(_label("[테스트 지급]", 18, DIM))
+	test.add_child(_label("테스트 지급", 18, DIM))
 	for pack in Inventory.PACKS:
 		var b := Button.new()
-		b.text = Inventory.PACKS[pack]["name"]
+		b.text = "+ " + Inventory.PACKS[pack]["name"]
 		b.add_theme_font_size_override("font_size", 18)
+		b.add_theme_color_override("font_color", Color8(190, 176, 150))
+		b.add_theme_color_override("font_hover_color", GOLD)
+		b.add_theme_stylebox_override("normal", _card_style(Color(0, 0, 0, 0), Color8(80, 70, 60), 1, 8))
+		b.add_theme_stylebox_override("hover", _card_style(Color8(30, 26, 22), GOLD, 1, 8))
+		b.add_theme_stylebox_override("pressed", _card_style(Color8(40, 34, 26), GOLD, 1, 8))
 		b.focus_mode = Control.FOCUS_NONE
 		b.pressed.connect(func(): Inventory.grant_pack(pack); _refresh())
 		test.add_child(b)
 	v.add_child(test)
 	_refresh()
 	go.grab_focus()
+
+
+var _keys: Control
+
+
+func _card_style(bg: Color, line: Color, w: int, pad := 0) -> StyleBoxFlat:
+	var st := StyleBoxFlat.new()
+	st.bg_color = bg
+	st.border_color = line
+	st.set_border_width_all(w)
+	st.set_corner_radius_all(6)
+	if pad > 0:
+		st.content_margin_left = pad * 2
+		st.content_margin_right = pad * 2
+		st.content_margin_top = pad
+		st.content_margin_bottom = pad
+	return st
+
+
+# 카드 그림: 왼쪽 아이콘 + 오른쪽 큰 스위치
+func _draw_card(card: Button, item: String) -> void:
+	var h := card.size.y
+	var on := card.button_pressed
+	var off := card.disabled
+	var ic := (ON_RED if on else (Color8(70, 64, 60) if off else BONE))
+	var box := Rect2(Vector2(22, h * 0.5 - 30), Vector2(60, 60))   # 아이콘 칸
+	card.draw_rect(box, Color8(14, 12, 13))
+	card.draw_rect(box, (ON_RED if on else CARD_LINE), false, 2.0)
+	_draw_icon(card, item, box.get_center(), ic)
+	var sw := Vector2(96, 44)                             # 스위치
+	var p := Vector2(card.size.x - sw.x - 28, h * 0.5 - sw.y * 0.5)
+	var track := (ON_RED if on else Color8(52, 46, 46))
+	if off:
+		track = Color8(32, 30, 30)
+	card.draw_style_box(_pill(track), Rect2(p, sw))
+	var knob_x := p.x + (sw.x - 24.0 if on else 24.0)
+	card.draw_circle(Vector2(knob_x, p.y + sw.y * 0.5), 17.0, (Color8(250, 238, 222) if on else (Color8(70, 64, 60) if off else Color8(150, 140, 128))))
+	var word := ("가져감" if on else ("없음" if off else "두고 감"))
+	var f := card.get_theme_default_font()
+	card.draw_string(f, Vector2(p.x - 110, h * 0.5 + 34), word, HORIZONTAL_ALIGNMENT_RIGHT, 100, 16, (ON_RED if on else DIM))
+
+
+func _pill(c: Color) -> StyleBoxFlat:
+	var st := StyleBoxFlat.new()
+	st.bg_color = c
+	st.set_corner_radius_all(22)
+	return st
+
+
+# 아이콘 (선·면만으로 그린다 — 외부 그림 없음)
+func _draw_icon(c: Control, item: String, o: Vector2, col: Color) -> void:
+	match item:
+		"knife_plus":                                      # 칼: 날 + 손잡이
+			c.draw_colored_polygon(PackedVector2Array([o + Vector2(-4, -20), o + Vector2(6, -6), o + Vector2(4, 8), o + Vector2(-4, 8)]), col)
+			c.draw_rect(Rect2(o + Vector2(-9, 8), Vector2(18, 4)), col)
+			c.draw_rect(Rect2(o + Vector2(-4, 12), Vector2(8, 12)), col)
+		"ammo_start_pack":                                 # 총알 세 개
+			for i in 3:
+				var x := -14.0 + i * 11.0
+				c.draw_circle(o + Vector2(x + 4, -8), 4.0, col)
+				c.draw_rect(Rect2(o + Vector2(x, -8), Vector2(8, 26)), col)
+		"bonfire":                                         # 불꽃 + 장작
+			c.draw_colored_polygon(PackedVector2Array([o + Vector2(0, -22), o + Vector2(12, -2), o + Vector2(8, 10), o + Vector2(-8, 10), o + Vector2(-12, -2), o + Vector2(-4, -8)]), col)
+			c.draw_line(o + Vector2(-16, 18), o + Vector2(16, 12), col, 4.0)
+			c.draw_line(o + Vector2(-16, 12), o + Vector2(16, 18), col, 4.0)
+		"danger_sense":                                    # 눈
+			var pts := PackedVector2Array()
+			for k in 24:
+				var a := TAU * k / 24.0
+				pts.append(o + Vector2(cos(a) * 22.0, sin(a) * 11.0))
+			c.draw_polyline(pts + PackedVector2Array([pts[0]]), col, 3.0)
+			c.draw_circle(o, 7.0, col)
+
+
+# 키캡 안내 줄
+func _draw_keys(c: Control) -> void:
+	var f := c.get_theme_default_font()
+	var x := 6.0
+	var y := c.size.y * 0.5
+	for pair in [["1", "광란의 10초", Inventory.count("frenzy_30")], ["2", "보급 신호탄", Inventory.count("flare_supply")]]:
+		var r := Rect2(Vector2(x, y - 16), Vector2(32, 32))
+		c.draw_style_box(_card_style(Color8(36, 32, 32), Color8(150, 138, 124), 1), r)
+		c.draw_string(f, Vector2(x, y + 7), pair[0], HORIZONTAL_ALIGNMENT_CENTER, 32, 20, BONE)
+		var t := "%s ×%d" % [pair[1], pair[2]]
+		c.draw_string(f, Vector2(x + 42, y + 7), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, (BONE if pair[2] > 0 else DIM))
+		x += 42 + f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 28
+	var t2 := "달리는 중에 누르기   ·   YOU DIED 화면  부활 ×%d" % Inventory.count("revive")
+	c.draw_string(f, Vector2(x, y + 7), t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, DIM)
 
 
 func _desc(item: String) -> String:
@@ -114,8 +243,10 @@ func _refresh() -> void:
 		_checks[item].disabled = n <= 0
 		if n <= 0:
 			_checks[item].button_pressed = false
-	_info.text = "달리는 중:  1 광란의 10초 ×%d   ·   2 보급 신호탄 ×%d          YOU DIED 화면:  부활 ×%d" % [
-		Inventory.count("frenzy_30"), Inventory.count("flare_supply"), Inventory.count("revive")]
+	if _keys:
+		_keys.queue_redraw()
+	for item in _checks:
+		_checks[item].queue_redraw()
 	refresh_slots({})
 
 
