@@ -90,6 +90,10 @@ const UNDER_AHEAD := 9.0                              # 이만큼 앞에 왔을 
 const UNDER_HANG := 0.75                              # 매달려 기어오르는 시간 (경고 시간)
 # (차 안 좀비 낚시는 2026-10-01 시험 후 뺐다 — 낮은 폐차라 지붕 위로 머리가 튀어나와 버그처럼 보였다)
 const CAR_D := StageBuilderV2.RIVER_Z0 + 10.0         # 다리 위 차 (stage_builder_v2 _build_obstacles: x -1.4, 8도)
+# 다리 입구 왼쪽 무리 (2026-10-01 "왼쪽이 너무 비어 보인다"): [종류, 스타일, 차 기준 거리(+앞), x]
+#   11마리 → "너무 많다, 2/3 덜어내" → 4마리 (강가 둘 · 다리 위 왼쪽 줄 둘)
+const BRIDGE_LEFT_CROWD := [["walker", "shamble", -13.0, -5.5], ["walker", "feed", -3.0, -5.2],
+	["ambusher", "crawl", 6.0, -3.2], ["walker", "shamble", 14.0, -3.4]]
 const BRIDGE_LEFT := -3.2                             # 다리 위 다른 좀비가 다니는 줄 (차 왼쪽 끝 -2.6 과 난간 -3.8 사이)
 const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
 const POUNCE_LOCK := 4.0
@@ -143,6 +147,7 @@ var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부
 var _warned_pounce := -1
 var _under_done := false
 var _bridge_cleared := false
+var _bridge_crowd := false
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
 const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
 const ADREN_TIME := 8.0                         # 아드레날린 시간 (5 → 8초, 2026-10-01 "좀 짧다")
@@ -589,6 +594,12 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
 		_pouncer(dist, cam_x)
 		_next_pounce += 1
+	if not _bridge_crowd and dist >= CAR_D - 48.0:          # 왼쪽이 비어 보이지 않게: 다리 입구 왼쪽 강가 + 다리 위 왼쪽 줄에 몇 마리 더 (멀리 안개 속에서 나타난다, 오른쪽 틈으로는 안 온다)
+		_bridge_crowd = true
+		for g in BRIDGE_LEFT_CROWD:
+			var e := _spawn(g[0], g[1], CAR_D + g[2] - dist, g[3] + _rng.randf_range(-0.3, 0.3), dist, cam_x)
+			e["keep_left"] = true
+		print("[bridge] %.0fm 다리 왼쪽 무리 %d마리" % [dist, BRIDGE_LEFT_CROWD.size()])
 	if not _bridge_cleared and dist >= CAR_D - 26.0:       # 다리에 들어서기 전: 다리 쪽으로 오던 좀비들을 왼쪽 줄로 비킨다
 		_bridge_cleared = true
 		for o in _zombies:
