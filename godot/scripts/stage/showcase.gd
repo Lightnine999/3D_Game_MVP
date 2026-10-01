@@ -91,10 +91,12 @@ const UNDER_HANG := 0.75                              # 매달려 기어오르�
 # (차 안 좀비 낚시는 2026-10-01 시험 후 뺐다 — 낮은 폐차라 지붕 위로 머리가 튀어나와 버그처럼 보였다)
 const CAR_D := StageBuilderV2.RIVER_Z0 + 10.0         # 다리 위 차 (stage_builder_v2 _build_obstacles: x -1.4, 8도)
 # 다리 입구 왼쪽 무리 (2026-10-01 "왼쪽이 너무 비어 보인다"): [종류, 스타일, 차 기준 거리(+앞), x]
-#   11마리 → "너무 많다, 2/3 덜어내" → 4마리 (강가 둘 · 다리 위 왼쪽 줄 둘)
-const BRIDGE_LEFT_CROWD := [["walker", "shamble", -13.0, -5.5], ["walker", "feed", -3.0, -5.2],
-	["ambusher", "crawl", 6.0, -3.2], ["walker", "shamble", 14.0, -3.4]]
-const BRIDGE_LEFT := -3.2                             # 다리 위 다른 좀비가 다니는 줄 (차 왼쪽 끝 -2.6 과 난간 -3.8 사이)
+#   11마리 → "너무 많다, 2/3 덜어내" → 4마리. "가운데 몰리지 말고 좌우로 퍼지게 · 경찰 좀비(워커)가 멍청해 보인다"
+#   → 강가는 좌우 양쪽에 · 각자 자기 줄(x)을 지키며 다가온다 · 워커는 어슬렁·뜯어먹기 대신 팔 뻗고 뛰어온다
+const BRIDGE_LEFT_CROWD := [["walker", "jog", -13.0, -5.6], ["runner", "jog", -8.0, 5.2],
+	["ambusher", "crawl", 6.0, -1.6], ["walker", "jog", 14.0, -2.9]]
+const CAR_BLOCK := 1.5                                # 다리 위 좀비는 차 중심에서 이만큼 뒤에서 멈춘다 (차 폭 절반 + 여유)
+const BRIDGE_LANES := [-3.2, -0.8]                   # 다리 위 다른 좀비가 다니는 줄의 범위 (왼쪽 난간 ~ 차 오른쪽 끝 앞) — 오른쪽 틈은 비운다
 const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
 const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
@@ -598,15 +600,17 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 		_bridge_crowd = true
 		for g in BRIDGE_LEFT_CROWD:
 			var e := _spawn(g[0], g[1], CAR_D + g[2] - dist, g[3] + _rng.randf_range(-0.3, 0.3), dist, cam_x)
-			e["keep_left"] = true
+			e["lane_x"] = e["x"]
 		print("[bridge] %.0fm 다리 왼쪽 무리 %d마리" % [dist, BRIDGE_LEFT_CROWD.size()])
 	if not _bridge_cleared and dist >= CAR_D - 26.0:       # 다리에 들어서기 전: 다리 쪽으로 오던 좀비들을 왼쪽 줄로 비킨다
 		_bridge_cleared = true
 		for o in _zombies:
 			if o["d"] > dist and o["d"] < UNDER_D + 30.0 and o["style"] != "pounce" and o["state"] != "dead":
-				o["keep_left"] = true
+				if o.has("lane_x"):
+					continue
+				o["lane_x"] = _bridge_lane()
 				if o["state"] != "move" and o["d"] - dist > 14.0:   # 누워 있거나 서 있는 좀비는 안개 속(멀리)에서 자리를 옮긴다
-					o["x"] = BRIDGE_LEFT + _rng.randf_range(-0.3, 0.3)
+					o["x"] = o["lane_x"]
 					_place(o)
 	if not _under_done and dist >= UNDER_D - UNDER_AHEAD and dist < UNDER_D:
 		_under_done = true
@@ -652,7 +656,7 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 		if ap.has_animation(n):
 			ap.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 	if is_nan(x):
-		x = clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5)   # 달리는 폭 ±8m 안
+		x = _rng.randf_range(-6.5, 6.5)                  # 달리는 폭 ±8m 안 어디서나 (2026-10-01 "가운데 몰려 보인다" — 예전엔 내 자리 ±4m)
 		if style == "sprint":
 			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(11.0, 14.0)   # 옆에서 대각선으로 (F-41)
 	var e := {"node": z, "ap": ap, "kind": kind, "style": style, "hp": HP[kind], "state": "move", "x": x, "d": dist + ahead, "t": 0.0,
@@ -684,8 +688,8 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 			_move_anim(e)
 			ap.seek(_rng.randf() * 0.8, true)             # 무리가 똑같이 걷지 않게 시작 시점을 흩뜨린다
 	if style != "pounce" and e["d"] > CAR_D - 12.0 and e["d"] < UNDER_D + 30.0 and dist < UNDER_D:
-		e["x"] = BRIDGE_LEFT + _rng.randf_range(-0.3, 0.3)   # 다리 위는 왼쪽 가장자리로 (오른쪽 난간 밑 매복이 가려지지 않게)
-		e["keep_left"] = true
+		e["lane_x"] = _bridge_lane()                      # 다리 위는 왼쪽 절반에서 저마다 다른 줄로 (오른쪽 난간 밑 매복이 가려지지 않게)
+		e["x"] = e["lane_x"]
 	_zombies.append(e)
 	_place(e)
 	return e
@@ -847,6 +851,10 @@ func _pouncer(dist: float, cam_x: float) -> void:
 	e["rise_t"] = 0.45
 	_sfx("sfx_zombie_scream")
 	print("[pounce] %.0fm 길목 매복 x=%.1f" % [dist, e["x"]])
+
+
+func _bridge_lane() -> float:
+	return _rng.randf_range(BRIDGE_LANES[0], BRIDGE_LANES[1])
 
 
 # 다리 밑 매복: 오른쪽 난간 밖 강 위에 매달려 있다가(머리·팔만 보인다) 기어올라 덮친다
@@ -1124,11 +1132,11 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						_move_anim(e)
 				if ahead > e.get("lock", HOMING_LOCK) or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
 					var target := Vector2(cam_x, dist)
-					if e.has("keep_left"):                     # 다리 위: 오른쪽 틈을 비워 두고 왼쪽 가장자리로만 온다 (매복을 지나면 풀린다)
+					if e.has("lane_x"):                        # 다리 앞뒤: 자기 줄을 지키며 다가온다 — 오른쪽 틈을 비우고 가운데로 몰리지 않게 (매복을 지나면 풀린다)
 						if dist < UNDER_D + 2.0:
-							target.x = BRIDGE_LEFT
+							target.x = e["lane_x"]
 						else:
-							e.erase("keep_left")
+							e.erase("lane_x")
 					var here := Vector2(e["x"], e["d"])
 					if e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
 						target = _intercept(here, target, spd)
@@ -1136,6 +1144,13 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 				var step: Vector2 = e["dir"] * spd * delta
 				e["x"] += step.x
 				e["d"] += step.y
+				if e.has("lane_x") and e["d"] < CAR_D + CAR_BLOCK and e["d"] > CAR_D - 2.0 and e["x"] < 1.0:
+					e["d"] = CAR_D + CAR_BLOCK                 # 다리 위 차에 막힌다 (차를 뚫고 지나가지 않게): 차 뒤에서 팔을 뻗고 버둥거린다
+					if not e.has("blocked"):
+						e["blocked"] = true
+						if ap.has_animation("grab"):
+							ap.play("grab", 0.2)
+							ap.speed_scale = 0.9
 				_place(e)
 				ahead = e["d"] - dist
 				var big: bool = e["kind"] == "tank"
