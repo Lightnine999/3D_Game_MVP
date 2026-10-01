@@ -131,7 +131,7 @@ var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 
 const FRENZY_TIME := 30.0
 const START_AMMO_PACK := 7
 const FLARE_AHEAD := 32.0
-const REVIVE_GRACE := 3.0                     # 부활 뒤 이만큼은 잡히지 않는다
+const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
 const GOLD_TINT := Color(1.0, 0.76, 0.33)
 var _melee_e: Dictionary = {}                 # 칼 근접전 상대
 var _hud_knife: TextureRect

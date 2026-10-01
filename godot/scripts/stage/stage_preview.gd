@@ -120,6 +120,13 @@ var _band: TextureRect              # YOU DIED 뒤 가로 검은 띠
 const DIED_RED := Color8(150, 18, 16)   # 다크소울 YOU DIED 핏빛
 var _retry: Button                  # 사망 후 "다시 시작하겠습니까?" (누르면 처음부터)
 var _deaths_label: Label
+static var _zone_deaths := {}       # 구간별 죽은 횟수 ("berserk" 길 중간 광전사 / "finale" 끝 반전) — 같은 구간 2번째부터 다른 권유
+var _ui: RunItemsUI                 # 팩 아이템 화면 (출발 준비·아이템 칸·위험 감지) — scripts/stage/run_items_ui.gd
+var _loadout_open := false          # 출발 준비 창이 떠 있는 동안 게임은 멈춰 있다
+var _offer: Button                  # YOU DIED 화면 RETRY 옆: "한 번 더 (부활)" 또는 상황별 팩 권유
+var _offer_line: Label
+var _offer_pack := ""               # 권유 중인 팩 ("" 이면 부활 버튼)
+const BONFIRE_AT := 375.0           # 모닥불: 이 지점부터 시작 (750m 기준)
 static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 시작해도 이어진다 — 2026-09-30 "다크소울 느낌, 여러 번 도전하게")
 
 
@@ -177,6 +184,7 @@ func _ready() -> void:
 			if DisplayServer.is_touchscreen_available():
 				_build_fire_button(holder)
 			_build_pause_button(holder)
+			_build_items_ui(holder)
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
@@ -259,6 +267,120 @@ func _melee_cam(delta: float) -> void:
 		_showcase.update(_dist, _x, delta)                  # 좀비·보급·HUD 는 계속 움직인다 (나만 멈춤)
 
 
+# ── 팩 아이템 (2026-10-01, docs/PACK_ITEMS_HANDOFF.md) ─────────────────
+func _build_items_ui(holder: Node) -> void:
+	_ui = RunItemsUI.new()
+	holder.add_child(_ui)
+	_showcase.danger.connect(_ui.warn)
+	_ui.use_item.connect(_use_run_item)
+	_ui.start_run.connect(_start_run)
+	_ui.open_loadout()
+	_loadout_open = true
+	_apply_camera(0.0)                                   # 준비 창 뒤로 출발 지점 정면이 보이게
+
+
+# 출발: 켠 아이템을 적용하고 달리기 시작
+func _start_run(picks: Dictionary) -> void:
+	_loadout_open = false
+	_showcase.apply_loadout(picks)
+	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
+		var d := BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0
+		_body.position = Vector3(0.0, 0.0, -d)
+		_dist = d
+		_x = 0.0
+		_steer_target = 0.0
+		_lean_x = 0.0
+		_showcase.skip_to(d)
+		_showcase.run_used["rise"] = true
+
+
+func _use_run_item(item: String) -> void:
+	if _dead or _loadout_open or _melee:
+		return
+	if item == "frenzy_30":
+		_showcase.use_frenzy()
+	elif item == "flare_supply":
+		_showcase.use_flare(_dist)
+
+
+# 죽은 구간: 광전사에게 잡혔으면 길 중간("berserk") 또는 끝 반전("finale")
+func _death_zone() -> String:
+	if _dist >= ShowcaseDirector.FINALE_AT * StageBuilderV2.STAGE_LENGTH / 750.0:
+		return "finale"
+	if not _showcase._grab_e.is_empty() and _showcase._grab_e.get("style", "") == "berserk":
+		return "berserk"
+	return ""
+
+
+# YOU DIED 화면 RETRY 옆에 무엇을 띄울지 (HANDOFF 1.4)
+func _setup_offer() -> void:
+	_offer_pack = ""
+	var rise_used: bool = _showcase.run_used.has("rise")
+	if Inventory.has("revive") and not rise_used:
+		_offer.text = "한 번 더  (부활 ×%d)" % Inventory.count("revive")
+		_offer_line.text = "죽은 자리에서 다시 일어납니다 · 2초 무적"
+		return
+	var zone := _death_zone()
+	var n: int = _zone_deaths.get(zone, 0)
+	if zone == "berserk" and n >= 2:
+		_offer_pack = "pack_legend"
+		_offer_line.text = "위험 감지면 2초 먼저 보인다"
+	elif zone == "finale" and n >= 2:
+		_offer_pack = "pack_legend"
+		_offer_line.text = "광란의 30초를 아껴 뒀다면"
+	elif _dist >= BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0:
+		_offer_pack = "pack_one_more"
+		_offer_line.text = "남은 %dm, 한 번 더?" % StageBuilderV2.remaining(_dist)
+	else:
+		_offer_pack = "pack_survival_kit"
+		_offer_line.text = "예비 칼이 있었다면…"
+	if rise_used:
+		_offer_line.text = "이번 판은 이미 다시 일어났습니다 · " + _offer_line.text
+	var pk: Dictionary = Inventory.PACKS[_offer_pack]
+	_offer.text = "%s  ₩%s" % [pk["name"], _won(pk["price"])]
+
+
+func _won(n: int) -> String:
+	var t := str(n)
+	return t.substr(0, t.length() - 3) + "," + t.substr(t.length() - 3) if n >= 1000 else t
+
+
+func _on_offer() -> void:
+	if _offer_pack.is_empty():
+		if not _showcase.run_used.has("rise") and Inventory.use("revive"):
+			_revive()
+		return
+	Inventory.grant_pack(_offer_pack)                    # 결제 연결 전: 테스트 지급 (나중에 토스 결제 → 서버 인벤토리로 바뀐다)
+	_setup_offer()
+	if _offer_pack.is_empty():
+		_offer_line.text = "받았습니다 — " + _offer_line.text
+	else:
+		_offer.disabled = true
+		_offer.text = "받았습니다"
+		_offer_line.text = "다음 판 출발 준비에서 쓸 수 있습니다"
+
+
+# 부활: 죽은 자리에서 일어나 다시 달린다 (탄약·칼·보급은 그대로, 2초 무적)
+func _revive() -> void:
+	_showcase.run_used["rise"] = true
+	_showcase.revive()
+	_dead = false
+	_dead_t = 0.0
+	_fall_hit = false
+	_fade.color.a = 0.0
+	_blood.modulate.a = 0.0
+	_band.modulate.a = 0.0
+	for c in [_dead_label, _deaths_label, _retry, _offer, _offer_line]:
+		c.visible = false
+	_label.visible = true
+	if _pause_btn:
+		_pause_btn.visible = true
+		_pause_btn.queue_redraw()
+	_bump = 1.0
+	_stun_t = 0.3                                        # 일어나는 순간 잠깐
+	print("[items] %.0fm 에서 부활" % _dist)
+
+
 func _on_caught(z: Node3D) -> void:
 	_label.visible = false
 	_dead = true
@@ -270,6 +392,11 @@ func _on_caught(z: Node3D) -> void:
 		_pause_btn.visible = false                        # YOU DIED 화면에는 일시정지 버튼을 치운다
 	_deaths_label.text = "사망 %d회" % _deaths
 	_melee = false
+	if _ui:
+		_ui.hide_slots()
+		var zone := _death_zone()
+		if not zone.is_empty():
+			_zone_deaths[zone] = _zone_deaths.get(zone, 0) + 1
 
 
 # 사망 연출 (2026-09-30 피드백): ① 1.4초 동안 코앞의 좀비가 물어뜯는 모습을 본다 → ② 1.1초 동안 뒤로 넘어지며
@@ -330,8 +457,19 @@ func _death_cam(delta: float) -> void:
 		_retry.visible = true
 		_retry.modulate.a = 0.0
 		_retry.grab_focus()                               # 엔터·스페이스로도 누를 수 있게
+		if _ui:                                           # RETRY 옆: 한 번 더 (부활) / 상황별 팩 권유 — HANDOFF 1.4
+			_setup_offer()
+			_offer.disabled = false
+			_offer.visible = true
+			_offer_line.visible = true
+			_retry.offset_left = -440
+			_retry.offset_right = -40
 	if _retry.visible:
-		_retry.modulate.a = clampf((_dead_t - f0 - 3.1) / 0.6, 0.0, 1.0)   # YOU DIED 가 떠오른 뒤 서서히 나타난다
+		var a := clampf((_dead_t - f0 - 3.1) / 0.6, 0.0, 1.0)   # YOU DIED 가 떠오른 뒤 서서히 나타난다
+		_retry.modulate.a = a
+		if _offer:
+			_offer.modulate.a = a
+			_offer_line.modulate.a = a
 
 
 # 핸드헬드: 서로 다른 느린 박자 몇 개를 겹쳐 손떨림처럼 (-1 ~ 1 쯤)
@@ -394,7 +532,7 @@ func _draw_pause_icon() -> void:
 
 
 func _toggle_pause() -> void:
-	if _dead:
+	if _dead or _loadout_open:
 		return
 	get_tree().paused = not get_tree().paused
 	_pause_dim.visible = get_tree().paused
@@ -548,9 +686,46 @@ func _build_overlay(holder: Node) -> void:
 	_retry.offset_top = 200
 	_retry.offset_bottom = 280
 	_retry.pressed.connect(func(): get_tree().reload_current_scene())
+	_offer = Button.new()                                  # RETRY 옆 권유 — 같은 세리프, 금빛 (팩 색)
+	_offer.visible = false
+	_offer.add_theme_font_override("font", retry_font)
+	_offer.add_theme_font_size_override("font_size", 34)
+	_offer.add_theme_color_override("font_color", Color8(196, 150, 60))
+	_offer.add_theme_color_override("font_hover_color", Color8(240, 196, 96))
+	_offer.add_theme_color_override("font_focus_color", Color8(240, 196, 96))
+	_offer.add_theme_color_override("font_disabled_color", Color8(130, 120, 100))
+	for st in ["normal", "hover", "focus", "pressed", "disabled"]:
+		_offer.add_theme_stylebox_override(st, none)
+	_offer.set_anchors_preset(Control.PRESET_CENTER)
+	_offer.offset_left = 40
+	_offer.offset_right = 480
+	_offer.offset_top = 200
+	_offer.offset_bottom = 280
+	_offer.pressed.connect(_on_offer)
+	_offer_line = Label.new()
+	_offer_line.visible = false
+	_offer_line.set_anchors_preset(Control.PRESET_CENTER)
+	_offer_line.offset_left = -400
+	_offer_line.offset_right = 520
+	_offer_line.offset_top = 280
+	_offer_line.offset_bottom = 340
+	_offer_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_offer_line.add_theme_font_override("font", small)
+	_offer_line.add_theme_font_size_override("font_size", 22)
+	_offer_line.add_theme_color_override("font_color", Color8(150, 138, 124))
+	var test_note := Label.new()                            # PRD F-115
+	test_note.text = "테스트 결제입니다 · 실제 돈이 나가지 않습니다"
+	test_note.add_theme_font_size_override("font_size", 16)
+	test_note.add_theme_color_override("font_color", Color8(110, 102, 94))
+	test_note.position = Vector2(0, 30)
+	test_note.size = Vector2(920, 24)
+	test_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_offer_line.add_child(test_note)
 	layer.add_child(_dead_label)
 	layer.add_child(_deaths_label)
 	layer.add_child(_retry)
+	layer.add_child(_offer)
+	layer.add_child(_offer_line)
 
 
 func _process(delta: float) -> void:
@@ -561,10 +736,14 @@ func _process(delta: float) -> void:
 	if _dead:
 		_death_cam(delta)
 		return
+	if _loadout_open:
+		return                                           # 출발 준비 중: 세상은 멈춰 있다
 	if _melee:
 		_melee_cam(delta)
 		return
 	_step(delta)
+	if _ui:
+		_ui.refresh_slots(_showcase.run_used, _showcase.frenzy_left())
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
 		return
@@ -581,6 +760,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if get_tree().paused:
 		return
+	if _ui and event is InputEventKey and event.pressed and not event.echo:
+		if _loadout_open and (event.physical_keycode == KEY_ENTER or event.physical_keycode == KEY_KP_ENTER):
+			_ui.confirm()
+			return
+		if event.physical_keycode == KEY_1:
+			_use_run_item("frenzy_30")
+			return
+		if event.physical_keycode == KEY_2:
+			_use_run_item("flare_supply")
+			return
 	var w := get_viewport().get_visible_rect().size.x
 	if event is InputEventScreenTouch:
 		if event.pressed and _touch_id == -1:
