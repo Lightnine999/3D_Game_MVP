@@ -32,6 +32,8 @@ func _ready() -> void:
 	var f := SystemFont.new()
 	f.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Palatino", "Baskerville", "Times New Roman", "Noto Serif", "serif"])
 	_roman = f
+	_gothic = _sys_gothic(700)
+	_gothic_m = _sys_gothic(500)
 	_build_edges()
 	_build_slots()
 
@@ -51,7 +53,7 @@ func open_loadout() -> void:
 	sb.bg_color = Color(0.035, 0.028, 0.032, 0.94)
 	sb.border_color = Color8(110, 26, 22)
 	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(6)
+	sb.set_corner_radius_all(22)
 	sb.set_content_margin_all(36)
 	sb.shadow_color = Color(0, 0, 0, 0.6)
 	sb.shadow_size = 24
@@ -59,12 +61,19 @@ func open_loadout() -> void:
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
 	_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var th := Theme.new()                                 # 창 안 글자는 모두 고딕 (2026-10-01)
+	th.default_font = _gothic_m
+	_panel.theme = th
 	add_child(_panel)
+	var blood := Control.new()                            # 핏자국 장식 (창 뒤 · 모서리로 번진다)
+	blood.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	blood.draw.connect(_draw_blood.bind(blood))
+	_panel.add_child(blood)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	v.custom_minimum_size = Vector2(820, 0)
 	_panel.add_child(v)
-	v.add_child(_label("출발 준비", 58, BONE, _roman, true))
+	v.add_child(_label("출발 준비", 52, BONE, _gothic, true))
 	var rule := ColorRect.new()                           # 제목 아래 가는 핏빛 줄
 	rule.color = Color8(120, 24, 20)
 	rule.custom_minimum_size = Vector2(0, 2)
@@ -82,7 +91,7 @@ func open_loadout() -> void:
 		card.add_theme_stylebox_override("disabled", _card_style(Color8(18, 16, 17), Color8(40, 36, 36), 1))
 		card.draw.connect(_draw_card.bind(card, item))
 		card.toggled.connect(func(_on): card.queue_redraw())
-		var name := _label(Inventory.item_name(item), 30, BONE)
+		var name := _label(Inventory.item_name(item), 30, BONE, _gothic)
 		name.position = Vector2(104, 14)
 		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(name)
@@ -90,7 +99,7 @@ func open_loadout() -> void:
 		desc.position = Vector2(106, 54)
 		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(desc)
-		var n := _label("", 26, GOLD)
+		var n := _label("", 26, GOLD, _gothic)
 		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		n.anchor_left = 1.0
 		n.anchor_right = 1.0
@@ -106,14 +115,14 @@ func open_loadout() -> void:
 	_info.visible = false
 	v.add_child(_info)
 	var keys := Control.new()                             # 달리는 중 키 안내: [1] 광란의 15초 ×N  [2] 보급 신호탄 ×N   YOU DIED: 부활 ×N
-	keys.custom_minimum_size = Vector2(0, 46)
+	keys.custom_minimum_size = Vector2(0, 78)
 	keys.draw.connect(_draw_keys.bind(keys))
 	v.add_child(keys)
 	_keys = keys
 	var go := Button.new()
 	go.text = "출발"
-	go.add_theme_font_override("font", _roman)
-	go.add_theme_font_size_override("font_size", 44)
+	go.add_theme_font_override("font", _gothic)
+	go.add_theme_font_size_override("font_size", 38)
 	go.add_theme_color_override("font_color", BONE)
 	go.add_theme_color_override("font_hover_color", Color.WHITE)
 	go.add_theme_color_override("font_focus_color", Color.WHITE)
@@ -153,7 +162,7 @@ func _card_style(bg: Color, line: Color, w: int, pad := 0) -> StyleBoxFlat:
 	st.bg_color = bg
 	st.border_color = line
 	st.set_border_width_all(w)
-	st.set_corner_radius_all(6)
+	st.set_corner_radius_all(14)
 	if pad > 0:
 		st.content_margin_left = pad * 2
 		st.content_margin_right = pad * 2
@@ -169,8 +178,7 @@ func _draw_card(card: Button, item: String) -> void:
 	var off := card.disabled
 	var ic := (ON_RED if on else (Color8(70, 64, 60) if off else BONE))
 	var box := Rect2(Vector2(22, h * 0.5 - 30), Vector2(60, 60))   # 아이콘 칸
-	card.draw_rect(box, Color8(14, 12, 13))
-	card.draw_rect(box, (ON_RED if on else CARD_LINE), false, 2.0)
+	card.draw_style_box(_card_style(Color8(14, 12, 13), (ON_RED if on else CARD_LINE), 2), box)
 	_draw_icon(card, item, box.get_center(), ic)
 	var sw := Vector2(96, 44)                             # 스위치
 	var p := Vector2(card.size.x - sw.x - 28, h * 0.5 - sw.y * 0.5)
@@ -181,8 +189,7 @@ func _draw_card(card: Button, item: String) -> void:
 	var knob_x := p.x + (sw.x - 24.0 if on else 24.0)
 	card.draw_circle(Vector2(knob_x, p.y + sw.y * 0.5), 17.0, (Color8(250, 238, 222) if on else (Color8(70, 64, 60) if off else Color8(150, 140, 128))))
 	var word := ("가져감" if on else ("없음" if off else "두고 감"))
-	var f := card.get_theme_default_font()
-	card.draw_string(f, Vector2(p.x - 110, h * 0.5 + 34), word, HORIZONTAL_ALIGNMENT_RIGHT, 100, 16, (ON_RED if on else DIM))
+	card.draw_string(_gothic, Vector2(p.x - 110, h * 0.5 + 34), word, HORIZONTAL_ALIGNMENT_RIGHT, 100, 16, (ON_RED if on else DIM))
 
 
 func _pill(c: Color) -> StyleBoxFlat:
@@ -237,21 +244,58 @@ func _draw_icon(c: Control, item: String, o: Vector2, col: Color, zoom := 1.0) -
 		c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-# 키캡 안내 줄
+# 키캡 안내 (2026-10-01 "창 밖으로 벗어났다"): 윗줄 [1][2][3] 가운데 정렬 · 아랫줄 작은 안내
 func _draw_keys(c: Control) -> void:
-	var f := c.get_theme_default_font()
-	var x := 6.0
-	var y := c.size.y * 0.5
-	for pair in [["1", "광란의 15초", Inventory.count("frenzy_30")], ["2", "보급 신호탄", Inventory.count("flare_supply")], ["3", "아드레날린", Inventory.count("adrenaline")]]:
+	var pairs := [["1", "광란의 15초", Inventory.count("frenzy_30")], ["2", "보급 신호탄", Inventory.count("flare_supply")], ["3", "아드레날린", Inventory.count("adrenaline")]]
+	var gap := 36.0
+	var total := 0.0
+	for pair in pairs:
+		total += 40.0 + _gothic.get_string_size("%s ×%d" % [pair[1], pair[2]], HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	total += gap * (pairs.size() - 1)
+	var x := c.size.x * 0.5 - total * 0.5
+	var y := 22.0
+	for pair in pairs:
 		var r := Rect2(Vector2(x, y - 16), Vector2(32, 32))
-		c.draw_style_box(_card_style(Color8(36, 32, 32), Color8(150, 138, 124), 1), r)
-		c.draw_string(f, Vector2(x, y + 7), pair[0], HORIZONTAL_ALIGNMENT_CENTER, 32, 20, BONE)
+		var cap := _card_style(Color8(36, 32, 32), Color8(150, 138, 124), 1)
+		cap.set_corner_radius_all(7)                      # 키캡은 살짝만 둥글게
+		c.draw_style_box(cap, r)
+		c.draw_string(_gothic, Vector2(x, y + 7), pair[0], HORIZONTAL_ALIGNMENT_CENTER, 32, 20, BONE)
 		var t := "%s ×%d" % [pair[1], pair[2]]
-		c.draw_string(f, Vector2(x + 42, y + 7), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, (BONE if pair[2] > 0 else DIM))
-		x += 42 + f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 28
-	var t2 := "달리는 중에 누르기   ·   YOU DIED 화면  부활 ×%d" % Inventory.count("revive")
-	c.draw_string(f, Vector2(x, y + 7), t2, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, DIM)
+		c.draw_string(_gothic, Vector2(x + 40, y + 7), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, (BONE if pair[2] > 0 else DIM))
+		x += 40.0 + _gothic.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + gap
+	var t2 := "달리는 중에 숫자 키를 누르세요   ·   죽으면 YOU DIED 화면에서 부활 ×%d" % Inventory.count("revive")
+	c.draw_string(_gothic_m, Vector2(0, y + 44), t2, HORIZONTAL_ALIGNMENT_CENTER, c.size.x, 17, DIM)
 
+
+# 핏자국 장식: 왼쪽 위·오른쪽 아래 모서리에 튄 피 + 위 가장자리에서 흘러내린 자국 (항상 같은 모양)
+func _draw_blood(c: Control) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1031
+	var dark := Color(0.36, 0.02, 0.02, 0.9)
+	var wet := Color(0.55, 0.04, 0.03, 0.85)
+	c.draw_set_transform(Vector2(-36, -36))               # 판 안쪽 여백(36)만큼 밖으로 — 판 가장자리 기준으로 그린다
+	var w := c.size.x + 72.0
+	var h := c.size.y + 72.0
+	for spot in [[Vector2(34, 30), 1.0], [Vector2(w - 40, h - 34), 0.85], [Vector2(w - 70, 22), 0.5]]:
+		var o: Vector2 = spot[0]
+		var k: float = spot[1]
+		c.draw_circle(o, 30.0 * k, dark)                  # 가운데 큰 덩어리
+		for i in 9:                                       # 덩어리 둘레 울퉁불퉁
+			var a := rng.randf() * TAU
+			c.draw_circle(o + Vector2(cos(a), sin(a)) * 24.0 * k, rng.randf_range(10, 18) * k, dark)
+		for i in 14:                                      # 멀리 튄 방울
+			var a := rng.randf() * TAU
+			var d := rng.randf_range(40, 110) * k
+			c.draw_circle(o + Vector2(cos(a), sin(a)) * d, rng.randf_range(2, 6) * k, wet)
+		c.draw_circle(o + Vector2(-6, -6) * k, 9.0 * k, Color(0.7, 0.08, 0.06, 0.5))   # 젖은 빛
+	for i in 7:                                           # 위 가장자리에서 흘러내린 자국
+		var x := rng.randf_range(w * 0.08, w * 0.34) if i % 2 == 0 else rng.randf_range(w * 0.66, w * 0.92)   # 제목은 비켜서
+		var len := rng.randf_range(16, 52)
+		var tw := rng.randf_range(4, 8)
+		c.draw_rect(Rect2(Vector2(x - tw * 0.5, 0), Vector2(tw, len)), dark)
+		c.draw_circle(Vector2(x, len), tw * 0.75, dark)
+		c.draw_circle(Vector2(x, 0), tw * 1.6, dark)
+	c.draw_set_transform(Vector2.ZERO)
 
 func _desc(item: String) -> String:
 	return {"knife_plus": "칼 +1 (최대 2)", "ammo_start_pack": "예비탄 7발", "bonfire": "375m 부터 시작", "danger_sense": "매복·광전사 1초 전 경고"}.get(item, "")
@@ -294,7 +338,15 @@ func _go() -> void:
 # 2차 (2026-10-01 "1·2 키를 모를 수 있다"): 오른쪽에 큰 아이콘 버튼 두 개 — 아이콘 · 키캡 [1]/[2] · 수량 · 이름
 #   폰은 그냥 누른다. 지금 쓰면 좋을 때(총알이 바닥·끝 반전) 금빛으로 깜빡이고, 출발 직후 3초 동안 쓰는 법을 알려 준다
 const SLOT := 96.0
-var _gothic: SystemFont
+var _gothic: SystemFont                       # 굵은 고딕 (HUD 숫자와 같은 결)
+var _gothic_m: SystemFont                     # 보통 굵기 고딕 (설명 글)
+
+
+func _sys_gothic(weight: int) -> SystemFont:
+	var g := SystemFont.new()
+	g.font_names = PackedStringArray(["Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic", "Roboto", "sans-serif"])
+	g.font_weight = weight
+	return g
 var _hint := {}
 var _tip: Label
 var _tip_t := 0.0
@@ -303,9 +355,6 @@ var _timers := {}
 
 
 func _build_slots() -> void:
-	_gothic = SystemFont.new()                            # 굵은 고딕 (HUD 숫자와 같은 결)
-	_gothic.font_names = PackedStringArray(["Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic", "Roboto", "sans-serif"])
-	_gothic.font_weight = 700
 	var box := HBoxContainer.new()
 	box.anchor_left = 1.0
 	box.anchor_right = 1.0
