@@ -144,6 +144,55 @@ cd ~/3D_Game_MVP/godot && for m in "" "--straight" "--into" "--wiggle" "--showca
 
 ---
 
+## 5. 상품점 연동 (백엔드 C 님께, 2026-10-01)
+
+계획: 백엔드에서 상품점 페이지를 따로 만든다. 아래 팩 카드 그림을 보여 주고, 카드를 누르면 토스 테스트 결제로 들어간다.
+
+### 5.1 상품 목록 (서버가 가격 정본)
+| 상품 ID | 이름 | 가격 | 구성 (아이템 ID × 개수) | 카드 그림 |
+|---|---|---|---|---|
+| `pack_survival_kit` | 생존 키트 | 1,100원 | `knife_plus`×1 · `ammo_start_pack`×1 · `flare_supply`×1 · `adrenaline`×1 | `art/shop/pack_survival_kit.png` |
+| `pack_one_more` | 한 번 더 | 3,300원 | `revive`×1 · `frenzy_30`×1 · `bonfire`×1 | `art/shop/pack_one_more.png` |
+| `pack_legend` | 전설의 생존자 | 5,500원 | `revive`×2 · `knife_plus`×2 · `frenzy_30`×2 · `danger_sense`×2 · `gold_pistol`(영구) · `supporter_badge`(영구) | `art/shop/pack_legend.png` |
+
+- 지금 서버에는 `ammo_start_pack` 단품(1,100원)만 있다 → 팩 3종을 서버 상품으로 추가해야 한다.
+- `adrenaline` 은 새 아이템이다 (2026-10-01).
+- `frenzy_30` 은 이름만 "광란의 15초"로 바뀌었고 ID 는 그대로다.
+
+### 5.2 아이템 ID (게임 `godot/scripts/stage/inventory.gd` ITEMS)
+| ID | 이름 | 종류 |
+|---|---|---|
+| `revive` | 부활 | 소모 |
+| `knife_plus` | 예비 칼 | 소모 |
+| `frenzy_30` | 광란의 15초 | 소모 |
+| `ammo_start_pack` | 시작 탄약 팩 | 소모 |
+| `flare_supply` | 보급 신호탄 | 소모 |
+| `bonfire` | 모닥불 | 소모 |
+| `danger_sense` | 위험 감지 | 소모 |
+| `adrenaline` | 아드레날린 | 소모 |
+| `gold_pistol` | 황금 권총 | 영구 |
+| `supporter_badge` | 서포터 배지 | 영구 |
+
+### 5.3 카드 그림
+- 크기: 1080×1350 PNG 3장. 다시 만들 때는 `python3 art/shop/make_packs.py` (Chrome headless 로 HTML 을 찍는다).
+- 그림 속 "구매하기" 줄과 "테스트 결제입니다 · 실제 돈이 나가지 않습니다" 문구는 **그림일 뿐**이다.
+  - 실제로 누르는 버튼은 상점 페이지에서 만든다 (카드 전체를 버튼으로 하거나, 위에 진짜 버튼을 겹친다).
+- 그림 안 가격은 위 표와 같아야 한다. 서버 가격을 바꾸면 `make_packs.py` 의 `CARDS` 도 같이 바꾸고 다시 만든다.
+
+### 5.4 결제 흐름·보안 (기존 `backend/📖백엔드 연동 계약.md` 규칙 그대로)
+- 상점 페이지는 `product_id` 만 보낸다. 금액은 서버가 정한다 (요청의 임의 금액은 거부).
+- 토스 시크릿 키는 서버에서만 쓴다.
+  - 브라우저·앱은 `api.tosspayments.com` 을 직접 부르지 않는다.
+  - 브라우저 SDK 초기화에는 클라이언트 키만 쓴다.
+- 승인이 끝나면 서버 인벤토리를 **아이템 ID → 개수** 모양으로 내려 준다.
+  - 게임은 이 모양을 `user://inventory.json` 과 같은 형태로 받아 쓴다 (`Inventory` 클래스).
+- 영구 아이템(`gold_pistol`, `supporter_badge`)은 1 이상이면 "있음"으로 본다.
+
+### 5.5 팩을 바꿀 때 같이 맞출 세 곳
+1. 서버 상품 목록 (가격 정본)
+2. 게임 `godot/scripts/stage/inventory.gd` 의 `PACKS`
+3. 카드 그림 `art/shop/make_packs.py` → `python3 art/shop/make_packs.py` 로 다시 만들기
+
 ## 4. 참고 — 이 브랜치 이전에 main 에 들어간 것 (전부 머지됨)
 - #11 750m 스테이지 / #13 팀원 동작 연결·다크소울 난이도·반전·YOU DIED·권총 텍스처 / #12 타이틀·로그인 화면 시안(세권) / #14 팩 카드 3장 / #7 백엔드(C)
 - `godot/project.godot` 은 main 값(`stage_preview.tscn`, 1920×1080)으로 되돌려 둠 (Codex 가 바꿨던 것). Codex 백업: 없음 — 필요하면 Codex 세션 기록 참고.
