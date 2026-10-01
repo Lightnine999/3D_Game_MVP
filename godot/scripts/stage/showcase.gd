@@ -124,11 +124,11 @@ var _grace_t := 0.0
 signal danger(side: int)                      # 위험 감지: 매복·광전사가 오는 쪽 (-1 왼쪽 / 0 앞 / 1 오른쪽)
 var danger_sense := false                     # 이번 판에 위험 감지를 가져왔다
 var run_used := {}                            # 이번 판에 쓴 달리는 중 아이템 (한 판에 종류별 1번)
-var _frenzy_t := 0.0                          # 광란의 30초 남은 시간 (총알 무한 · 재장전 없음)
+var _frenzy_t := 0.0                          # 광란의 10초 남은 시간 (총알 무한 · 재장전 없음)
 var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
 var _warned_pounce := -1
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
-const FRENZY_TIME := 30.0
+const FRENZY_TIME := 10.0                       # 30 → 10초 (2026-10-01 "너무 길다")
 const START_AMMO_PACK := 7
 const FLARE_AHEAD := 32.0
 const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
@@ -319,7 +319,7 @@ func skip_to(d: float) -> void:
 	print("[items] 모닥불: %.0fm 부터" % d)
 
 
-# 광란의 30초 (한 판 1번)
+# 광란의 10초 (한 판 1번)
 func use_frenzy() -> bool:
 	if run_used.has("frenzy_30") or not Inventory.use("frenzy_30"):
 		return false
@@ -327,7 +327,7 @@ func use_frenzy() -> bool:
 	_frenzy_t = FRENZY_TIME
 	_reload_left = 0.0
 	_sfx("sfx_zombie_scream")
-	print("[items] 광란의 30초")
+	print("[items] 광란의 10초")
 	return true
 
 

@@ -327,7 +327,7 @@ func _setup_offer() -> void:
 		_offer_line.text = "위험 감지면 2초 먼저 보인다"
 	elif zone == "finale" and n >= 2:
 		_offer_pack = "pack_legend"
-		_offer_line.text = "광란의 30초를 아껴 뒀다면"
+		_offer_line.text = "광란의 10초를 아껴 뒀다면"
 	elif _dist >= BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0:
 		_offer_pack = "pack_one_more"
 		_offer_line.text = "남은 %dm, 한 번 더?" % StageBuilderV2.remaining(_dist)
