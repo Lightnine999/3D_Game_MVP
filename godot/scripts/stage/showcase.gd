@@ -113,6 +113,7 @@ signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 
 signal knifed                                 # (옛 즉시 칼) — 지금은 melee_start 로 합을 맞춘다
 signal melee_start(zombie: Node3D)            # 칼 근접전 시작: 멈춰 서서 좀비와 마주 본다 (stage_preview 가 칼 동작·카메라)
 signal brushed(side: float)
+signal quake(amp: float, dur: float)         # 다리 흔들림 (2026-10-01): 화면이 이만큼 세게 · 이 시간 동안 덜덜 떨린다
 signal burst                                  # 마지막 좀비가 바닥에서 튀어나왔다 → 화면 덜컥                   # 좀비와 스쳤다 → 어깨빵 (side: 좀비가 있는 쪽 -1 왼쪽 / +1 오른쪽)
 signal tripped                                # 기는 좀비가 발목을 잡았다 → 잠깐 휘청 (풀에 묻혀 안 보이니 죽이지는 않는다)
 
@@ -851,6 +852,7 @@ func _update_car_gag(dist: float, delta: float) -> void:
 	if _bang_t <= 0.0 and dist < CAR_D + 1.0:
 		_bang_t = BANG_GAP * _rng.randf_range(0.8, 1.25)
 		_sfx("sfx_hit_obstacle")                          # 쾅
+		quake.emit(0.15, 0.18)                            # 다리가 같이 덜컥
 	if dist > CAR_D + 6.0:
 		var ap: AnimationPlayer = _car_gag.find_children("*", "AnimationPlayer", true, false)[0]
 		ap.stop()
@@ -877,6 +879,8 @@ func _bridge_climber(dist: float, cam_x: float) -> void:
 		ap.speed_scale = 0.7
 	_place(e)
 	_sfx("sfx_zombie_groan")
+	_sfx("sfx_hit_obstacle", 0.5)                         # 쿵 — 난간을 붙잡자 다리가 울린다
+	quake.emit(0.6, 0.9)
 	if danger_sense:
 		danger.emit(1)
 	print("[under] %.0fm 다리 밑에서 손이 올라옴" % dist)
@@ -1125,6 +1129,8 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 							ap.speed_scale = 2.8
 						e["rise_t"] = 0.3
 						_sfx("sfx_zombie_scream")
+						_sfx("sfx_hit_obstacle", 0.6)             # 상판에 올라서며 쾅
+						quake.emit(1.0, 0.45)
 					continue
 				if e.has("burst") and e["y"] < 0.0:           # 땅속에서 솟아오른다 (0.3초)
 					e["y"] = minf(0.0, e["y"] + delta * 1.4 / 0.3)
@@ -1306,13 +1312,14 @@ func fire() -> void:
 	_shoot(best)
 
 
-func _sfx(name: String) -> void:
+func _sfx(name: String, pitch := 1.0) -> void:
 	events.append([_time, name])
 	if not live_audio:
 		return
 	var p := AudioStreamPlayer.new()
 	p.stream = load("res://assets/audio/%s.ogg" % name)
 	p.volume_db = SFX_DB + SFX_TRIM.get(name, 0.0)
+	p.pitch_scale = pitch
 	if AudioServer.get_bus_index("SFX") >= 0:
 		p.bus = "SFX"
 	add_child(p)

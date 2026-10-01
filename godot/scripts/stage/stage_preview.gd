@@ -64,6 +64,9 @@ var _x := 0.0
 var _adren_run := ADREN_RUN
 var _speed_fx: ShaderMaterial          # 아드레날린 화면 왜곡 (가장자리가 뒤로 늘어지며 흐려진다)
 var _speed_k := 0.0
+var _quake_amp := 0.0                  # 다리 흔들림 세기 · 남은 시간 (showcase.quake)
+var _quake_t := 0.0
+var _quake_dur := 1.0
 var _speed_rect: ColorRect
 var _frames_dir := ""
 var _frame_count := -1       # 테스트용: --count=N 이면 N장만
@@ -186,6 +189,7 @@ func _ready() -> void:
 			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
 			_km.finished.connect(_on_melee_end)
 			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
+			_showcase.quake.connect(_on_quake)
 			_showcase.burst.connect(func(): _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.caught.connect(_on_caught)
@@ -918,7 +922,17 @@ func _step(delta: float) -> void:
 	_finish_step(delta)
 
 
+# 다리 흔들림: 지금 흔들림보다 약하고 짧은 것(차 창문 쾅)은 긴 울림을 끊지 않는다
+func _on_quake(amp: float, dur: float) -> void:
+	var now := _quake_amp * clampf(_quake_t / maxf(_quake_dur, 0.01), 0.0, 1.0)
+	if amp >= now or dur > _quake_t:
+		_quake_amp = maxf(amp, now)
+		_quake_t = maxf(dur, _quake_t)
+		_quake_dur = _quake_t
+
+
 func _finish_step(delta: float) -> void:
+	_quake_t -= delta                                     # 다리 흔들림 시간은 실제 시간으로 (화면 주사율과 무관)
 	_bump = maxf(_bump - delta * 3.0, 0.0)
 	var vx := (_x - _lean_x) / maxf(delta, 0.001)        # 이번 걸음의 옆 속도 → 기울기 (끼임 탈출로 휙 옮겨도 ±1 로 막는다)
 	_lean_x = _x
@@ -1195,12 +1209,16 @@ func _apply_camera(t: float) -> void:
 	var sway := sin(t * TAU * BOB_FREQ * 0.5)
 	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
 	var air := _body.position.y * JUMP_CAM
-	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
+	var qk := Vector3.ZERO                                # 다리 흔들림: 위아래로 덜덜 + 좌우로 조금 (끝으로 갈수록 잦아든다)
+	if _quake_t > 0.0:
+		var a := _quake_amp * clampf(_quake_t / _quake_dur, 0.0, 1.0)
+		qk = Vector3((sin(t * 71.0) + sin(t * 113.0) * 0.5) * 0.018, (sin(t * 89.0) + sin(t * 47.0) * 0.6) * 0.03, sin(t * 59.0) * 1.2) * a
+	_camera.position = Vector3(_x + sway * 0.04 + shake + qk.x, EYE_HEIGHT + air + qk.y + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
 	if _play:                                              # 플레이: 항상 정면 (위아래 발걸음만). 부딪히면 어깨빵처럼 잠깐 기울었다 돌아온다
 		var jolt := _bump * _bump * _bump_side
 		# 좌우로 움직이면 그쪽으로 기운다 (오른쪽으로 가면 오른쪽 어깨가 내려가듯) + 시선도 살짝 그쪽
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4 - _bump * _bump * 1.2),
-			deg_to_rad(-BUMP_YAW * jolt - LEAN_YAW * _lean), deg_to_rad(-BUMP_ROLL * jolt - LEAN_ROLL * _lean))
+			deg_to_rad(-BUMP_YAW * jolt - LEAN_YAW * _lean), deg_to_rad(-BUMP_ROLL * jolt - LEAN_ROLL * _lean + qk.z))
 		if _unmelee_t > 0.0:                              # 칼 근접전 뒤: 좀비를 보던 시선이 정면으로 부드럽게 돌아온다
 			_unmelee_t -= 1.0 / 60.0
 			var k := smoothstep(0.0, 1.0, 1.0 - clampf(_unmelee_t / 0.35, 0.0, 1.0))
