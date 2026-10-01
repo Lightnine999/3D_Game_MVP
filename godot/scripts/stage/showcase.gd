@@ -93,8 +93,9 @@ const CAR_D := StageBuilderV2.RIVER_Z0 + 10.0         # 다리 위 차 (stage_bu
 # 다리 입구 왼쪽 무리 (2026-10-01 "왼쪽이 너무 비어 보인다"): [종류, 스타일, 차 기준 거리(+앞), x]
 #   11마리 → "너무 많다, 2/3 덜어내" → 4마리. "가운데 몰리지 말고 좌우로 퍼지게 · 경찰 좀비(워커)가 멍청해 보인다"
 #   → 강가는 좌우 양쪽에 · 각자 자기 줄(x)을 지키며 다가온다 · 워커는 어슬렁·뜯어먹기 대신 팔 뻗고 뛰어온다
+#   "다리 들어서는 왼쪽에 한 마리 더 · 차 뒤 셋 중 하나 빼" → 다리 입구 왼쪽 서 있다 다가오는 하나 추가, 차 뒤는 둘 (멀리서 오던 일반 좀비는 치운다)
 const BRIDGE_LEFT_CROWD := [["walker", "jog", -13.0, -5.6], ["runner", "jog", -8.0, 5.2],
-	["ambusher", "crawl", 6.0, -1.6], ["walker", "jog", 14.0, -2.9]]
+	["ambusher", "idle", -8.0, -2.6], ["ambusher", "crawl", 6.0, -1.6], ["walker", "jog", 14.0, -2.9]]   # 차 뒤에는 이 둘만
 const CAR_BLOCK := 1.5                                # 다리 위 좀비는 차 중심에서 이만큼 뒤에서 멈춘다 (차 폭 절반 + 여유)
 const BRIDGE_LANES := [-3.2, -0.8]                   # 다리 위 다른 좀비가 다니는 줄의 범위 (왼쪽 난간 ~ 차 오른쪽 끝 앞) — 오른쪽 틈은 비운다
 const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
@@ -226,8 +227,8 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
 	for w in _plan:                                     # 다리 위는 비운다 → 다리 밑 매복이 또렷이 보이게 (그 수만큼 다리 건너편으로 옮긴다, 총 마릿수는 그대로)
-		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 8.0:
-			w[0] += 26.0
+		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 24.0:   # (+26 → +40: 옮긴 좀비가 내가 차를 지나기 전에 차 뒤로 몰려오지 않게)
+			w[0] += 40.0
 	_plan.sort_custom(func(p, q): return p[0] < q[0])
 	_prewarm()
 	_build_zombie_light(camera)
@@ -599,14 +600,19 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	if not _bridge_crowd and dist >= CAR_D - 48.0:          # 왼쪽이 비어 보이지 않게: 다리 입구 왼쪽 강가 + 다리 위 왼쪽 줄에 몇 마리 더 (멀리 안개 속에서 나타난다, 오른쪽 틈으로는 안 온다)
 		_bridge_crowd = true
 		for g in BRIDGE_LEFT_CROWD:
-			var e := _spawn(g[0], g[1], CAR_D + g[2] - dist, g[3] + _rng.randf_range(-0.3, 0.3), dist, cam_x)
+			var e := _spawn(g[0], g[1], CAR_D + g[2] - dist, g[3], dist, cam_x)
+			e["x"] = g[3] + _rng.randf_range(-0.2, 0.2)      # 다리 위 자동 줄 대신 정해 둔 자리
 			e["lane_x"] = e["x"]
+			_place(e)
 		print("[bridge] %.0fm 다리 왼쪽 무리 %d마리" % [dist, BRIDGE_LEFT_CROWD.size()])
 	if not _bridge_cleared and dist >= CAR_D - 26.0:       # 다리에 들어서기 전: 다리 쪽으로 오던 좀비들을 왼쪽 줄로 비킨다
 		_bridge_cleared = true
 		for o in _zombies:
 			if o["d"] > dist and o["d"] < UNDER_D + 30.0 and o["style"] != "pounce" and o["state"] != "dead":
 				if o.has("lane_x"):
+					continue
+				if o["d"] - dist > 22.0:                      # 다리 위로 오던 일반 좀비 중 멀리(안개 속) 있는 건 치운다 → 차 뒤에는 두 마리 정도만
+					_despawn(o)
 					continue
 				o["lane_x"] = _bridge_lane()
 				if o["state"] != "move" and o["d"] - dist > 14.0:   # 누워 있거나 서 있는 좀비는 안개 속(멀리)에서 자리를 옮긴다
