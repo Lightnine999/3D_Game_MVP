@@ -6,6 +6,12 @@ func check(ok: bool, message: String) -> void:
 		printerr("FAIL: ", message)
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
+	var user_path := ProjectSettings.globalize_path("user://").replace("\\", "/")
+	var isolated_root := OS.get_environment("APPDATA").replace("\\", "/")
+	if not isolated_root.contains("/build/충돌검증/") or not user_path.begins_with(isolated_root + "/"):
+		printerr("FAIL: isolated test user directory required")
+		quit(1)
+		return
 	var stage = load("res://scenes/stage/stage_preview.tscn").instantiate()
 	stage.service_managed = true
 	root.add_child(stage)
@@ -21,6 +27,9 @@ func run() -> void:
 	Inventory.add("revive")
 	stage._setup_offer()
 	stage._on_offer()
+	check(stage._dead and stage._revive_pick and Inventory.count("revive") == 1, "team selection waits for RETRY without consuming")
+	check(stage._retry.text == "RETRY", "selected revival shows the team RETRY action")
+	stage._retry.pressed.emit()
 	check(not stage._dead and stage._showcase._grace_t == 2.0, "team revival and two second grace preserved")
 	check(stage.service_snapshot().test_mode, "local test revive excludes normal records")
 	stage._dead = true

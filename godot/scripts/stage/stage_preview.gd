@@ -143,10 +143,12 @@ var _retry: Button                  # 사망 후 "다시 시작하겠습니까?"
 var _deaths_label: Label
 static var _zone_deaths := {}       # 구간별 죽은 횟수 ("berserk" 길 중간 광전사 / "finale" 끝 반전) — 같은 구간 2번째부터 다른 권유
 var _ui: RunItemsUI                 # 팩 아이템 화면 (출발 준비·아이템 칸·위험 감지) — scripts/stage/run_items_ui.gd
+var _missions: MissionTracker      # 스테이지 미션 (2026-10-01) — 플레이 모드에서만
 var _loadout_open := false          # 출발 준비 창이 떠 있는 동안 게임은 멈춰 있다
 var _offer: Button                  # YOU DIED 화면 RETRY 옆: "한 번 더 (부활)" 또는 상황별 팩 권유
 var _offer_line: Label
 var _offer_pack := ""               # 권유 중인 팩 ("" 이면 부활 버튼)
+var _revive_pick := false           # 부활을 골라 뒀다 → RETRY 를 누르면 그 자리에서 일어난다 (2026-10-01 "고르자마자 바로 시작된다")
 const BONFIRE_AT := 375.0           # 모닥불: 이 지점부터 시작 (750m 기준)
 static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 시작해도 이어진다 — 2026-09-30 "다크소울 느낌, 여러 번 도전하게")
 
@@ -200,7 +202,12 @@ func _ready() -> void:
 			_km.speed = KNIFE_SPEED
 			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
 			_km.finished.connect(_on_melee_end)
-			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
+			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1; _missions.on_trouble(_dist))
+			_missions = MissionTracker.new()                  # 미션: 쓰러뜨림·피함·쏨을 센다 (다리·완주·아이템은 아래에서)
+			_showcase.killed.connect(_missions.on_kill)
+			_showcase.dodged.connect(_missions.on_dodge)
+			_showcase.shot.connect(_missions.on_shot)
+			_missions.achieved.connect(_on_mission)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
 			_showcase.quake.connect(_on_quake)
 			_showcase.burst.connect(func(): _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
@@ -345,16 +352,28 @@ func _build_items_ui(holder: Node) -> void:
 	_showcase.danger.connect(_ui.warn)
 	_ui.use_item.connect(_use_run_item)
 	_ui.start_run.connect(_start_run)
+	_ui.pistol_upgraded.connect(_showcase.apply_start_pistol)
 	_ui.open_loadout()
 	_loadout_open = true
 	_apply_camera(0.0)                                   # 준비 창 뒤로 출발 지점 정면이 보이게
 
 
+# 미션 달성 알림 (화면 위 가운데)
+func _on_mission(text: String) -> void:
+	if _ui:
+		_ui.toast(text)
+
+
 # 출발: 켠 아이템을 적용하고 달리기 시작
 func _start_run(picks: Dictionary) -> void:
 	_loadout_open = false
+	_showcase.set_difficulty(_ui.difficulty)            # 출발 준비에서 고른 난이도 (HARD 그대로 / NORMAL 좀비 20%↓ 보급 20%↑)
+	ShowcaseDirector.difficulty_locked = true           # 출발하면 난이도 잠금 — 죽어서 RETRY 할 때만 풀린다
 	_ui.show_tip()
 	_showcase.apply_loadout(picks)
+	_missions.on_start()
+	if not picks.is_empty():
+		_missions.on_item_used()                          # 미션 "아이템 없이 탈출"
 	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
 		_warp_to(BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0)
 		_showcase.run_used["rise"] = true
@@ -375,12 +394,15 @@ func _warp_to(d: float) -> void:
 func _use_run_item(item: String) -> void:
 	if _dead or _loadout_open or _melee:
 		return
+	var used := false
 	if item == "frenzy_30":
-		_showcase.use_frenzy()
+		used = _showcase.use_frenzy()
 	elif item == "flare_supply":
-		_showcase.use_flare(_dist)
+		used = _showcase.use_flare(_dist)
 	elif item == "adrenaline":
-		_showcase.use_adrenaline()
+		used = _showcase.use_adrenaline()
+	if used and _missions:
+		_missions.on_item_used()
 
 
 # 죽은 구간: 광전사에게 잡혔으면 길 중간("berserk") 또는 끝 반전("finale")
@@ -394,11 +416,16 @@ func _death_zone() -> String:
 
 # YOU DIED 화면 RETRY 옆에 무엇을 띄울지 (HANDOFF 1.4)
 func _setup_offer() -> void:
+	_retry.text = "RETRY" if not service_managed or _revive_pick else "결과 보기"
 	_offer_pack = ""
 	var rise_used: bool = _showcase.run_used.has("rise")
 	if Inventory.has("revive") and not rise_used:
-		_offer.text = "한 번 더  (부활 ×%d)" % Inventory.count("revive")
-		_offer_line.text = "죽은 자리에서 다시 일어납니다 · 2초 무적"
+		if _revive_pick:
+			_offer.text = "▶ 부활 선택됨  (×%d)" % Inventory.count("revive")
+			_offer_line.text = "RETRY 를 누르면 죽은 자리에서 다시 일어납니다 · 다시 누르면 취소"
+		else:
+			_offer.text = "한 번 더  (부활 ×%d)" % Inventory.count("revive")
+			_offer_line.text = "골라 두고 RETRY 를 누르면 죽은 자리에서 다시 일어납니다 · 2초 무적"
 		return
 	var zone := _death_zone()
 	var n: int = _zone_deaths.get(zone, 0)
@@ -428,9 +455,9 @@ func _won(n: int) -> String:
 func _on_offer() -> void:
 	if service_managed and _service_adapter.finished:
 		return
-	if _offer_pack.is_empty():
-		if not _showcase.run_used.has("rise") and Inventory.use("revive"):
-			_revive()
+	if _offer_pack.is_empty():                           # 부활은 고르기만 한다 — 시작은 RETRY 가 한다
+		_revive_pick = not _revive_pick
+		_setup_offer()
 		return
 	Inventory.grant_pack(_offer_pack)                    # 결제 연결 전: 테스트 지급 (나중에 토스 결제 → 서버 인벤토리로 바뀐다)
 	_setup_offer()
@@ -442,8 +469,25 @@ func _on_offer() -> void:
 		_offer_line.text = "다음 판 출발 준비에서 쓸 수 있습니다"
 
 
+# RETRY: 부활을 골라 뒀으면 그 자리에서 일어나고, 아니면 처음부터 (이때 난이도를 다시 고를 수 있다)
+func _on_retry() -> void:
+	if service_managed and _service_adapter.finished:
+		return
+	if _revive_pick and _offer_pack.is_empty() and not _showcase.run_used.has("rise") and Inventory.use("revive"):
+		_revive_pick = false
+		_revive()
+		return
+	ShowcaseDirector.difficulty_locked = false
+	if service_managed:
+		_finish_service_run(false, "좀비에게 잡힘")
+	else:
+		get_tree().reload_current_scene()
+
+
 # 부활: 죽은 자리에서 일어나 다시 달린다 (탄약·칼·보급은 그대로, 2초 무적)
 func _revive() -> void:
+	if _missions:
+		_missions.on_item_used()
 	_showcase.run_used["rise"] = true
 	_showcase.revive()
 	_dead = false
@@ -464,7 +508,10 @@ func _revive() -> void:
 
 
 func _on_caught(z: Node3D) -> void:
+	if _missions:
+		_missions.on_trouble(_dist)
 	_label.visible = false
+	_revive_pick = false
 	_dead = true
 	_dead_t = 0.0
 	_killer = z
@@ -735,11 +782,7 @@ func _build_overlay(holder: Node) -> void:
 	_retry.offset_right = 200
 	_retry.offset_top = 200
 	_retry.offset_bottom = 280
-	_retry.pressed.connect(func():
-		if service_managed:
-			_finish_service_run(false, "좀비에게 잡힘")
-		else:
-			get_tree().reload_current_scene())
+	_retry.pressed.connect(_on_retry)
 	_offer = Button.new()                                  # RETRY 옆 권유 — 같은 세리프, 금빛 (팩 색)
 	_offer.visible = false
 	_offer.add_theme_font_override("font", retry_font)
@@ -799,7 +842,11 @@ func _process(delta: float) -> void:
 	_step(delta)
 	if _ui:
 		_ui.refresh_slots(_showcase.run_used, {"frenzy_30": _showcase.frenzy_left(), "adrenaline": _showcase.adrenaline_left()}, _showcase.item_hints(_dist))
+	if _missions:
+		_missions.on_distance(_dist)
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
+		if _missions:
+			_missions.on_escape()
 		if service_managed:
 			_finish_service_run(true, "")
 		else:
@@ -1086,6 +1133,8 @@ func _move_body(motion: Vector3) -> void:
 		if absf(n.y) < 0.5 and _bump < 0.25:                 # 옆·앞으로 부딪혔다 → 어깨빵 (밀린 쪽으로 카메라가 기운다)
 			_bump = 1.0
 			_bumps += 1
+			if _missions:
+				_missions.on_trouble(_dist)                   # 미션: 다리 위에서 부딪히면 실패
 			_bump_side = signf(n.x) if absf(n.x) > 0.2 else (1.0 if _x < 0.0 else -1.0)
 			if _showcase:
 				_showcase.sfx("sfx_hit_obstacle")

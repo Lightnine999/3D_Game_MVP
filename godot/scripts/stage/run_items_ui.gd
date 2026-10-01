@@ -6,6 +6,7 @@ extends CanvasLayer
 ##  ③ 위험 감지: 매복·광전사가 오는 쪽 화면 가장자리가 붉게 번쩍
 ## 모양은 YOU DIED 와 같은 톤 (어두운 판 · 뼈색 글자 · 핏빛 강조)
 
+signal pistol_upgraded                        # 출발 준비에서 권총을 강화했다 → 이번 판 시작 탄창에도 바로 반영
 signal start_run(picks: Dictionary)          # 출발 — 켠 아이템 {item: true}
 signal use_item(item: String)                # 달리는 중 아이템 칸을 눌렀다
 
@@ -18,6 +19,11 @@ const RED := Color8(196, 32, 26)
 const GOLD := Color8(226, 178, 74)
 
 var _panel: Control
+var difficulty := ShowcaseDirector.difficulty   # 출발 준비에서 고른 난이도 (hard / normal) — 출발할 때 stage_preview 가 적용
+var _diff_btns := {}
+var _diff_row: VBoxContainer
+var _diff_easy: VBoxContainer                    # EASY 를 누르면: 핏빛 문구 + 뒤로 버튼 (난이도 줄 대신 나온다)
+var _go_btn: Button
 var _checks := {}
 var _counts := {}
 var _slots := {}
@@ -46,6 +52,7 @@ const ON_RED := Color8(184, 26, 22)
 
 
 func open_loadout() -> void:
+	_manual = {}
 	_blood_seed = 0                                       # 열 때마다 핏자국 새로
 	_panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -78,11 +85,13 @@ func open_loadout() -> void:
 	rule.custom_minimum_size = Vector2(0, 2)
 	v.add_child(rule)
 	v.add_child(_label("이번 판에 가져갈 아이템을 눌러 켜세요 · 가져가면 1개씩 줄어듭니다", 20, DIM, null, true))
+	_build_difficulty(v)
+	_build_stage_card()
 	for item in START_ITEMS:
 		var card := Button.new()
 		card.toggle_mode = true
 		card.focus_mode = Control.FOCUS_NONE
-		card.custom_minimum_size = Vector2(0, 92)
+		card.custom_minimum_size = Vector2(0, 82)       # 92 → 82 (2026-10-01 난이도 카드를 크게 넣느라)
 		card.add_theme_stylebox_override("normal", _card_style(CARD_BG, CARD_LINE, 1))
 		card.add_theme_stylebox_override("hover", _card_style(Color8(32, 26, 28), Color8(120, 96, 84), 1))
 		card.add_theme_stylebox_override("pressed", _card_style(CARD_ON, ON_RED, 3))
@@ -90,6 +99,7 @@ func open_loadout() -> void:
 		card.add_theme_stylebox_override("disabled", _card_style(Color8(18, 16, 17), Color8(40, 36, 36), 1))
 		card.draw.connect(_draw_card.bind(card, item))
 		card.toggled.connect(func(_on): card.queue_redraw())
+		card.pressed.connect(func(): _manual[item] = true)     # 사용자가 직접 눌렀다 → 그 뒤로는 자동으로 켜지 않는다
 		var name := _label(Inventory.item_name(item), 30, BONE, _gothic)
 		name.position = Vector2(104, 14)
 		name.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -131,6 +141,7 @@ func open_loadout() -> void:
 	go.add_theme_stylebox_override("pressed", _card_style(Color8(120, 14, 12), Color8(200, 40, 30), 2))
 	go.custom_minimum_size = Vector2(0, 78)
 	go.pressed.connect(_go)
+	_go_btn = go
 	v.add_child(go)
 	var test := HBoxContainer.new()                        # 결제 연결 전 테스트 지급 (PRD 4.15 테스트 모드)
 	test.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -154,6 +165,108 @@ func open_loadout() -> void:
 
 
 var _keys: Control
+
+
+# ── 난이도 (2026-10-01): HARD 지금 그대로 · NORMAL 좀비 20%↓ 보급 20%↑ · EASY 는 없다 ─────────
+const DIFFICULTIES := [["hard", "HARD", "지금 그대로"], ["normal", "NORMAL", "좀비 20% ↓ · 보급 20% ↑"], ["easy", "EASY", "…정말요?"]]
+# 2차 (2026-10-01 "버튼이 너무 작다, 눈에 띄게"): 셋을 가로로 꽉 채운 큰 카드. 난이도마다 색 — HARD 핏빛 · NORMAL 금빛 · EASY 회색
+#   고른 카드는 그 색으로 채우고 굵은 테두리, 안 고른 카드는 어두운 바탕에 그 색 테두리·글자
+const DIFF_COLOR := {"hard": Color8(200, 30, 24), "normal": Color8(226, 160, 48), "easy": Color8(120, 112, 102)}
+
+
+func _build_difficulty(v: VBoxContainer) -> void:
+	var locked := ShowcaseDirector.difficulty_locked     # 이미 출발했던 난이도 — 죽어서 RETRY 하기 전에는 못 바꾼다
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.add_child(_label("난이도 선택" if not locked else "난이도  ·  죽으면 다시 고를 수 있어요", 20, DIM, _gothic, true))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	for d in DIFFICULTIES:
+		var id: String = d[0]
+		if locked and id != difficulty:
+			continue                                      # 잠겨 있으면 지금 난이도 하나만 보여 준다
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = id != "easy"
+		b.disabled = locked
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.size_flags_stretch_ratio = 0.7 if id == "easy" else 1.0
+		b.custom_minimum_size = Vector2(0, 92)
+		var col: Color = DIFF_COLOR[id]
+		b.add_theme_stylebox_override("normal", _card_style(Color8(22, 18, 20), col.darkened(0.25), 2))
+		b.add_theme_stylebox_override("hover", _card_style(Color8(34, 26, 26), col, 2))
+		b.add_theme_stylebox_override("pressed", _card_style(col.darkened(0.45), col.lightened(0.15), 4))
+		b.add_theme_stylebox_override("hover_pressed", _card_style(col.darkened(0.38), col.lightened(0.3), 4))
+		b.add_theme_stylebox_override("disabled", _card_style(col.darkened(0.45), col.lightened(0.15), 4))   # 잠긴 난이도도 고른 모양 그대로
+		var lines := VBoxContainer.new()
+		lines.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lines.alignment = BoxContainer.ALIGNMENT_CENTER
+		lines.add_theme_constant_override("separation", 0)
+		lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var title := _label(d[1], 38, col.lightened(0.2), _gothic, true)
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sub := _label(d[2], 18, BONE, null, true)
+		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lines.add_child(title)
+		lines.add_child(sub)
+		b.add_child(lines)
+		b.pressed.connect(_pick_difficulty.bind(id))
+		row.add_child(b)
+		_diff_btns[id] = [b, title, col]
+	v.add_child(box)
+	_diff_row = box
+	_diff_easy = VBoxContainer.new()
+	_diff_easy.alignment = BoxContainer.ALIGNMENT_CENTER
+	_diff_easy.add_theme_constant_override("separation", 10)
+	_diff_easy.custom_minimum_size = Vector2(0, 118)    # 난이도 카드 자리와 같은 높이 → 창이 덜컥 줄지 않게
+	_diff_easy.visible = false
+	_diff_easy.add_child(_label("EASY 를 선택할 거면 게임을 하지 마세요!", 34, Color8(230, 44, 34), _gothic, true))
+	var back := Button.new()
+	back.text = "←  뒤로  (HARD · NORMAL 고르기)"
+	back.focus_mode = Control.FOCUS_NONE
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.custom_minimum_size = Vector2(420, 58)
+	back.add_theme_font_override("font", _gothic)
+	back.add_theme_font_size_override("font_size", 24)
+	back.add_theme_color_override("font_color", BONE)
+	back.add_theme_stylebox_override("normal", _card_style(CARD_BG, BONE.darkened(0.3), 2, 10))
+	back.add_theme_stylebox_override("hover", _card_style(Color8(36, 30, 30), BONE, 2, 10))
+	back.add_theme_stylebox_override("pressed", _card_style(Color8(48, 40, 38), BONE, 3, 10))
+	back.pressed.connect(_easy_back)
+	_diff_easy.add_child(back)
+	v.add_child(_diff_easy)
+	_show_difficulty()
+
+
+# EASY: 난이도 줄을 치우고 핏빛 문구 + 뒤로 버튼. 그동안 출발은 막는다
+func _pick_difficulty(id: String) -> void:
+	if id == "easy":
+		_diff_row.visible = false
+		_diff_easy.visible = true
+		if _go_btn:
+			_go_btn.disabled = true
+	else:
+		difficulty = id
+	_show_difficulty()
+
+
+func _easy_back() -> void:
+	_diff_easy.visible = false
+	_diff_row.visible = true
+	if _go_btn:
+		_go_btn.disabled = false
+	_show_difficulty()
+
+
+func _show_difficulty() -> void:
+	for id in _diff_btns:
+		var b: Button = _diff_btns[id][0]
+		var on: bool = id == difficulty
+		if id != "easy":
+			b.set_pressed_no_signal(on)
+		var col: Color = _diff_btns[id][2]
+		_diff_btns[id][1].add_theme_color_override("font_color", Color.WHITE if on else col.lightened(0.2))   # 고른 카드 제목은 흰색
 
 
 func _card_style(bg: Color, line: Color, w: int, pad := 0) -> StyleBoxFlat:
@@ -365,6 +478,8 @@ func _refresh() -> void:
 		_checks[item].disabled = n <= 0
 		if n <= 0:
 			_checks[item].button_pressed = false
+		elif not _manual.has(item) and item not in AUTO_OFF:
+			_checks[item].button_pressed = true           # 가진 아이템은 기본으로 켜서 가져간다 (2026-10-01 "시작은 사용한다로") — 끄고 싶으면 눌러서 끈다
 	if _keys:
 		_keys.queue_redraw()
 	for item in _checks:
@@ -377,7 +492,7 @@ func is_open() -> bool:
 
 
 func confirm() -> void:
-	if is_open():
+	if is_open() and not (_go_btn and _go_btn.disabled):   # EASY 문구가 떠 있는 동안에는 Enter 로도 출발하지 않는다
 		_go()
 
 
@@ -388,6 +503,9 @@ func _go() -> void:
 			picks[item] = true
 	_panel.queue_free()
 	_panel = null
+	if _card:
+		_card.queue_free()
+		_card = null
 	start_run.emit(picks)
 
 
@@ -406,6 +524,11 @@ func _sys_gothic(weight: int) -> SystemFont:
 	return g
 var _hint := {}
 var _tip: Label
+var _toast: Label
+const AUTO_OFF := ["bonfire"]                          # 모닥불은 기본 꺼짐 — 켜 두면 매번 절반(375m)부터 시작해 버린다
+var _manual := {}                                      # 출발 준비에서 사용자가 직접 켜고 끈 아이템 (자동 켜짐 대상에서 뺀다)
+var _toast_t := 0.0
+var _card: Control                                     # 스테이지 카드 (출발 준비 창 왼쪽)
 var _tip_t := 0.0
 var _blink := 0.0
 var _timers := {}
@@ -446,10 +569,111 @@ func _build_slots() -> void:
 	_tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_tip.modulate.a = 0.0
 	add_child(_tip)
+	_toast = Label.new()                                  # 미션 달성 알림 (화면 위 가운데, 금빛)
+	_toast.add_theme_font_override("font", _gothic)
+	_toast.add_theme_font_size_override("font_size", 30)
+	_toast.add_theme_color_override("font_color", GOLD)
+	_toast.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	_toast.add_theme_constant_override("shadow_offset_y", 3)
+	_toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_toast.offset_left = -900
+	_toast.offset_right = 900
+	_toast.offset_top = 150
+	_toast.offset_bottom = 200
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.modulate.a = 0.0
+	add_child(_toast)
 	refresh_slots({})
 
 
 # 출발할 때 한 번: 가진 아이템이 있으면 쓰는 법을 알려 준다
+# 폰·태블릿 (앱, 또는 폰 브라우저의 웹 빌드) — 숫자 키 안내를 숨긴다
+static func is_touch() -> bool:
+	return OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
+
+
+# 미션 달성 알림 — 4초 동안 화면 위에
+func toast(text: String) -> void:
+	_toast.text = text
+	_toast_t = 4.0
+	_toast.modulate.a = 1.0
+	_sfx_ok()
+
+
+func _sfx_ok() -> void:
+	var p := AudioStreamPlayer.new()
+	p.stream = load("res://assets/audio/sfx_mission_done.ogg")
+	p.bus = "UI" if AudioServer.get_bus_index("UI") >= 0 else "Master"
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+
+
+# ── 스테이지 카드 (2026-10-01 미션): 출발 준비 창 왼쪽 — 스테이지 · 미션 3개(★) · 코인 · 권총 강화 ─────────
+func _build_stage_card() -> void:
+	if _card:
+		_card.queue_free()
+	var card := PanelContainer.new()
+	var sb := _card_style(Color(0.035, 0.028, 0.032, 0.94), Color8(110, 26, 22), 2)
+	sb.set_content_margin_all(28)
+	card.add_theme_stylebox_override("panel", sb)
+	card.anchor_top = 0.5
+	card.anchor_bottom = 0.5
+	card.offset_left = 50
+	card.offset_right = 610
+	card.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var th := Theme.new()
+	th.default_font = _gothic_m
+	card.theme = th
+	add_child(card)
+	_card = card
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	card.add_child(v)
+	v.add_child(_label(MissionTracker.stage_info()["name"], 34, BONE, _gothic))
+	var rule := ColorRect.new()
+	rule.color = Color8(120, 24, 20)
+	rule.custom_minimum_size = Vector2(0, 2)
+	v.add_child(rule)
+	v.add_child(_label("미션  ·  3개를 모두 달성하면 다음 스테이지", 18, DIM))
+	for line in MissionTracker.mission_lines():
+		var done: bool = line[1]
+		v.add_child(_label(("★  " if done else "☆  ") + line[0], 26, GOLD if done else BONE, _gothic))
+	if not MissionTracker.last_run.is_empty():
+		var last := _label("지난 판 달성:  " + " · ".join(MissionTracker.last_run), 18, GOLD)
+		last.autowrap_mode = TextServer.AUTOWRAP_WORD
+		v.add_child(last)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 6)
+	v.add_child(gap)
+	v.add_child(_label("보유 코인   %d" % MissionTracker.coins(), 28, GOLD, _gothic))
+	var pg: Array = MissionTracker.pistol()
+	v.add_child(_label("시작 권총   %s  %d발" % [pg[0], pg[1]], 22, BONE))
+	var nx: Array = MissionTracker.next_pistol()
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 64)
+	b.add_theme_font_override("font", _gothic)
+	b.add_theme_font_size_override("font_size", 22)
+	b.add_theme_color_override("font_color", BONE)
+	b.add_theme_color_override("font_disabled_color", DIM)
+	b.add_theme_stylebox_override("normal", _card_style(Color8(60, 44, 14), GOLD, 2))
+	b.add_theme_stylebox_override("hover", _card_style(Color8(80, 58, 18), GOLD.lightened(0.2), 2))
+	b.add_theme_stylebox_override("pressed", _card_style(Color8(96, 70, 20), GOLD.lightened(0.3), 3))
+	b.add_theme_stylebox_override("disabled", _card_style(CARD_BG, CARD_LINE, 1))
+	if nx.is_empty():
+		b.text = "권총 강화 완료 (최고 단계)"
+		b.disabled = true
+	else:
+		b.text = "권총 강화 → %s %d발   ·   %d코인" % [nx[0], nx[1], nx[2]]
+		b.disabled = MissionTracker.coins() < nx[2]
+		b.pressed.connect(func():
+			if MissionTracker.buy_pistol():
+				pistol_upgraded.emit()
+				_build_stage_card())
+	v.add_child(b)
+
+
 func show_tip() -> void:
 	var parts := []
 	if Inventory.has("frenzy_30"):
@@ -490,9 +714,10 @@ func _draw_slot(b: Button, item: String, key: String) -> void:
 		var k := clampf(left / TIMED.get(item, 1.0), 0.0, 1.0)
 		b.draw_rect(Rect2(Vector2(4, SLOT - 6), Vector2((SLOT - 8) * k, 3)), RED)
 		b.draw_string(_gothic, Vector2(0, SLOT - 12), "%d" % int(ceil(left)), HORIZONTAL_ALIGNMENT_CENTER, SLOT, 26, Color.WHITE)
-	var kr := Rect2(Vector2(-8, -8), Vector2(30, 30))       # 키캡
-	b.draw_style_box(_card_style(Color8(30, 26, 26), Color8(190, 176, 150), 1), kr)
-	b.draw_string(_gothic, Vector2(-8, 14), key, HORIZONTAL_ALIGNMENT_CENTER, 30, 20, BONE)
+	if not is_touch():                                    # 키캡 [1][2][3] 은 PC(키보드)에서만 — 폰에서는 남은 개수로 헷갈린다 (2026-10-01)
+		var kr := Rect2(Vector2(-8, -8), Vector2(30, 30))
+		b.draw_style_box(_card_style(Color8(30, 26, 26), Color8(190, 176, 150), 1), kr)
+		b.draw_string(_gothic, Vector2(-8, 14), key, HORIZONTAL_ALIGNMENT_CENTER, 30, 20, BONE)
 	var n := Inventory.count(item)                        # 수량 (오른쪽 위)
 	b.draw_string(_gothic, Vector2(SLOT - 46, 22), "×%d" % n, HORIZONTAL_ALIGNMENT_RIGHT, 40, 20, (GOLD if n > 0 else DIM))
 	var name := Inventory.item_name(item)
@@ -555,6 +780,9 @@ func _process(delta: float) -> void:
 	if _tip:
 		_tip_t -= delta
 		_tip.modulate.a = clampf(_tip_t / 0.6, 0.0, 1.0)
+	if _toast_t > 0.0:
+		_toast_t -= delta
+		_toast.modulate.a = clampf(_toast_t / 0.6, 0.0, 1.0)
 	if not _hint.is_empty():
 		for item in _slots:
 			_slots[item][0].queue_redraw()
