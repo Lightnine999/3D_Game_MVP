@@ -128,9 +128,9 @@ func open_loadout() -> void:
 	test.alignment = BoxContainer.ALIGNMENT_CENTER
 	test.add_theme_constant_override("separation", 10)
 	test.add_child(_label("테스트 지급", 18, DIM))
-	for pack in Inventory.PACKS.keys() + ["adrenaline"]:  # 아드레날린은 시험 중이라 팩 밖에서 따로 지급
+	for pack in Inventory.PACKS:
 		var b := Button.new()
-		b.text = "+ " + (Inventory.PACKS[pack]["name"] if Inventory.PACKS.has(pack) else Inventory.item_name(pack))
+		b.text = "+ " + Inventory.PACKS[pack]["name"]
 		b.add_theme_font_size_override("font_size", 18)
 		b.add_theme_color_override("font_color", Color8(190, 176, 150))
 		b.add_theme_color_override("font_hover_color", GOLD)
@@ -138,12 +138,7 @@ func open_loadout() -> void:
 		b.add_theme_stylebox_override("hover", _card_style(Color8(30, 26, 22), GOLD, 1, 8))
 		b.add_theme_stylebox_override("pressed", _card_style(Color8(40, 34, 26), GOLD, 1, 8))
 		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(func():
-			if Inventory.PACKS.has(pack):
-				Inventory.grant_pack(pack)
-			else:
-				Inventory.add(pack, 1)
-			_refresh())
+		b.pressed.connect(func(): Inventory.grant_pack(pack); _refresh())
 		test.add_child(b)
 	v.add_child(test)
 	_refresh()
