@@ -3,9 +3,9 @@
 #
 # 플레이 테스트 (2026-09-30, 기본): 사용자가 직접 좌우로 피한다 — 레벨 디자인 확인용 (진짜 조작·판정은 B 담당)
 #   PC: A·D 또는 ←·→ 로 좌우, 스페이스바로 사격 (마우스는 쓰지 않는다 — 시선은 항상 정면)
-#   폰: 화면을 누른 채 좌우로 끌기, 오른쪽 아래 FIRE 버튼으로 사격
+#   폰: 화면 왼쪽을 누른 채 좌우로 끌기, 화면 오른쪽 아무 데나 누르면 사격
 #   전진은 자동. 낮은 장애물(1.1m 이하 — 찢긴 차·방어벽·짐 더미)은 높이에 맞춰 살짝 올라탔다가 내려앉는다
-#   R 키 / 폰 RELOAD 버튼: 탄창 재장전 (시간이 걸린다). 빈 탄창으로 쏘면 저절로 재장전
+#   R 키: 탄창 재장전 (시간이 걸린다). 탄창이 비면 저절로 재장전 (폰은 자동만)
 #   차·소품은 뚫고 지나가지 못한다. 정면으로 막히면 가까운 틈으로 저절로 미끄러지고, 낮은 것은 저절로 뛰어넘는다. 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
 #   --auto: 예전처럼 알아서 피해 가는 자동 달리기 / --no-showcase: 좀비 없이 맵만
 # 영상 프레임: godot --path godot --resolution 1560x720 -- --frames=<폴더>
@@ -24,6 +24,10 @@ const LOOK_AHEAD := 18.0    # 이만큼 앞의 장애물부터 피하기 시작
 const DODGE_MARGIN := 1.1   # 장애물 옆으로 두는 여유 (m)
 const STEER_SPEED := 3.0    # 자동 달리기 좌우 이동 속도 (m/s) — 500m 압축 뒤 장애물이 촘촘해져 2.2 → 3.0
 const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
+# 아드레날린 (2026-10-01 시험): 앞으로 몇 배 · 좌우 몇 배. 실행 인자 --adren-run=1.0 이면 앞으로는 그대로 두고 좌우만 빨라진다
+const ADREN_RUN := 1.4
+const ADREN_SIDE := 1.8
+const ADREN_FOV := 9.0      # 빨리 달리는 동안 시야를 이만큼(도) 넓혀 속도감
 const DRAG_WIDTH_M := 18.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
 const PLAYER_RADIUS := 0.35
 # 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
@@ -57,6 +61,13 @@ var _label: Label
 var _dist := 0.0
 var _time := 0.0
 var _x := 0.0
+var _adren_run := ADREN_RUN
+var _speed_fx: ShaderMaterial          # 아드레날린 화면 왜곡 (가장자리가 뒤로 늘어지며 흐려진다)
+var _speed_k := 0.0
+var _quake_amp := 0.0                  # 다리 흔들림 세기 · 남은 시간 (showcase.quake)
+var _quake_t := 0.0
+var _quake_dur := 1.0
+var _speed_rect: ColorRect
 var _frames_dir := ""
 var _frame_count := -1       # 테스트용: --count=N 이면 N장만
 var _frame_start := 0        # 이어 찍기: --start=N 이면 N번째 프레임부터 (앞부분은 그리지 않고 계산만)
@@ -90,7 +101,8 @@ var _jumps := 0                     # 자동 점프 횟수 (통과 검사 기록
 var _grounded := true               # 땅이나 낮은 물건(가방·상자) 위에 서 있다
 var _stuck_t := 0.0                 # 앞으로 못 나아간 시간
 var _stuck_total := 0.0             # 끼인 채 흐른 전체 시간 (반대쪽 틈 시도와 상관없이 쌓인다)
-var _fire_held := false             # 폰 FIRE 버튼을 누르고 있다
+var _fire_held := false             # 폰: 화면 오른쪽을 누르고 있다 (= 사격)
+var _fire_touches := {}             # 폰: 화면 오른쪽을 누르고 있는 손가락들 (여러 손가락)
 var _stun_t := 0.0                  # 칼로 벗어나는 동안 잠깐 멈춤
 var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
 var _dead_t := 0.0
@@ -120,6 +132,13 @@ var _band: TextureRect              # YOU DIED 뒤 가로 검은 띠
 const DIED_RED := Color8(150, 18, 16)   # 다크소울 YOU DIED 핏빛
 var _retry: Button                  # 사망 후 "다시 시작하겠습니까?" (누르면 처음부터)
 var _deaths_label: Label
+static var _zone_deaths := {}       # 구간별 죽은 횟수 ("berserk" 길 중간 광전사 / "finale" 끝 반전) — 같은 구간 2번째부터 다른 권유
+var _ui: RunItemsUI                 # 팩 아이템 화면 (출발 준비·아이템 칸·위험 감지) — scripts/stage/run_items_ui.gd
+var _loadout_open := false          # 출발 준비 창이 떠 있는 동안 게임은 멈춰 있다
+var _offer: Button                  # YOU DIED 화면 RETRY 옆: "한 번 더 (부활)" 또는 상황별 팩 권유
+var _offer_line: Label
+var _offer_pack := ""               # 권유 중인 팩 ("" 이면 부활 버튼)
+const BONFIRE_AT := 375.0           # 모닥불: 이 지점부터 시작 (750m 기준)
 static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 시작해도 이어진다 — 2026-09-30 "다크소울 느낌, 여러 번 도전하게")
 
 
@@ -149,6 +168,9 @@ func _ready() -> void:
 	_build_body()
 	_build_overlay(holder)
 	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a.begins_with("--adren-run="):
+			_adren_run = a.get_slice("=", 1).to_float()
 	_play = _frames_dir.is_empty() and _shots_dir.is_empty() and not ("--auto" in args or "--sim" in args)
 	if "--showcase" in args or (_play and not ("--no-showcase" in args)):
 		_showcase = ShowcaseDirector.new()
@@ -168,15 +190,16 @@ func _ready() -> void:
 			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
 			_km.finished.connect(_on_melee_end)
 			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
+			_showcase.quake.connect(_on_quake)
 			_showcase.burst.connect(func(): _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.caught.connect(_on_caught)
 			_showcase.auto_fire = false                   # 사격은 스페이스바·FIRE 버튼으로 직접
 			_showcase.live_audio = true
 			_showcase.start_bgm()
-			if DisplayServer.is_touchscreen_available():
-				_build_fire_button(holder)
 			_build_pause_button(holder)
+			_build_items_ui(holder)
+			_build_speed_fx(holder)
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
@@ -259,6 +282,174 @@ func _melee_cam(delta: float) -> void:
 		_showcase.update(_dist, _x, delta)                  # 좀비·보급·HUD 는 계속 움직인다 (나만 멈춤)
 
 
+# ── 팩 아이템 (2026-10-01, docs/PACK_ITEMS_HANDOFF.md) ─────────────────
+# 아드레날린 속도감 (2026-10-01): 화면 가장자리를 가운데서 바깥으로 끌어당겨 흐리고 살짝 일렁이게 + 색이 갈라짐.
+# HUD·아이템 칸보다 아래 층(-1)이라 3D 화면에만 걸린다
+const SPEED_FX := """
+shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
+uniform float strength = 0.0;
+uniform float time_s = 0.0;
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	vec2 d = uv - vec2(0.5, 0.52);
+	float r = length(d);
+	float edge = smoothstep(0.12, 0.72, r);
+	vec2 warp = d * edge * strength * 0.035 * (1.0 + 0.5 * sin(time_s * 26.0 + r * 38.0));
+	vec3 col = vec3(0.0);
+	for (int i = 0; i < 6; i++) {
+		float t = float(i) / 5.0;
+		col += texture(screen_tex, uv - warp - d * edge * strength * 0.075 * t).rgb;
+	}
+	col /= 6.0;
+	float ca = edge * strength * 0.007;
+	col.r = mix(col.r, texture(screen_tex, uv - warp + d * ca).r, 0.6);
+	col.b = mix(col.b, texture(screen_tex, uv - warp - d * ca).b, 0.6);
+	col *= 1.0 - edge * strength * 0.18;
+	COLOR = vec4(col, 1.0);
+}
+"""
+
+
+func _build_speed_fx(holder: Node) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = -1
+	holder.add_child(layer)
+	var rect := ColorRect.new()
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = SPEED_FX
+	_speed_fx = ShaderMaterial.new()
+	_speed_fx.shader = sh
+	rect.material = _speed_fx
+	rect.visible = false
+	layer.add_child(rect)
+	_speed_rect = rect
+
+
+func _build_items_ui(holder: Node) -> void:
+	_ui = RunItemsUI.new()
+	holder.add_child(_ui)
+	_showcase.danger.connect(_ui.warn)
+	_ui.use_item.connect(_use_run_item)
+	_ui.start_run.connect(_start_run)
+	_ui.open_loadout()
+	_loadout_open = true
+	_apply_camera(0.0)                                   # 준비 창 뒤로 출발 지점 정면이 보이게
+
+
+# 출발: 켠 아이템을 적용하고 달리기 시작
+func _start_run(picks: Dictionary) -> void:
+	_loadout_open = false
+	_ui.show_tip()
+	_showcase.apply_loadout(picks)
+	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
+		_warp_to(BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0)
+		_showcase.run_used["rise"] = true
+	for a in OS.get_cmdline_user_args():                 # 시험용: --start=490 이면 그 지점부터 (다리 앞 등)
+		if a.begins_with("--start="):
+			_warp_to(a.get_slice("=", 1).to_float())
+
+
+func _warp_to(d: float) -> void:
+	_body.position = Vector3(0.0, 0.0, -d)
+	_dist = d
+	_x = 0.0
+	_steer_target = 0.0
+	_lean_x = 0.0
+	_showcase.skip_to(d)
+
+
+func _use_run_item(item: String) -> void:
+	if _dead or _loadout_open or _melee:
+		return
+	if item == "frenzy_30":
+		_showcase.use_frenzy()
+	elif item == "flare_supply":
+		_showcase.use_flare(_dist)
+	elif item == "adrenaline":
+		_showcase.use_adrenaline()
+
+
+# 죽은 구간: 광전사에게 잡혔으면 길 중간("berserk") 또는 끝 반전("finale")
+func _death_zone() -> String:
+	if _dist >= ShowcaseDirector.FINALE_AT * StageBuilderV2.STAGE_LENGTH / 750.0:
+		return "finale"
+	if not _showcase._grab_e.is_empty() and _showcase._grab_e.get("style", "") == "berserk":
+		return "berserk"
+	return ""
+
+
+# YOU DIED 화면 RETRY 옆에 무엇을 띄울지 (HANDOFF 1.4)
+func _setup_offer() -> void:
+	_offer_pack = ""
+	var rise_used: bool = _showcase.run_used.has("rise")
+	if Inventory.has("revive") and not rise_used:
+		_offer.text = "한 번 더  (부활 ×%d)" % Inventory.count("revive")
+		_offer_line.text = "죽은 자리에서 다시 일어납니다 · 2초 무적"
+		return
+	var zone := _death_zone()
+	var n: int = _zone_deaths.get(zone, 0)
+	if zone == "berserk" and n >= 2:
+		_offer_pack = "pack_legend"
+		_offer_line.text = "위험 감지면 2초 먼저 보인다"
+	elif zone == "finale" and n >= 2:
+		_offer_pack = "pack_legend"
+		_offer_line.text = "광란의 15초를 아껴 뒀다면"
+	elif _dist >= BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0:
+		_offer_pack = "pack_one_more"
+		_offer_line.text = "남은 %dm, 한 번 더?" % StageBuilderV2.remaining(_dist)
+	else:
+		_offer_pack = "pack_survival_kit"
+		_offer_line.text = "예비 칼이 있었다면…"
+	if rise_used:
+		_offer_line.text = "이번 판은 이미 다시 일어났습니다 · " + _offer_line.text
+	var pk: Dictionary = Inventory.PACKS[_offer_pack]
+	_offer.text = "%s  ₩%s" % [pk["name"], _won(pk["price"])]
+
+
+func _won(n: int) -> String:
+	var t := str(n)
+	return t.substr(0, t.length() - 3) + "," + t.substr(t.length() - 3) if n >= 1000 else t
+
+
+func _on_offer() -> void:
+	if _offer_pack.is_empty():
+		if not _showcase.run_used.has("rise") and Inventory.use("revive"):
+			_revive()
+		return
+	Inventory.grant_pack(_offer_pack)                    # 결제 연결 전: 테스트 지급 (나중에 토스 결제 → 서버 인벤토리로 바뀐다)
+	_setup_offer()
+	if _offer_pack.is_empty():
+		_offer_line.text = "받았습니다 — " + _offer_line.text
+	else:
+		_offer.disabled = true
+		_offer.text = "받았습니다"
+		_offer_line.text = "다음 판 출발 준비에서 쓸 수 있습니다"
+
+
+# 부활: 죽은 자리에서 일어나 다시 달린다 (탄약·칼·보급은 그대로, 2초 무적)
+func _revive() -> void:
+	_showcase.run_used["rise"] = true
+	_showcase.revive()
+	_dead = false
+	_dead_t = 0.0
+	_fall_hit = false
+	_fade.color.a = 0.0
+	_blood.modulate.a = 0.0
+	_band.modulate.a = 0.0
+	for c in [_dead_label, _deaths_label, _retry, _offer, _offer_line]:
+		c.visible = false
+	_label.visible = true
+	if _pause_btn:
+		_pause_btn.visible = true
+		_pause_btn.queue_redraw()
+	_bump = 1.0
+	_stun_t = 0.3                                        # 일어나는 순간 잠깐
+	print("[items] %.0fm 에서 부활" % _dist)
+
+
 func _on_caught(z: Node3D) -> void:
 	_label.visible = false
 	_dead = true
@@ -270,6 +461,11 @@ func _on_caught(z: Node3D) -> void:
 		_pause_btn.visible = false                        # YOU DIED 화면에는 일시정지 버튼을 치운다
 	_deaths_label.text = "사망 %d회" % _deaths
 	_melee = false
+	if _ui:
+		_ui.hide_slots()
+		var zone := _death_zone()
+		if not zone.is_empty():
+			_zone_deaths[zone] = _zone_deaths.get(zone, 0) + 1
 
 
 # 사망 연출 (2026-09-30 피드백): ① 1.4초 동안 코앞의 좀비가 물어뜯는 모습을 본다 → ② 1.1초 동안 뒤로 넘어지며
@@ -330,8 +526,19 @@ func _death_cam(delta: float) -> void:
 		_retry.visible = true
 		_retry.modulate.a = 0.0
 		_retry.grab_focus()                               # 엔터·스페이스로도 누를 수 있게
+		if _ui:                                           # RETRY 옆: 한 번 더 (부활) / 상황별 팩 권유 — HANDOFF 1.4
+			_setup_offer()
+			_offer.disabled = false
+			_offer.visible = true
+			_offer_line.visible = true
+			_retry.offset_left = -440
+			_retry.offset_right = -40
 	if _retry.visible:
-		_retry.modulate.a = clampf((_dead_t - f0 - 3.1) / 0.6, 0.0, 1.0)   # YOU DIED 가 떠오른 뒤 서서히 나타난다
+		var a := clampf((_dead_t - f0 - 3.1) / 0.6, 0.0, 1.0)   # YOU DIED 가 떠오른 뒤 서서히 나타난다
+		_retry.modulate.a = a
+		if _offer:
+			_offer.modulate.a = a
+			_offer_line.modulate.a = a
 
 
 # 핸드헬드: 서로 다른 느린 박자 몇 개를 겹쳐 손떨림처럼 (-1 ~ 1 쯤)
@@ -394,45 +601,11 @@ func _draw_pause_icon() -> void:
 
 
 func _toggle_pause() -> void:
-	if _dead:
+	if _dead or _loadout_open:
 		return
 	get_tree().paused = not get_tree().paused
 	_pause_dim.visible = get_tree().paused
 	_pause_btn.queue_redraw()
-
-
-func _build_fire_button(holder: Node) -> void:
-	var layer := CanvasLayer.new()
-	holder.add_child(layer)
-	var b := Button.new()
-	b.text = "FIRE"
-	b.add_theme_font_size_override("font_size", 40)
-	b.anchor_left = 1.0
-	b.anchor_top = 1.0
-	b.anchor_right = 1.0
-	b.anchor_bottom = 1.0
-	b.offset_left = -230
-	b.offset_top = -190
-	b.offset_right = -40
-	b.offset_bottom = -40
-	b.modulate = Color(1, 1, 1, 0.75)
-	b.button_down.connect(func(): _fire_held = true)
-	b.button_up.connect(func(): _fire_held = false)
-	layer.add_child(b)
-	var r := Button.new()                                   # 재장전 버튼: FIRE 위
-	r.text = "RELOAD"
-	r.add_theme_font_size_override("font_size", 30)
-	r.anchor_left = 1.0
-	r.anchor_top = 1.0
-	r.anchor_right = 1.0
-	r.anchor_bottom = 1.0
-	r.offset_left = -210
-	r.offset_top = -300
-	r.offset_right = -60
-	r.offset_bottom = -210
-	r.modulate = Color(1, 1, 1, 0.7)
-	r.button_down.connect(func(): _showcase.reload())
-	layer.add_child(r)
 
 
 func _build_body() -> void:
@@ -474,9 +647,11 @@ func _build_overlay(holder: Node) -> void:
 	layer.add_child(_fade)
 	# YOU DIED (2026-09-30 "다크소울처럼"): 화면을 다 끄지 않고, 가운데 가로 검은 띠 위에 짙은 핏빛 로마식 세리프 대문자.
 	# 천천히 나타나며 아주 조금 커진다. RETRY·사망 횟수도 같은 글꼴 (폰은 기기 세리프 글꼴로 대체)
-	var roman := SystemFont.new()
-	roman.font_names = PackedStringArray(["Cinzel", "Trajan Pro", "Palatino", "Baskerville", "Times New Roman", "Noto Serif", "serif"])
-	roman.font_weight = 400
+	# 글꼴은 게임에 넣어 둔 Cinzel (OFL, assets/fonts) — 기기 글꼴을 빌리면 폰에서 고딕으로 바뀌었다 (2026-10-01)
+	var roman: Font = load("res://assets/fonts/Cinzel-Variable.ttf")
+	var roman_sys := SystemFont.new()                     # Cinzel 에 없는 글자(한글 등)는 기기 글꼴로
+	roman_sys.font_names = PackedStringArray(["Palatino", "Noto Serif", "serif", "Apple SD Gothic Neo", "Noto Sans CJK KR", "sans-serif"])
+	roman.fallbacks = [roman_sys]
 	var died_font := FontVariation.new()
 	died_font.base_font = roman
 	died_font.spacing_glyph = 14                          # 넓은 자간
@@ -548,9 +723,46 @@ func _build_overlay(holder: Node) -> void:
 	_retry.offset_top = 200
 	_retry.offset_bottom = 280
 	_retry.pressed.connect(func(): get_tree().reload_current_scene())
+	_offer = Button.new()                                  # RETRY 옆 권유 — 같은 세리프, 금빛 (팩 색)
+	_offer.visible = false
+	_offer.add_theme_font_override("font", retry_font)
+	_offer.add_theme_font_size_override("font_size", 34)
+	_offer.add_theme_color_override("font_color", Color8(196, 150, 60))
+	_offer.add_theme_color_override("font_hover_color", Color8(240, 196, 96))
+	_offer.add_theme_color_override("font_focus_color", Color8(240, 196, 96))
+	_offer.add_theme_color_override("font_disabled_color", Color8(130, 120, 100))
+	for st in ["normal", "hover", "focus", "pressed", "disabled"]:
+		_offer.add_theme_stylebox_override(st, none)
+	_offer.set_anchors_preset(Control.PRESET_CENTER)
+	_offer.offset_left = 40
+	_offer.offset_right = 480
+	_offer.offset_top = 200
+	_offer.offset_bottom = 280
+	_offer.pressed.connect(_on_offer)
+	_offer_line = Label.new()
+	_offer_line.visible = false
+	_offer_line.set_anchors_preset(Control.PRESET_CENTER)
+	_offer_line.offset_left = -400
+	_offer_line.offset_right = 520
+	_offer_line.offset_top = 280
+	_offer_line.offset_bottom = 340
+	_offer_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_offer_line.add_theme_font_override("font", small)
+	_offer_line.add_theme_font_size_override("font_size", 22)
+	_offer_line.add_theme_color_override("font_color", Color8(150, 138, 124))
+	var test_note := Label.new()                            # PRD F-115
+	test_note.text = "테스트 결제입니다 · 실제 돈이 나가지 않습니다"
+	test_note.add_theme_font_size_override("font_size", 16)
+	test_note.add_theme_color_override("font_color", Color8(110, 102, 94))
+	test_note.position = Vector2(0, 30)
+	test_note.size = Vector2(920, 24)
+	test_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_offer_line.add_child(test_note)
 	layer.add_child(_dead_label)
 	layer.add_child(_deaths_label)
 	layer.add_child(_retry)
+	layer.add_child(_offer)
+	layer.add_child(_offer_line)
 
 
 func _process(delta: float) -> void:
@@ -561,17 +773,21 @@ func _process(delta: float) -> void:
 	if _dead:
 		_death_cam(delta)
 		return
+	if _loadout_open:
+		return                                           # 출발 준비 중: 세상은 멈춰 있다
 	if _melee:
 		_melee_cam(delta)
 		return
 	_step(delta)
+	if _ui:
+		_ui.refresh_slots(_showcase.run_used, {"frenzy_30": _showcase.frenzy_left(), "adrenaline": _showcase.adrenaline_left()}, _showcase.item_hints(_dist))
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
 		return
 	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
 
-# 플레이 테스트 조작: 폰은 누른 채 좌우로 끌기 (FIRE 버튼 위는 제외). PC 는 키보드만 (_step 에서 읽는다)
+# 플레이 테스트 조작: 폰은 왼쪽을 누른 채 좌우로 끌기 · 오른쪽을 누르면 사격. PC 는 키보드만 (_step 에서 읽는다)
 # 마우스는 쓰지 않는다: 마우스를 움직여 시선이 돌아가거나 기울지 않게 (2026-09-30 피드백)
 func _unhandled_input(event: InputEvent) -> void:
 	if not _play:
@@ -581,14 +797,32 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if get_tree().paused:
 		return
+	if _ui and event is InputEventKey and event.pressed and not event.echo:
+		if _loadout_open and (event.physical_keycode == KEY_ENTER or event.physical_keycode == KEY_KP_ENTER):
+			_ui.confirm()
+			return
+		if event.physical_keycode == KEY_1:
+			_use_run_item("frenzy_30")
+			return
+		if event.physical_keycode == KEY_2:               # 보급 신호탄 (1 광란과 짝 — 숫자 키로 통일, 2026-10-01)
+			_use_run_item("flare_supply")
+			return
+		if event.physical_keycode == KEY_3:
+			_use_run_item("adrenaline")
+			return
 	var w := get_viewport().get_visible_rect().size.x
-	if event is InputEventScreenTouch:
-		if event.pressed and _touch_id == -1:
+	if event is InputEventScreenTouch:                    # 폰 (2026-10-01): 왼쪽 절반 = 누른 채 좌우로 끌어 이동 · 오른쪽 절반 = 누르고 있으면 사격 (FIRE·RELOAD 버튼 없앰, 재장전은 자동)
+		if event.pressed and event.position.x > w * 0.5 and not _loadout_open:
+			_fire_touches[event.index] = true
+		elif event.pressed and _touch_id == -1:
 			_touch_id = event.index
 			_touch_x0 = event.position.x
 			_steer_x0 = _steer_target
-		elif not event.pressed and event.index == _touch_id:
-			_touch_id = -1
+		elif not event.pressed:
+			_fire_touches.erase(event.index)
+			if event.index == _touch_id:
+				_touch_id = -1
+		_fire_held = not _fire_touches.is_empty()
 	elif event is InputEventScreenDrag and event.index == _touch_id:
 		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M, -_lane(), _lane())
 
@@ -602,6 +836,16 @@ func _step(delta: float) -> void:
 	_time += delta
 	var vx := 0.0
 	var vz := RUN_SPEED
+	var boost := _showcase != null and _showcase.adrenaline_left() > 0.0
+	var side := ADREN_SIDE if boost else 1.0
+	if boost:
+		vz *= _adren_run
+	_camera.fov = lerpf(_camera.fov, 60.0 + (ADREN_FOV if boost else 0.0), minf(delta * 5.0, 1.0))
+	if _speed_fx:                                        # 켜질 땐 빠르게, 끝날 땐 천천히 풀린다
+		_speed_k = move_toward(_speed_k, 1.0 if boost else 0.0, delta * (4.0 if boost else 1.2))
+		_speed_fx.set_shader_parameter("strength", _speed_k)
+		_speed_fx.set_shader_parameter("time_s", _time)
+		_speed_rect.visible = _speed_k > 0.001
 	if _play:
 		var key := 0.0
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -609,12 +853,12 @@ func _step(delta: float) -> void:
 		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
 			key += 1.0
 		if key != 0.0:
-			_steer_target = clampf(_x + key * 1.2, -_lane(), _lane())
+			_steer_target = clampf(_x + key * 1.2 * side, -_lane(), _lane())
 		if _showcase and (Input.is_physical_key_pressed(KEY_SPACE) or _fire_held):
 			_showcase.fire()                              # 누르고 있으면 연사 간격(0.45초)마다
 		if _showcase and Input.is_physical_key_pressed(KEY_R):
 			_showcase.reload()                            # 재장전 (걸리는 시간 동안 못 쏜다)
-		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
+		vx = clampf((_steer_target - _x) * 8.0 * side, -PLAY_STEER * side, PLAY_STEER * side)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
 	if _glide_t > 0.0:                                   # 끼임 탈출: 빈자리로 부드럽게 옮겨 가는 중 (다른 움직임은 잠시 멈춤)
@@ -629,7 +873,7 @@ func _step(delta: float) -> void:
 	if _slide_t > 0.0:                                   # 막혀서 미끄러지는 중: 조작보다 우선 (조작 안 해도 빠져나간다)
 		_slide_t -= delta
 		vx = clampf((_slide_x - _x) * 6.0, -SLIDE_SPEED, SLIDE_SPEED)
-		vz = RUN_SPEED * SLIDE_FORWARD                    # 비스듬한 차 면을 계속 밀면 반대로 밀려나 옆걸음이 막힌다 → 앞으로는 살살
+		vz *= SLIDE_FORWARD                    # 비스듬한 차 면을 계속 밀면 반대로 밀려나 옆걸음이 막힌다 → 앞으로는 살살
 		_steer_target = _x                                # 손을 떼도 제자리로 끌려가지 않게
 	if _stun_t > 0.0:                                    # 칼질하는 동안 잠깐 멈췄다가 다시 달린다
 		_stun_t -= delta
@@ -650,7 +894,17 @@ func _step(delta: float) -> void:
 	_finish_step(delta)
 
 
+# 다리 흔들림: 지금 흔들림보다 약하고 짧은 것(차 창문 쾅)은 긴 울림을 끊지 않는다
+func _on_quake(amp: float, dur: float) -> void:
+	var now := _quake_amp * clampf(_quake_t / maxf(_quake_dur, 0.01), 0.0, 1.0)
+	if amp >= now or dur > _quake_t:
+		_quake_amp = maxf(amp, now)
+		_quake_t = maxf(dur, _quake_t)
+		_quake_dur = _quake_t
+
+
 func _finish_step(delta: float) -> void:
+	_quake_t -= delta                                     # 다리 흔들림 시간은 실제 시간으로 (화면 주사율과 무관)
 	_bump = maxf(_bump - delta * 3.0, 0.0)
 	var vx := (_x - _lean_x) / maxf(delta, 0.001)        # 이번 걸음의 옆 속도 → 기울기 (끼임 탈출로 휙 옮겨도 ±1 로 막는다)
 	_lean_x = _x
@@ -927,12 +1181,16 @@ func _apply_camera(t: float) -> void:
 	var sway := sin(t * TAU * BOB_FREQ * 0.5)
 	var shake := _bump * _bump * 0.06 * sin(t * 60.0)
 	var air := _body.position.y * JUMP_CAM
-	_camera.position = Vector3(_x + sway * 0.04 + shake, EYE_HEIGHT + air + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
+	var qk := Vector3.ZERO                                # 다리 흔들림: 위아래로 덜덜 + 좌우로 조금 (끝으로 갈수록 잦아든다)
+	if _quake_t > 0.0:
+		var a := _quake_amp * clampf(_quake_t / _quake_dur, 0.0, 1.0)
+		qk = Vector3((sin(t * 71.0) + sin(t * 113.0) * 0.5) * 0.018, (sin(t * 89.0) + sin(t * 47.0) * 0.6) * 0.03, sin(t * 59.0) * 1.2) * a
+	_camera.position = Vector3(_x + sway * 0.04 + shake + qk.x, EYE_HEIGHT + air + qk.y + (0.0 if air > 0.01 else absf(step) * BOB_AMP), -_dist)
 	if _play:                                              # 플레이: 항상 정면 (위아래 발걸음만). 부딪히면 어깨빵처럼 잠깐 기울었다 돌아온다
 		var jolt := _bump * _bump * _bump_side
 		# 좌우로 움직이면 그쪽으로 기운다 (오른쪽으로 가면 오른쪽 어깨가 내려가듯) + 시선도 살짝 그쪽
 		_camera.rotation = Vector3(deg_to_rad(-2.0 + step * 0.4 - _bump * _bump * 1.2),
-			deg_to_rad(-BUMP_YAW * jolt - LEAN_YAW * _lean), deg_to_rad(-BUMP_ROLL * jolt - LEAN_ROLL * _lean))
+			deg_to_rad(-BUMP_YAW * jolt - LEAN_YAW * _lean), deg_to_rad(-BUMP_ROLL * jolt - LEAN_ROLL * _lean + qk.z))
 		if _unmelee_t > 0.0:                              # 칼 근접전 뒤: 좀비를 보던 시선이 정면으로 부드럽게 돌아온다
 			_unmelee_t -= 1.0 / 60.0
 			var k := smoothstep(0.0, 1.0, 1.0 - clampf(_unmelee_t / 0.35, 0.0, 1.0))

@@ -7,7 +7,7 @@
 class_name ShowcaseDirector
 extends Node3D
 
-const UI_DIR := "res://../art/ui/icons/"      # 세권 님 HUD 아이콘 (art/ui, 게임 폴더 밖)
+const UI_DIR := "res://assets/ui/icons/"      # 세권 님 HUD 아이콘 (원본 art/ui/icons — 게임 폴더 밖은 APK 에 안 들어가서 2026-10-01 복사)
 const MUZZLE := Vector3(0, 0.08, -0.166)       # weapon_pistol.glb 총구 위치 (PR #4)
 const SHOOT_RANGE := 10.0                     # 이 거리 안에 들어온 좀비를 쏜다 (손 뻗고 다가오는 모습이 보이게 가까이)
 const SHOT_GAP := 0.45                        # 연사 간격 (초)
@@ -20,6 +20,8 @@ const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
 # 탄창 (2026-09-30 피드백): 시작 7발. 보급 상자를 먹으면 권총 한 정이 무작위로 나오고, 그 모델의 탄창 크기(최대 30발)가
 # 새 탄창 크기가 된다. 받은 총알은 예비탄으로 쟁여 두고 R(폰 RELOAD)로 재장전한다 — 재장전은 시간이 걸린다
+const HUD_TOP := 48.0                         # 총알 줄 윗변 (2026-10-01 "너무 상단에 붙었다" 22 → 48)
+const HUD_K := 1.2                            # 총알·총 HUD 크기 배율
 const LINE_W := 200.0                         # 진행 실선 길이 (px) — 왼쪽 위 거리 숫자 아래
 const HUD_WHITE := Color(0.96, 0.95, 0.93)    # HUD 흰색 (살짝 따뜻한 흰색 — 순백은 노을 화면에서 튄다)
 const START_MAG := 7                          # 시작 탄창 7발 (예비탄 0)
@@ -80,6 +82,24 @@ const BURST_AT := 738.0                       # 늦어도 여기서는 튀어나
 const BURST_AHEAD := 6.5
 const BURST_SPEED := 1.5                      # 나(5m/s)와 합쳐 초당 6.5m → 약 1초                      # 끝의 둘은 6m 앞에서 방향 고정 → 비킬 틈 약 0.4초, 피해도 아슬아슬하게 스친다
 const POUNCE_AHEAD := 8.5
+# 다리 밑 매복 (2026-10-01 "다리 건널 때 재밌는 요소"): 다리 위 왼쪽에 버려진 차 → 오른쪽 틈으로만 지나간다.
+#   그 오른쪽 난간 밑에서 손이 먼저 올라와 매달리고(경고) → 기어올라 → 틈을 막듯 덮친다.
+#   피할 길: 매달린 동안 쏘거나 · 덮치기 직전 차 쪽(왼쪽)으로 바짝 붙거나 · 칼
+const UNDER_D := StageBuilderV2.RIVER_Z0 + 13.0      # 좀비가 올라오는 곳 (다리 위 차 바로 앞, 오른쪽 가장자리)
+const UNDER_AHEAD := 9.0                              # 이만큼 앞에 왔을 때 손이 올라온다 (너무 멀면 총에 가려 안 보인다)
+const UNDER_HANG := 0.75                              # 매달려 기어오르는 시간 (경고 시간)
+# (차 안 좀비 낚시는 2026-10-01 시험 후 뺐다 — 낮은 폐차라 지붕 위로 머리가 튀어나와 버그처럼 보였다)
+const CAR_D := StageBuilderV2.RIVER_Z0 + 10.0         # 다리 위 차 (stage_builder_v2 _build_obstacles: x -1.4, 8도)
+# 다리 입구 왼쪽 무리 (2026-10-01 "왼쪽이 너무 비어 보인다"): [종류, 스타일, 차 기준 거리(+앞), x]
+#   11마리 → "너무 많다, 2/3 덜어내" → 4마리. "가운데 몰리지 말고 좌우로 퍼지게 · 경찰 좀비(워커)가 멍청해 보인다"
+#   → 강가는 좌우 양쪽에 · 각자 자기 줄(x)을 지키며 다가온다 · 워커는 어슬렁·뜯어먹기 대신 팔 뻗고 뛰어온다
+#   "다리 들어서는 왼쪽에 한 마리 더 · 차 뒤 셋 중 하나 빼" → 다리 입구 왼쪽 서 있다 다가오는 하나 추가, 차 뒤는 둘 (멀리서 오던 일반 좀비는 치운다)
+const BRIDGE_LEFT_CROWD := [["walker", "jog", -13.0, -5.6], ["runner", "jog", -8.0, 5.2],
+	["ambusher", "idle", -8.0, -2.6], ["ambusher", "crawl", 6.0, -1.6], ["walker", "jog", 14.0, -2.9]]   # 차 뒤에는 이 둘만
+const CUT_MISS := 1.1                                 # 다리 입구 그 좀비가 내 줄에서 비껴 드는 폭 (m) — 스치면 어깨빵, 잡히지는 않는다
+const CAR_BLOCK := 1.5                                # 다리 위 좀비는 차 중심에서 이만큼 뒤에서 멈춘다 (차 폭 절반 + 여유)
+const BRIDGE_LANES := [-3.2, -0.8]                   # 다리 위 다른 좀비가 다니는 줄의 범위 (왼쪽 난간 ~ 차 오른쪽 끝 앞) — 오른쪽 틈은 비운다
+const UNDER_SPEED := 3.5                              # 올라온 뒤 덮치는 속도
 const POUNCE_LOCK := 4.0
 # 동작 팩 (Scary Zombie Pack, Mixamo): 동작만 담은 파일 하나를 4종 모두에 입힌다 (tools/assets/pack_zombie_anims.py)
 const ANIM_PACK := "res://assets/models/zombie_anims.glb"
@@ -99,6 +119,7 @@ signal caught(zombie: Node3D)                 # 칼 없이 잡혔다 → 사망 
 signal knifed                                 # (옛 즉시 칼) — 지금은 melee_start 로 합을 맞춘다
 signal melee_start(zombie: Node3D)            # 칼 근접전 시작: 멈춰 서서 좀비와 마주 본다 (stage_preview 가 칼 동작·카메라)
 signal brushed(side: float)
+signal quake(amp: float, dur: float)         # 다리 흔들림 (2026-10-01): 화면이 이만큼 세게 · 이 시간 동안 덜덜 떨린다
 signal burst                                  # 마지막 좀비가 바닥에서 튀어나왔다 → 화면 덜컥                   # 좀비와 스쳤다 → 어깨빵 (side: 좀비가 있는 쪽 -1 왼쪽 / +1 오른쪽)
 signal tripped                                # 기는 좀비가 발목을 잡았다 → 잠깐 휘청 (풀에 묻혀 안 보이니 죽이지는 않는다)
 
@@ -120,6 +141,25 @@ const KNIVES := 1                             # 칼은 한 스테이지에 한 �
 var _knife_left := KNIVES
 const KNIFE_GRACE := 1.5                      # 칼로 벗어난 직후 이 시간은 다시 잡히지 않는다 (연달아 잡히던 문제)
 var _grace_t := 0.0
+# ── 팩 아이템 (2026-09-30, scripts/stage/inventory.gd · run_items_ui.gd) ──
+signal danger(side: int)                      # 위험 감지: 매복·광전사가 오는 쪽 (-1 왼쪽 / 0 앞 / 1 오른쪽)
+var danger_sense := false                     # 이번 판에 위험 감지를 가져왔다
+var run_used := {}                            # 이번 판에 쓴 달리는 중 아이템 (한 판에 종류별 1번)
+var _frenzy_t := 0.0                          # 광란의 15초 남은 시간 (총알 무한 · 재장전 없음)
+var _adren_t := 0.0                           # 아드레날린 남은 시간 (빨리 달리기 · 좌우로 재빨리)
+var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
+var _warned_pounce := -1
+var _under_done := false
+var _bridge_cleared := false
+var _bridge_crowd := false
+var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
+const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
+const ADREN_TIME := 8.0                         # 아드레날린 시간 (5 → 8초, 2026-10-01 "좀 짧다")
+const ADREN_DODGE := 0.3                        # 아드레날린 중 잡힐 순간 이 확률로 몸을 틀어 빠져나간다 (회피 30% 증강, 2026-10-01)
+const START_AMMO_PACK := 7
+const FLARE_AHEAD := 32.0
+const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
+const GOLD_TINT := Color(1.0, 0.76, 0.33)
 var _melee_e: Dictionary = {}                 # 칼 근접전 상대
 var _hud_knife: TextureRect
 var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
@@ -187,6 +227,10 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	for i in ZOMBIE_COUNT:
 		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
 		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
+	for w in _plan:                                     # 다리 위는 비운다 → 다리 밑 매복이 또렷이 보이게 (그 수만큼 다리 건너편으로 옮긴다, 총 마릿수는 그대로)
+		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 34.0:   # (+26 → +40: 옮긴 좀비가 내가 차를 지나기 전에 차 뒤로 몰려오지 않게)
+			w[0] += _rng.randf_range(40.0, 75.0)            # 한 덩어리로 몰려오지 않게 흩어 놓는다 ("똑같은 셋이 패턴처럼 뛰어온다")
+	_plan.sort_custom(func(p, q): return p[0] < q[0])
 	_prewarm()
 	_build_zombie_light(camera)
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
@@ -197,12 +241,13 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	_vm.process_mode = Node.PROCESS_MODE_PAUSABLE          # 카메라는 일시정지 중에도 도는 노드 아래 → 권총은 따로 멈추게 (2026-09-30 "일시정지해도 손이 움직인다")
 	camera.add_child(_vm)
 	_pistol = _vm
+	if Inventory.has("gold_pistol"):
+		_gold_pistol()
 	_build_hud(hud_holder)
 
 
 func _icon(name: String) -> Texture2D:
-	var img := Image.load_from_file(ProjectSettings.globalize_path(UI_DIR + name))
-	return ImageTexture.create_from_image(img)
+	return load(UI_DIR + name) as Texture2D
 
 
 func _build_hud(holder: Node) -> void:
@@ -212,18 +257,20 @@ func _build_hud(holder: Node) -> void:
 	var w := 1560.0
 	# HUD (2026-09-30 "인투더데드2 처럼 깔끔한 흰색"): 어두운 상자 없이 흰색만. 가운데 위 = 장전된 총알 줄 | 예비탄,
 	# 그 아래 = 권총·칼 흰 실루엣. 왼쪽 위 = 남은 거리(m) + 바로 아래 진행 실선. 굵고 좁은 글꼴 하나로 통일
-	var heavy := SystemFont.new()
-	heavy.font_names = PackedStringArray(["Impact", "Arial Narrow", "Arial Black", "Roboto Condensed", "sans-serif"])
-	heavy.font_weight = 800
+	var heavy: Font = load("res://assets/fonts/Anton-Regular.ttf")   # Impact 같은 굵고 좁은 글꼴을 게임에 넣어 둔다 (OFL, assets/fonts — 폰에는 Impact 가 없어 다르게 나왔다)
+	var heavy_sys := SystemFont.new()                     # Anton 에 없는 글자는 기기 글꼴로
+	heavy_sys.font_names = PackedStringArray(["Impact", "Arial Black", "Apple SD Gothic Neo", "Noto Sans CJK KR", "sans-serif"])
+	heavy_sys.font_weight = 800
+	heavy.fallbacks = [heavy_sys]
 	_hud_bullets = Control.new()                       # 총알 줄 (쏠 때마다 하나씩 사라진다 — _draw_bullets)
-	_hud_bullets.position = Vector2(w / 2 - 250, 22)
-	_hud_bullets.size = Vector2(500, 44)
+	_hud_bullets.position = Vector2(w / 2 - 300, HUD_TOP)   # 2026-10-01: 조금 내리고(22 → 48) 크게(×1.2), 총알 줄 + 예비탄 묶음을 화면 가운데로 (_refresh_ammo)
+	_hud_bullets.size = Vector2(600, 54)
 	_hud_bullets.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_bullets.draw.connect(_draw_bullets)
 	layer.add_child(_hud_bullets)
 	_hud_reserve = Label.new()                         # 예비탄 숫자 (총알 줄 오른쪽, 세로줄 뒤)
 	_hud_reserve.add_theme_font_override("font", heavy)
-	_hud_reserve.add_theme_font_size_override("font_size", 50)
+	_hud_reserve.add_theme_font_size_override("font_size", 60)
 	_white_label(_hud_reserve)
 	layer.add_child(_hud_reserve)
 	_tex_pistol = _white_icon("icon_pistol.png")
@@ -231,19 +278,19 @@ func _build_hud(holder: Node) -> void:
 	_hud_pistol.texture = _tex_pistol
 	_hud_pistol.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_hud_pistol.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_hud_pistol.position = Vector2(w / 2 - 70, 72)
-	_hud_pistol.size = Vector2(76, 54)
+	_hud_pistol.position = Vector2(w / 2 - 84, HUD_TOP + 60)
+	_hud_pistol.size = Vector2(90, 64)
 	layer.add_child(_hud_pistol)
 	var knife := TextureRect.new()
 	knife.texture = _white_icon("icon_knife.png")
 	knife.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	knife.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	knife.position = Vector2(w / 2 + 22, 76)
-	knife.size = Vector2(50, 46)
+	knife.position = Vector2(w / 2 + 26, HUD_TOP + 64)
+	knife.size = Vector2(60, 55)
 	layer.add_child(knife)
 	_hud_knife = knife
 	_hud_gun = Label.new()                             # 새 총을 주웠을 때만 잠깐 뜬다 (무기 아이콘 아래)
-	_hud_gun.position = Vector2(w / 2 - 150, 128)
+	_hud_gun.position = Vector2(w / 2 - 150, HUD_TOP + 128)
 	_hud_gun.size = Vector2(300, 28)
 	_hud_gun.modulate.a = 0.0
 	_hud_gun.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -276,18 +323,152 @@ func _build_hud(holder: Node) -> void:
 	_refresh_ammo()
 
 
+# ── 팩 아이템 효과 ───────────────────────────────────────────
+# 출발 준비에서 켠 아이템 (inventory 에서는 이미 1개씩 뺐다)
+func apply_loadout(picks: Dictionary) -> void:
+	if picks.has("knife_plus"):
+		_knife_left = mini(_knife_left + 1, 2)
+		_refresh_knife()
+	if picks.has("ammo_start_pack"):
+		_reserve += START_AMMO_PACK
+		_refresh_ammo()
+	danger_sense = picks.has("danger_sense")
+	print("[items] 출발: %s" % [picks.keys()])
+
+
+# 모닥불: d 지점부터 시작 — 그 앞의 좀비·보급·반전은 건너뛴다
+func skip_to(d: float) -> void:
+	var sc := StageBuilderV2.STAGE_LENGTH / 750.0
+	while _next_wave < _plan.size() and _plan[_next_wave][0] < d + 8.0:
+		_next_wave += 1
+	while _next_crate < SUPPLY_PLAN.size() and SUPPLY_PLAN[_next_crate][0] * sc < d + 5.0:
+		_next_crate += 1
+	while _next_berserk < BERSERK_AT.size() and BERSERK_AT[_next_berserk] * sc < d + 5.0:
+		_next_berserk += 1
+	while _next_pounce < POUNCE_AT.size() and POUNCE_AT[_next_pounce] * sc - POUNCE_AHEAD < d + 5.0:
+		_next_pounce += 1
+	_next_event = maxf(_next_event, d + 40.0)
+	print("[items] 모닥불: %.0fm 부터" % d)
+
+
+# 광란의 15초 (한 판 1번)
+func use_frenzy() -> bool:
+	if run_used.has("frenzy_30") or not Inventory.use("frenzy_30"):
+		return false
+	run_used["frenzy_30"] = true
+	_frenzy_t = FRENZY_TIME
+	_reload_left = 0.0
+	_refresh_ammo()
+	_sfx("sfx_zombie_scream")
+	print("[items] 광란의 15초")
+	return true
+
+
+# 아이템 칸을 빛나게 할 때 (지금 쓰면 좋다): 광란 = 총알이 다 떨어졌거나 끝 반전 · 신호탄 = 총알 3발 이하
+func item_hints(dist: float) -> Dictionary:
+	var h := {}
+	if (_mag + _reserve <= 0) or (_finale >= 1 and _finale < 3) or dist >= FINALE_AT * StageBuilderV2.STAGE_LENGTH / 750.0 - 10.0:
+		h["frenzy_30"] = true
+	if _mag + _reserve <= 3:
+		h["flare_supply"] = true
+	if _finale >= 1 and _finale < 3:                   # 끝 반전: 광전사가 쫓아온다 → 달려서 따돌리기
+		h["adrenaline"] = true
+	return h
+
+
+func frenzy_left() -> float:
+	return maxf(_frenzy_t, 0.0)
+
+
+# 아드레날린 (한 판 1번): 몇 초 동안 더 빨리 달리고 좌우로 재빨리 비킨다 (속도는 stage_preview 가 적용)
+func use_adrenaline() -> bool:
+	if run_used.has("adrenaline") or not Inventory.use("adrenaline"):
+		return false
+	run_used["adrenaline"] = true
+	_adren_t = ADREN_TIME
+	_sfx("sfx_breath")
+	print("[items] 아드레날린")
+	return true
+
+
+func adrenaline_left() -> float:
+	return maxf(_adren_t, 0.0)
+
+
+# 보급 신호탄 (한 판 1번): 앞 32m 에 초록 불빛 보급이 떨어진다
+func use_flare(dist: float) -> bool:
+	if run_used.has("flare_supply") or not Inventory.use("flare_supply"):
+		return false
+	run_used["flare_supply"] = true
+	_drop_crate(dist + FLARE_AHEAD, true)
+	_sfx("sfx_supply_pickup")
+	print("[items] 보급 신호탄 %.0fm" % (dist + FLARE_AHEAD))
+	return true
+
+
+# 부활: 나를 문 좀비는 쓰러지고, 잠깐 잡히지 않는다
+func revive() -> void:
+	if not _grab_e.is_empty():
+		var e := _grab_e
+		e["passed"] = true
+		e["state"] = "dead"
+		e["ap"].speed_scale = 1.0
+		e["ap"].play("death", 0.15)
+		_grab_e = {}
+	_grace_t = REVIVE_GRACE
+	_hud_layer.visible = true
+	_pistol.visible = true
+	print("[items] 부활 (%.0f초 무적)" % REVIVE_GRACE)
+
+
+func _refresh_knife() -> void:
+	if _hud_knife == null:
+		return
+	_hud_knife.modulate = Color(1, 1, 1, 1.0 if _knife_left > 0 else 0.2)
+	if _knife_n == null:
+		_knife_n = Label.new()
+		_knife_n.position = Vector2(46, 18)
+		_knife_n.add_theme_font_size_override("font_size", 22)
+		_white_label(_knife_n)
+		_hud_knife.add_child(_knife_n)
+	_knife_n.text = "×%d" % _knife_left if _knife_left > 1 else ""
+
+
+# 황금 권총 (영구): 총 부품만 황금빛 금속으로 (손·팔은 그대로)
+func _gold_pistol() -> void:
+	for part in ["Frame", "Slide", "Magazine", "Trigger"]:
+		for n in _vm.find_children(part, "MeshInstance3D", true, false):
+			var mi := n as MeshInstance3D
+			for i in mi.mesh.get_surface_count():
+				var src := mi.get_active_material(i) as BaseMaterial3D
+				if src == null:
+					continue
+				var m := src.duplicate() as BaseMaterial3D
+				m.albedo_texture = null
+				m.albedo_color = GOLD_TINT
+				m.metallic = 0.95
+				m.metallic_texture = null
+				m.roughness = 0.3
+				mi.set_surface_override_material(i, m)
+
+
 func _refresh_ammo() -> void:
 	_hud_bullets.queue_redraw()
-	_hud_reserve.text = "∞" if INFINITE_AMMO else str(_reserve)
+	_hud_reserve.text = "∞" if (INFINITE_AMMO or _frenzy_t > 0.0) else str(_reserve)   # 광란 중에는 무한대
+	_hud_reserve.add_theme_color_override("font_color", Color(1.0, 0.36, 0.26) if _frenzy_t > 0.0 else HUD_WHITE)
 	var row_w := _bullet_row_width(_mag_cap)
-	_hud_reserve.position = Vector2(_hud_bullets.position.x + (_hud_bullets.size.x + row_w) * 0.5 + 18, 8)
+	var rw: float = _hud_reserve.get_theme_font("font").get_string_size(_hud_reserve.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 60).x
+	var group := row_w + 22.0 + rw                       # 총알 줄 + 세로줄 + 예비탄 숫자 — 이 묶음을 화면 가운데로
+	var x0 := (_hud_bullets.size.x - row_w) * 0.5
+	_hud_bullets.position.x = 1560.0 * 0.5 - group * 0.5 - x0
+	_hud_reserve.position = Vector2(_hud_bullets.position.x + x0 + row_w + 22.0, HUD_TOP + _hud_bullets.size.y * 0.5 - 44.0)
 	_hud_gun.text = "%s  %d발 탄창" % [_gun_name, _mag_cap]
 	_hud_pistol.modulate.a = 1.0 if (_mag + _reserve > 0 or INFINITE_AMMO) else 0.3   # 총알이 하나도 없으면 흐리게
 
 
 # 총알 줄: 탄창 크기가 클수록 촘촘하게 (6발 = 굵게, 30발 = 가늘게)
 func _bullet_dims(cap: int) -> Vector2:
-	return Vector2(10.0, 34.0) if cap <= 12 else (Vector2(8.0, 30.0) if cap <= 20 else Vector2(6.0, 26.0))
+	return (Vector2(10.0, 34.0) if cap <= 12 else (Vector2(8.0, 30.0) if cap <= 20 else Vector2(6.0, 26.0))) * HUD_K
 
 
 func _bullet_row_width(cap: int) -> float:
@@ -306,10 +487,14 @@ func _draw_bullets() -> void:
 	var row_w := _bullet_row_width(_mag_cap)
 	var x0 := (_hud_bullets.size.x - row_w) * 0.5
 	var y0 := (_hud_bullets.size.y - d.y) * 0.5
+	var col := HUD_WHITE
+	if _frenzy_t > 0.0:                                   # 광란: 탄창이 가득 찬 채 붉게 빛난다
+		shown = _mag_cap
+		col = Color(1.0, 0.32, 0.22).lerp(Color(1.0, 0.8, 0.6), 0.5 + 0.5 * sin(_time * 12.0))
 	for i in shown:
 		var x := x0 + i * (d.x + gap)
 		_bullet_shape(Vector2(x + 2, y0 + 2), d, Color(0, 0, 0, 0.35))   # 그림자
-		_bullet_shape(Vector2(x, y0), d, HUD_WHITE)
+		_bullet_shape(Vector2(x, y0), d, col)
 	var bar_x := x0 + row_w + 9.0                        # 예비탄 앞 가는 세로줄
 	_hud_bullets.draw_rect(Rect2(bar_x, y0 - 2, 2, d.y + 4), Color(1, 1, 1, 0.55))
 
@@ -332,7 +517,13 @@ func _white_label(l: Label) -> void:
 
 # 아이콘을 흰 실루엣으로 (모양은 그대로, 색만 흰색)
 func _white_icon(name: String) -> Texture2D:
-	var img := Image.load_from_file(ProjectSettings.globalize_path(UI_DIR + name))
+	var img: Image                                       # 가져온 텍스처에서 그림을 꺼낸다 (폰 APK 에서는 원본 PNG 파일을 직접 못 읽는다 — 2026-10-01 아이콘이 비던 오류)
+	var tex := load(UI_DIR + name) as Texture2D
+	if tex == null:
+		return null
+	img = tex.get_image()
+	if img.is_compressed():
+		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	for y in img.get_height():
 		for x in img.get_width():
@@ -343,6 +534,8 @@ func _white_icon(name: String) -> Texture2D:
 
 # 재장전 (탄창이 비면 저절로 · R 키 · RELOAD 버튼): 시간이 걸리고 그동안 못 쏜다
 func reload() -> void:
+	if _frenzy_t > 0.0:
+		return                                           # 광란 중에는 재장전하지 않는다
 	if INFINITE_AMMO or _reload_left > 0.0 or _mag >= _mag_cap or _reserve <= 0:
 		return
 	_reload_total = RELOAD_TIME + RELOAD_PER_ROUND * _mag_cap
@@ -356,6 +549,8 @@ func reload() -> void:
 
 func _update_reload(delta: float) -> void:
 	if _reload_left <= 0.0:
+		if _mag <= 0 and _reserve > 0 and _frenzy_t <= 0.0 and _melee_e.is_empty():
+			reload()                                     # 탄창이 비면 저절로 재장전 (2026-10-01 "리로드는 자동으로" — 폰 RELOAD 버튼 없앰)
 		return
 	_reload_left -= delta
 	_hud_bullets.queue_redraw()
@@ -400,9 +595,48 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_berserk < BERSERK_AT.size() and dist >= BERSERK_AT[_next_berserk] * sc750:
 		_berserker(dist, cam_x)
 		_next_berserk += 1
+	if danger_sense and _next_pounce < POUNCE_AT.size() and _warned_pounce < _next_pounce and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD - PLAYER_SPEED * 1.0:
+		_warned_pounce = _next_pounce                    # 위험 감지: 길목 매복 1초 전
+		danger.emit(0)
+	_adren_t -= delta
+	if _frenzy_t > 0.0:
+		_frenzy_t -= delta
+		_hud_bullets.queue_redraw()
+		if _frenzy_t <= 0.0:
+			_refresh_ammo()
 	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
 		_pouncer(dist, cam_x)
 		_next_pounce += 1
+	if not _bridge_crowd and dist >= CAR_D - 48.0:          # 왼쪽이 비어 보이지 않게: 다리 입구 왼쪽 강가 + 다리 위 왼쪽 줄에 몇 마리 더 (멀리 안개 속에서 나타난다, 오른쪽 틈으로는 안 온다)
+		_bridge_crowd = true
+		for g in BRIDGE_LEFT_CROWD:
+			var e := _spawn(g[0], g[1], CAR_D + g[2] - dist, g[3], dist, cam_x)
+			e["x"] = g[3] + _rng.randf_range(-0.2, 0.2)      # 다리 위 자동 줄 대신 정해 둔 자리
+			e["lane_x"] = e["x"]
+			if g[1] == "idle":                            # 다리 입구 왼쪽 그 좀비 (2026-10-01 "멍청하다, 유저한테 다가와라"): 줄을 지키지 않고 나를 향해 뛰어온다
+				e.erase("lane_x")
+				e["spd"] = 4.0
+				e["wake"] = 12.0                          # 왼쪽에 서 있다가 가까워지면(12m) 옆으로 뛰어들어 내 줄을 막는다
+				e["lock"] = 3.0                           # 3m 앞까지 나를 따라 방향을 튼다 (그 뒤로는 직진 — 마지막 순간 비키면 산다)
+				e["cut_in"] = true                        # 내 줄로 가로질러 들어와 앞을 막는다 (가만히 달리면 정면에서 만난다 — 비키거나 쏘면 산다)
+			_place(e)
+		print("[bridge] %.0fm 다리 왼쪽 무리 %d마리" % [dist, BRIDGE_LEFT_CROWD.size()])
+	if not _bridge_cleared and dist >= CAR_D - 26.0:       # 다리에 들어서기 전: 다리 쪽으로 오던 좀비들을 왼쪽 줄로 비킨다
+		_bridge_cleared = true
+		for o in _zombies:
+			if o["d"] > dist and o["d"] < UNDER_D + 30.0 and o["style"] != "pounce" and o["state"] != "dead":
+				if o.has("lane_x") or o.has("cut_in"):
+					continue
+				if o["d"] - dist > 22.0:                      # 다리 위로 오던 일반 좀비 중 멀리(안개 속) 있는 건 치운다 → 차 뒤에는 두 마리 정도만
+					_despawn(o)
+					continue
+				o["lane_x"] = _bridge_lane()
+				if o["state"] != "move" and o["d"] - dist > 14.0:   # 누워 있거나 서 있는 좀비는 안개 속(멀리)에서 자리를 옮긴다
+					o["x"] = o["lane_x"]
+					_place(o)
+	if not _under_done and dist >= UNDER_D - UNDER_AHEAD and dist < UNDER_D:
+		_under_done = true
+		_bridge_climber(dist, cam_x)
 	if _finale == 0 and dist >= FINALE_AT * sc750:
 		_finale = 1
 		_finale_t = FINALE_GAP
@@ -444,7 +678,7 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 		if ap.has_animation(n):
 			ap.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 	if is_nan(x):
-		x = clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5)   # 달리는 폭 ±8m 안
+		x = _rng.randf_range(-6.5, 6.5)                  # 달리는 폭 ±8m 안 어디서나 (2026-10-01 "가운데 몰려 보인다" — 예전엔 내 자리 ±4m)
 		if style == "sprint":
 			x = (-1.0 if _rng.randf() < 0.5 else 1.0) * _rng.randf_range(11.0, 14.0)   # 옆에서 대각선으로 (F-41)
 	var e := {"node": z, "ap": ap, "kind": kind, "style": style, "hp": HP[kind], "state": "move", "x": x, "d": dist + ahead, "t": 0.0,
@@ -475,6 +709,9 @@ func _spawn(kind: String, style: String, ahead: float, x: float, dist: float, ca
 		_:
 			_move_anim(e)
 			ap.seek(_rng.randf() * 0.8, true)             # 무리가 똑같이 걷지 않게 시작 시점을 흩뜨린다
+	if style != "pounce" and e["d"] > CAR_D - 12.0 and e["d"] < UNDER_D + 12.0 and dist < UNDER_D:
+		e["lane_x"] = _bridge_lane()                      # 다리 위는 왼쪽 절반에서 저마다 다른 줄로 (오른쪽 난간 밑 매복이 가려지지 않게)
+		e["x"] = e["lane_x"]
 	_zombies.append(e)
 	_place(e)
 	return e
@@ -602,6 +839,8 @@ func _ground_burst(dist: float, cam_x: float) -> void:
 	_sfx("sfx_zombie_scream")
 	_sfx("sfx_hit_obstacle")
 	burst.emit()
+	if danger_sense:
+		danger.emit(0)
 	print("[burst] %.0fm 바닥에서 튀어나옴" % dist)
 
 
@@ -610,6 +849,8 @@ func _berserker(dist: float, cam_x: float, x := NAN, ahead := BERSERK_AHEAD) -> 
 	if is_nan(x):
 		x = clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5)
 	var e := _spawn("runner", "berserk", ahead, x, dist, cam_x)
+	if danger_sense:
+		danger.emit(int(signf(x - cam_x)) if absf(x - cam_x) > 2.0 else 0)
 	e["lock"] = BERSERK_LOCK
 	e["state"] = "scream"
 	e["after"] = "berserk"
@@ -634,6 +875,30 @@ func _pouncer(dist: float, cam_x: float) -> void:
 	print("[pounce] %.0fm 길목 매복 x=%.1f" % [dist, e["x"]])
 
 
+func _bridge_lane() -> float:
+	return _rng.randf_range(BRIDGE_LANES[0], BRIDGE_LANES[1])
+
+
+# 다리 밑 매복: 오른쪽 난간 밖 강 위에 매달려 있다가(머리·팔만 보인다) 기어올라 덮친다
+func _bridge_climber(dist: float, cam_x: float) -> void:
+	var e := _spawn("ambusher", "pounce", UNDER_D - dist, StageBuilderV2.BRIDGE_HALF + 0.3, dist, cam_x)
+	e["spd"] = UNDER_SPEED
+	e["lock"] = POUNCE_LOCK
+	e["y"] = -0.7
+	e["climb_t"] = UNDER_HANG
+	var ap: AnimationPlayer = e["ap"]
+	if ap.has_animation("grab"):                         # 팔을 뻗은 채 난간을 붙잡고 버둥거린다
+		ap.play("grab")
+		ap.speed_scale = 0.7
+	_place(e)
+	_sfx("sfx_zombie_groan")
+	_sfx("sfx_hit_obstacle", 0.5)                         # 쿵 — 난간을 붙잡자 다리가 울린다
+	quake.emit(0.6, 0.9)
+	if danger_sense:
+		danger.emit(1)
+	print("[under] %.0fm 다리 밑에서 손이 올라옴" % dist)
+
+
 # 사이드 질주: 양옆 멀리(8-11m)에서 2-3마리가 비명을 지르고 대각선으로 달려든다
 func _sprint_event(dist: float, cam_x: float) -> void:
 	var n := _rng.randi_range(2, 3)
@@ -648,6 +913,8 @@ func _sprint_event(dist: float, cam_x: float) -> void:
 		e["state"] = "scream"
 		e["t"] = -i * 0.25                                   # 한 마리씩 차례로 비명
 	_sfx("sfx_zombie_scream")
+	if danger_sense:
+		danger.emit(int(side))
 	print("[event] %.0fm 옆에서 %d마리 질주" % [dist, n])
 
 
@@ -861,6 +1128,23 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 					if ahead < -10.0:
 						_despawn(e)
 					continue
+				if e.has("climb_t"):                         # 다리 밑 매복: 매달린 채 기어오른다 (앞으로는 안 온다 — 이 동안 쏘면 산다)
+					e["climb_t"] -= delta
+					var k := 1.0 - clampf(e["climb_t"] / UNDER_HANG, 0.0, 1.0)
+					e["y"] = lerpf(-0.7, 0.0, k * k)
+					e["x"] = lerpf(StageBuilderV2.BRIDGE_HALF + 0.3, StageBuilderV2.BRIDGE_HALF - 1.0, smoothstep(0.5, 1.0, k))
+					_place(e)
+					if e["climb_t"] <= 0.0:
+						e.erase("climb_t")
+						e["y"] = 0.0
+						if ap.has_animation("crouch_rise"):
+							ap.play("crouch_rise")
+							ap.speed_scale = 2.8
+						e["rise_t"] = 0.3
+						_sfx("sfx_zombie_scream")
+						_sfx("sfx_hit_obstacle", 0.6)             # 상판에 올라서며 쾅
+						quake.emit(1.0, 0.45)
+					continue
 				if e.has("burst") and e["y"] < 0.0:           # 땅속에서 솟아오른다 (0.3초)
 					e["y"] = minf(0.0, e["y"] + delta * 1.4 / 0.3)
 				if e.has("rise_t"):                          # 길목 매복: 벌떡 일어나는 동작이 끝나면 달리기로
@@ -870,13 +1154,28 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						_move_anim(e)
 				if ahead > e.get("lock", HOMING_LOCK) or not e.has("dir"):  # 멀리서는 나를 향해 방향을 튼다. 가까워지면 그 방향 그대로 (비키면 피한다)
 					var target := Vector2(cam_x, dist)
+					if e.has("lane_x"):                        # 다리 앞뒤: 자기 줄을 지키며 다가온다 — 오른쪽 틈을 비우고 가운데로 몰리지 않게 (매복을 지나면 풀린다)
+						if dist < UNDER_D + 2.0:
+							target.x = e["lane_x"]
+						else:
+							e.erase("lane_x")
 					var here := Vector2(e["x"], e["d"])
-					if e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
+					if e.has("cut_in"):                        # 다리 입구 그 좀비: 내 줄로 옆걸음질쳐 들어와 앞을 막는다 (앞으로는 조금만)
+						target = Vector2(cam_x - CUT_MISS, e["d"] - 1.2)   # 내 줄 바로 옆을 노린다 → 가만히 달려도 어깨를 스치며 비껴간다 (길을 다 막지 않게)
+					elif e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
 						target = _intercept(here, target, spd)
 					e["dir"] = (target - here).normalized()
 				var step: Vector2 = e["dir"] * spd * delta
 				e["x"] += step.x
 				e["d"] += step.y
+				if e.has("lane_x") and e["d"] < CAR_D + CAR_BLOCK and e["d"] > CAR_D - 2.0 and e["x"] < 1.0:
+					e["d"] = CAR_D + CAR_BLOCK                 # 다리 위 차에 막힌다 (차를 뚫고 지나가지 않게): 차 뒤에서 팔을 뻗고 버둥거린다
+					if not e.has("blocked"):
+						e["blocked"] = true
+						if ap.has_animation("grab"):
+							ap.play("grab", 0.2)
+							ap.seek(_rng.randf() * 1.0, true)
+							ap.speed_scale = _rng.randf_range(0.7, 1.15)   # 저마다 다른 박자로 버둥
 				_place(e)
 				ahead = e["d"] - dist
 				var big: bool = e["kind"] == "tank"
@@ -905,6 +1204,13 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 							_grace_t = 0.8
 							_sfx("sfx_bite")
 							tripped.emit()
+							continue
+						if _adren_t > 0.0 and not e.get("unavoidable", false) and _rng.randf() < ADREN_DODGE:
+							e["passed"] = true                 # 아드레날린 회피: 붙잡히기 직전 몸을 틀어 스쳐 지나간다 (어깨빵)
+							_grace_t = 0.6
+							brushed.emit(signf(e["x"] - cam_x))
+							_sfx("sfx_hit_obstacle")
+							print("[items] 아드레날린 회피")
 							continue
 						_grab(e, dist, cam_x)
 						continue
@@ -945,8 +1251,7 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 	ap.speed_scale = 1.0
 	if _knife_left > 0:
 		_knife_left -= 1
-		if _hud_knife:
-			_hud_knife.modulate = Color(1, 1, 1, 0.2)      # 칼 다 씀
+		_refresh_knife()
 		# 칼 근접전 (2026-09-30 "멈춰서 좀비와 합을 맞춰야"): 좀비가 코앞에서 붙잡으려는 사이 칼이 천천히 올라와 목을 찌른다
 		e["state"] = "melee"
 		e["d"] = dist + (1.35 if e["kind"] == "tank" else 1.0)
@@ -962,6 +1267,7 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 		return
 	e["state"] = "grab"
 	e["t"] = 0.0
+	_grab_e = e
 	e["d"] = dist + (1.1 if e["kind"] == "tank" else 0.8)   # 코앞에 붙는다 (2026-09-30 "더 붙어서 얼굴이 혐오스럽게") — 카메라도 얼굴 쪽으로 끌려간다 (stage_preview)
 	_pistol.visible = false                                # 쓰러질 때 총이 허공에 떠 보이지 않게
 	_hud_layer.visible = false                             # 사망 연출에는 HUD 를 치운다 (블랙아웃 + DEAD 만)
@@ -1011,7 +1317,7 @@ func melee_end() -> void:
 func fire() -> void:
 	if _shot_cd > 0.0 or _reload_left > 0.0 or not _melee_e.is_empty():
 		return
-	if _mag <= 0 and not INFINITE_AMMO:
+	if _mag <= 0 and not INFINITE_AMMO and _frenzy_t <= 0.0:
 		_shot_cd = 0.3
 		if _reserve > 0:
 			reload()                                     # 빈 탄창으로 쏘면 저절로 재장전
@@ -1034,13 +1340,14 @@ func fire() -> void:
 	_shoot(best)
 
 
-func _sfx(name: String) -> void:
+func _sfx(name: String, pitch := 1.0) -> void:
 	events.append([_time, name])
 	if not live_audio:
 		return
 	var p := AudioStreamPlayer.new()
 	p.stream = load("res://assets/audio/%s.ogg" % name)
 	p.volume_db = SFX_DB + SFX_TRIM.get(name, 0.0)
+	p.pitch_scale = pitch
 	if AudioServer.get_bus_index("SFX") >= 0:
 		p.bus = "SFX"
 	add_child(p)
@@ -1064,7 +1371,7 @@ func start_bgm() -> void:
 
 func _shoot(e: Dictionary) -> void:
 	_shot_cd = SHOT_GAP
-	if not INFINITE_AMMO:
+	if not INFINITE_AMMO and _frenzy_t <= 0.0:
 		_mag -= 1
 	_refresh_ammo()
 	_sfx("sfx_pistol_dry")
