@@ -138,6 +138,7 @@ var _loadout_open := false          # 출발 준비 창이 떠 있는 동안 게
 var _offer: Button                  # YOU DIED 화면 RETRY 옆: "한 번 더 (부활)" 또는 상황별 팩 권유
 var _offer_line: Label
 var _offer_pack := ""               # 권유 중인 팩 ("" 이면 부활 버튼)
+var _revive_pick := false           # 부활을 골라 뒀다 → RETRY 를 누르면 그 자리에서 일어난다 (2026-10-01 "고르자마자 바로 시작된다")
 const BONFIRE_AT := 375.0           # 모닥불: 이 지점부터 시작 (750m 기준)
 static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 시작해도 이어진다 — 2026-09-30 "다크소울 느낌, 여러 번 도전하게")
 
@@ -342,6 +343,8 @@ func _build_items_ui(holder: Node) -> void:
 # 출발: 켠 아이템을 적용하고 달리기 시작
 func _start_run(picks: Dictionary) -> void:
 	_loadout_open = false
+	_showcase.set_difficulty(_ui.difficulty)            # 출발 준비에서 고른 난이도 (HARD 그대로 / NORMAL 좀비 20%↓ 보급 20%↑)
+	ShowcaseDirector.difficulty_locked = true           # 출발하면 난이도 잠금 — 죽어서 RETRY 할 때만 풀린다
 	_ui.show_tip()
 	_showcase.apply_loadout(picks)
 	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
@@ -386,8 +389,12 @@ func _setup_offer() -> void:
 	_offer_pack = ""
 	var rise_used: bool = _showcase.run_used.has("rise")
 	if Inventory.has("revive") and not rise_used:
-		_offer.text = "한 번 더  (부활 ×%d)" % Inventory.count("revive")
-		_offer_line.text = "죽은 자리에서 다시 일어납니다 · 2초 무적"
+		if _revive_pick:
+			_offer.text = "▶ 부활 선택됨  (×%d)" % Inventory.count("revive")
+			_offer_line.text = "RETRY 를 누르면 죽은 자리에서 다시 일어납니다 · 다시 누르면 취소"
+		else:
+			_offer.text = "한 번 더  (부활 ×%d)" % Inventory.count("revive")
+			_offer_line.text = "골라 두고 RETRY 를 누르면 죽은 자리에서 다시 일어납니다 · 2초 무적"
 		return
 	var zone := _death_zone()
 	var n: int = _zone_deaths.get(zone, 0)
@@ -415,9 +422,9 @@ func _won(n: int) -> String:
 
 
 func _on_offer() -> void:
-	if _offer_pack.is_empty():
-		if not _showcase.run_used.has("rise") and Inventory.use("revive"):
-			_revive()
+	if _offer_pack.is_empty():                           # 부활은 고르기만 한다 — 시작은 RETRY 가 한다
+		_revive_pick = not _revive_pick
+		_setup_offer()
 		return
 	Inventory.grant_pack(_offer_pack)                    # 결제 연결 전: 테스트 지급 (나중에 토스 결제 → 서버 인벤토리로 바뀐다)
 	_setup_offer()
@@ -427,6 +434,16 @@ func _on_offer() -> void:
 		_offer.disabled = true
 		_offer.text = "받았습니다"
 		_offer_line.text = "다음 판 출발 준비에서 쓸 수 있습니다"
+
+
+# RETRY: 부활을 골라 뒀으면 그 자리에서 일어나고, 아니면 처음부터 (이때 난이도를 다시 고를 수 있다)
+func _on_retry() -> void:
+	if _revive_pick and _offer_pack.is_empty() and not _showcase.run_used.has("rise") and Inventory.use("revive"):
+		_revive_pick = false
+		_revive()
+		return
+	ShowcaseDirector.difficulty_locked = false
+	get_tree().reload_current_scene()
 
 
 # 부활: 죽은 자리에서 일어나 다시 달린다 (탄약·칼·보급은 그대로, 2초 무적)
@@ -452,6 +469,7 @@ func _revive() -> void:
 
 func _on_caught(z: Node3D) -> void:
 	_label.visible = false
+	_revive_pick = false
 	_dead = true
 	_dead_t = 0.0
 	_killer = z
@@ -722,7 +740,7 @@ func _build_overlay(holder: Node) -> void:
 	_retry.offset_right = 200
 	_retry.offset_top = 200
 	_retry.offset_bottom = 280
-	_retry.pressed.connect(func(): get_tree().reload_current_scene())
+	_retry.pressed.connect(_on_retry)
 	_offer = Button.new()                                  # RETRY 옆 권유 — 같은 세리프, 금빛 (팩 색)
 	_offer.visible = false
 	_offer.add_theme_font_override("font", retry_font)

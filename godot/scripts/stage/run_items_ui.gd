@@ -18,6 +18,11 @@ const RED := Color8(196, 32, 26)
 const GOLD := Color8(226, 178, 74)
 
 var _panel: Control
+var difficulty := ShowcaseDirector.difficulty   # 출발 준비에서 고른 난이도 (hard / normal) — 출발할 때 stage_preview 가 적용
+var _diff_btns := {}
+var _diff_row: VBoxContainer
+var _diff_easy: VBoxContainer                    # EASY 를 누르면: 핏빛 문구 + 뒤로 버튼 (난이도 줄 대신 나온다)
+var _go_btn: Button
 var _checks := {}
 var _counts := {}
 var _slots := {}
@@ -78,11 +83,12 @@ func open_loadout() -> void:
 	rule.custom_minimum_size = Vector2(0, 2)
 	v.add_child(rule)
 	v.add_child(_label("이번 판에 가져갈 아이템을 눌러 켜세요 · 가져가면 1개씩 줄어듭니다", 20, DIM, null, true))
+	_build_difficulty(v)
 	for item in START_ITEMS:
 		var card := Button.new()
 		card.toggle_mode = true
 		card.focus_mode = Control.FOCUS_NONE
-		card.custom_minimum_size = Vector2(0, 92)
+		card.custom_minimum_size = Vector2(0, 82)       # 92 → 82 (2026-10-01 난이도 카드를 크게 넣느라)
 		card.add_theme_stylebox_override("normal", _card_style(CARD_BG, CARD_LINE, 1))
 		card.add_theme_stylebox_override("hover", _card_style(Color8(32, 26, 28), Color8(120, 96, 84), 1))
 		card.add_theme_stylebox_override("pressed", _card_style(CARD_ON, ON_RED, 3))
@@ -131,6 +137,7 @@ func open_loadout() -> void:
 	go.add_theme_stylebox_override("pressed", _card_style(Color8(120, 14, 12), Color8(200, 40, 30), 2))
 	go.custom_minimum_size = Vector2(0, 78)
 	go.pressed.connect(_go)
+	_go_btn = go
 	v.add_child(go)
 	var test := HBoxContainer.new()                        # 결제 연결 전 테스트 지급 (PRD 4.15 테스트 모드)
 	test.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -154,6 +161,108 @@ func open_loadout() -> void:
 
 
 var _keys: Control
+
+
+# ── 난이도 (2026-10-01): HARD 지금 그대로 · NORMAL 좀비 20%↓ 보급 20%↑ · EASY 는 없다 ─────────
+const DIFFICULTIES := [["hard", "HARD", "지금 그대로"], ["normal", "NORMAL", "좀비 20% ↓ · 보급 20% ↑"], ["easy", "EASY", "…정말요?"]]
+# 2차 (2026-10-01 "버튼이 너무 작다, 눈에 띄게"): 셋을 가로로 꽉 채운 큰 카드. 난이도마다 색 — HARD 핏빛 · NORMAL 금빛 · EASY 회색
+#   고른 카드는 그 색으로 채우고 굵은 테두리, 안 고른 카드는 어두운 바탕에 그 색 테두리·글자
+const DIFF_COLOR := {"hard": Color8(200, 30, 24), "normal": Color8(226, 160, 48), "easy": Color8(120, 112, 102)}
+
+
+func _build_difficulty(v: VBoxContainer) -> void:
+	var locked := ShowcaseDirector.difficulty_locked     # 이미 출발했던 난이도 — 죽어서 RETRY 하기 전에는 못 바꾼다
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.add_child(_label("난이도 선택" if not locked else "난이도  ·  죽으면 다시 고를 수 있어요", 20, DIM, _gothic, true))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	for d in DIFFICULTIES:
+		var id: String = d[0]
+		if locked and id != difficulty:
+			continue                                      # 잠겨 있으면 지금 난이도 하나만 보여 준다
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = id != "easy"
+		b.disabled = locked
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.size_flags_stretch_ratio = 0.7 if id == "easy" else 1.0
+		b.custom_minimum_size = Vector2(0, 92)
+		var col: Color = DIFF_COLOR[id]
+		b.add_theme_stylebox_override("normal", _card_style(Color8(22, 18, 20), col.darkened(0.25), 2))
+		b.add_theme_stylebox_override("hover", _card_style(Color8(34, 26, 26), col, 2))
+		b.add_theme_stylebox_override("pressed", _card_style(col.darkened(0.45), col.lightened(0.15), 4))
+		b.add_theme_stylebox_override("hover_pressed", _card_style(col.darkened(0.38), col.lightened(0.3), 4))
+		b.add_theme_stylebox_override("disabled", _card_style(col.darkened(0.45), col.lightened(0.15), 4))   # 잠긴 난이도도 고른 모양 그대로
+		var lines := VBoxContainer.new()
+		lines.set_anchors_preset(Control.PRESET_FULL_RECT)
+		lines.alignment = BoxContainer.ALIGNMENT_CENTER
+		lines.add_theme_constant_override("separation", 0)
+		lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var title := _label(d[1], 38, col.lightened(0.2), _gothic, true)
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sub := _label(d[2], 18, BONE, null, true)
+		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lines.add_child(title)
+		lines.add_child(sub)
+		b.add_child(lines)
+		b.pressed.connect(_pick_difficulty.bind(id))
+		row.add_child(b)
+		_diff_btns[id] = [b, title, col]
+	v.add_child(box)
+	_diff_row = box
+	_diff_easy = VBoxContainer.new()
+	_diff_easy.alignment = BoxContainer.ALIGNMENT_CENTER
+	_diff_easy.add_theme_constant_override("separation", 10)
+	_diff_easy.custom_minimum_size = Vector2(0, 118)    # 난이도 카드 자리와 같은 높이 → 창이 덜컥 줄지 않게
+	_diff_easy.visible = false
+	_diff_easy.add_child(_label("EASY 를 선택할 거면 게임을 하지 마세요!", 34, Color8(230, 44, 34), _gothic, true))
+	var back := Button.new()
+	back.text = "←  뒤로  (HARD · NORMAL 고르기)"
+	back.focus_mode = Control.FOCUS_NONE
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.custom_minimum_size = Vector2(420, 58)
+	back.add_theme_font_override("font", _gothic)
+	back.add_theme_font_size_override("font_size", 24)
+	back.add_theme_color_override("font_color", BONE)
+	back.add_theme_stylebox_override("normal", _card_style(CARD_BG, BONE.darkened(0.3), 2, 10))
+	back.add_theme_stylebox_override("hover", _card_style(Color8(36, 30, 30), BONE, 2, 10))
+	back.add_theme_stylebox_override("pressed", _card_style(Color8(48, 40, 38), BONE, 3, 10))
+	back.pressed.connect(_easy_back)
+	_diff_easy.add_child(back)
+	v.add_child(_diff_easy)
+	_show_difficulty()
+
+
+# EASY: 난이도 줄을 치우고 핏빛 문구 + 뒤로 버튼. 그동안 출발은 막는다
+func _pick_difficulty(id: String) -> void:
+	if id == "easy":
+		_diff_row.visible = false
+		_diff_easy.visible = true
+		if _go_btn:
+			_go_btn.disabled = true
+	else:
+		difficulty = id
+	_show_difficulty()
+
+
+func _easy_back() -> void:
+	_diff_easy.visible = false
+	_diff_row.visible = true
+	if _go_btn:
+		_go_btn.disabled = false
+	_show_difficulty()
+
+
+func _show_difficulty() -> void:
+	for id in _diff_btns:
+		var b: Button = _diff_btns[id][0]
+		var on: bool = id == difficulty
+		if id != "easy":
+			b.set_pressed_no_signal(on)
+		var col: Color = _diff_btns[id][2]
+		_diff_btns[id][1].add_theme_color_override("font_color", Color.WHITE if on else col.lightened(0.2))   # 고른 카드 제목은 흰색
 
 
 func _card_style(bg: Color, line: Color, w: int, pad := 0) -> StyleBoxFlat:
@@ -377,7 +486,7 @@ func is_open() -> bool:
 
 
 func confirm() -> void:
-	if is_open():
+	if is_open() and not (_go_btn and _go_btn.disabled):   # EASY 문구가 떠 있는 동안에는 Enter 로도 출발하지 않는다
 		_go()
 
 

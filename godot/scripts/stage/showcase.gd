@@ -15,6 +15,11 @@ const SHOT_GAP := 0.45                        # 연사 간격 (초)
 const FIRST_ZOMBIE := 70.0                    # 첫 좀비 지점 (2026-09-30 "초반에 좀 더 걷다가") — 25 → 70m, 약 7초 걷고 나서 멀리 보인다
 const INTRO_SAFE := 3                         # 처음 이만큼은 풀숲에 엎드린 매복을 넣지 않는다 (안 보이다 갑자기 튀어나와 잡던 문제)
 const ZOMBIE_COUNT := 150                     # 스테이지(750m)에 150마리 (약 4.4m 마다 한 마리 — 500m·100마리 때 밀도), 4종을 골고루
+# 난이도 (2026-10-01 "상·중·하로 나눠죠"): HARD = 지금 그대로 / NORMAL = 좀비 20% 적게 · 보급 20% 많이 / EASY 는 없다 (고르면 "게임을 하지 마세요!")
+#   한 번 고르면 다시 시작해도 이어진다. 광전사·길목 매복·끝 반전 같은 연출 좀비는 난이도와 상관없이 그대로
+static var difficulty := "hard"
+static var difficulty_locked := false           # 한 번 고르고 출발하면 잠긴다 → 죽어서 RETRY 를 누르면 다시 고를 수 있다 (2026-10-01)
+const NORMAL_ZOMBIE_RATE := 0.8               # 150 → 120마리
 const SPAWN_AHEAD := 36.0                     # 이만큼 앞에서 나타난다 (달빛 테두리로 멀리서도 보인다)
 const KINDS := ["walker", "runner", "tank", "ambusher"]
 const INFINITE_AMMO := false                  # true 면 총알 무한 (HUD 에 ∞) — 2026-09-30 플레이 테스트부터 끔
@@ -35,6 +40,8 @@ const RELOAD_PER_ROUND := 0.02
 # 초록 불빛 보급은 하늘에서 초록 불을 뿜으며 내려온다. 강·다리(510-530m) 위에는 떨어뜨리지 않는다
 # 첫 보급(26m 빨강)은 뺐다 (2026-09-30 "처음부터 총알을 너무 많이 준다") → 첫 보급은 125m, 모두 6개
 const SUPPLY_PLAN := [[125.0, true], [225.0, false], [330.0, true], [440.0, false], [585.0, true], [680.0, false]]
+# NORMAL 보급: 6 → 7개 (6 × 1.2 = 7.2). 가장 길게 비던 440-585m 사이, 다리(510-530m) 앞 490m 에 하나 더
+const SUPPLY_PLAN_NORMAL := [[125.0, true], [225.0, false], [330.0, true], [440.0, false], [490.0, true], [585.0, false], [680.0, true]]
 const DROP_AHEAD := 55.0                      # 이만큼 앞에서 떨어지기 시작 → 착지할 때 약 30m 앞 (PRD F-20: 40-60m 앞 착지에 가깝게)
 const DROP_HEIGHT := 20.0
 const DROP_SPEED := 4.0                       # 낙하 속도 (m/s)
@@ -214,24 +221,7 @@ var _tex_pistol: Texture2D
 func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	_builder = builder
 	_camera = camera
-	_rng.seed = 7
-	var bag: Array = []
-	for i in ZOMBIE_COUNT:
-		bag.append(KINDS[i % KINDS.size()])
-	for i in bag.size():                               # 섞되 같은 씨앗이면 늘 같은 순서
-		var j := _rng.randi_range(i, bag.size() - 1)
-		var t = bag[i]
-		bag[i] = bag[j]
-		bag[j] = t
-	_intro_order(bag)
-	_next_event = EVENT_FROM + _rng.randf_range(0.0, 20.0)
-	for i in ZOMBIE_COUNT:
-		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / ZOMBIE_COUNT
-		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
-	for w in _plan:                                     # 다리 위는 비운다 → 다리 밑 매복이 또렷이 보이게 (그 수만큼 다리 건너편으로 옮긴다, 총 마릿수는 그대로)
-		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 34.0:   # (+26 → +40: 옮긴 좀비가 내가 차를 지나기 전에 차 뒤로 몰려오지 않게)
-			w[0] += _rng.randf_range(40.0, 75.0)            # 한 덩어리로 몰려오지 않게 흩어 놓는다 ("똑같은 셋이 패턴처럼 뛰어온다")
-	_plan.sort_custom(func(p, q): return p[0] < q[0])
+	_build_plan()
 	_prewarm()
 	_build_zombie_light(camera)
 	# 1인칭 권총: 팀원 권총 동작 (scripts/stage/viewmodel_motion.gd) — 손 달린 권총, 반동·슬라이드·재장전(탄창 빼기 → 왼손 새 탄창 → 슬라이드)
@@ -245,6 +235,47 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	if Inventory.has("gold_pistol"):
 		_gold_pistol()
 	_build_hud(hud_holder)
+
+
+# 좀비 배치 계획 (같은 씨앗이면 늘 같은 배치) — 난이도에 따라 마릿수만 다르다
+func _build_plan() -> void:
+	_plan.clear()
+	var n := zombie_count()
+	_rng.seed = 7
+	var bag: Array = []
+	for i in n:
+		bag.append(KINDS[i % KINDS.size()])
+	for i in bag.size():                               # 섞되 같은 씨앗이면 늘 같은 순서
+		var j := _rng.randi_range(i, bag.size() - 1)
+		var t = bag[i]
+		bag[i] = bag[j]
+		bag[j] = t
+	_intro_order(bag)
+	_next_event = EVENT_FROM + _rng.randf_range(0.0, 20.0)
+	for i in n:
+		var gap := (StageBuilderV2.STAGE_LENGTH - 20.0 - FIRST_ZOMBIE) / n
+		_plan.append([FIRST_ZOMBIE + i * gap + _rng.randf_range(-0.3, 0.3) * gap, bag[i]])
+	for w in _plan:                                     # 다리 위는 비운다 → 다리 밑 매복이 또렷이 보이게 (그 수만큼 다리 건너편으로 옮긴다, 총 마릿수는 그대로)
+		if w[0] > UNDER_D - 16.0 and w[0] < UNDER_D + 34.0:   # (+26 → +40: 옮긴 좀비가 내가 차를 지나기 전에 차 뒤로 몰려오지 않게)
+			w[0] += _rng.randf_range(40.0, 75.0)            # 한 덩어리로 몰려오지 않게 흩어 놓는다 ("똑같은 셋이 패턴처럼 뛰어온다")
+	_plan.sort_custom(func(p, q): return p[0] < q[0])
+
+
+static func zombie_count() -> int:
+	return roundi(ZOMBIE_COUNT * NORMAL_ZOMBIE_RATE) if difficulty == "normal" else ZOMBIE_COUNT
+
+
+static func supply_plan() -> Array:
+	return SUPPLY_PLAN_NORMAL if difficulty == "normal" else SUPPLY_PLAN
+
+
+# 출발할 때 고른 난이도로 — 바뀌었으면 좀비 배치를 다시 짠다 (아직 아무도 나오기 전)
+func set_difficulty(d: String) -> void:
+	if d == difficulty:
+		return
+	difficulty = d
+	_build_plan()
+	print("[difficulty] %s — 좀비 %d · 보급 %d" % [d, _plan.size(), supply_plan().size()])
 
 
 func _icon(name: String) -> Texture2D:
@@ -342,7 +373,7 @@ func skip_to(d: float) -> void:
 	var sc := StageBuilderV2.STAGE_LENGTH / 750.0
 	while _next_wave < _plan.size() and _plan[_next_wave][0] < d + 8.0:
 		_next_wave += 1
-	while _next_crate < SUPPLY_PLAN.size() and SUPPLY_PLAN[_next_crate][0] * sc < d + 5.0:
+	while _next_crate < supply_plan().size() and supply_plan()[_next_crate][0] * sc < d + 5.0:
 		_next_crate += 1
 	while _next_berserk < BERSERK_AT.size() and BERSERK_AT[_next_berserk] * sc < d + 5.0:
 		_next_berserk += 1
@@ -656,8 +687,8 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	if dist >= _next_event and dist < StageBuilderV2.STAGE_LENGTH - 60.0:
 		_sprint_event(dist, cam_x)
 		_next_event += _rng.randf_range(EVENT_GAP[0], EVENT_GAP[1])
-	while _next_crate < SUPPLY_PLAN.size() and dist >= SUPPLY_PLAN[_next_crate][0] * StageBuilderV2.STAGE_LENGTH / 750.0 - DROP_AHEAD:
-		_drop_crate(SUPPLY_PLAN[_next_crate][0] * StageBuilderV2.STAGE_LENGTH / 750.0, SUPPLY_PLAN[_next_crate][1])
+	while _next_crate < supply_plan().size() and dist >= supply_plan()[_next_crate][0] * StageBuilderV2.STAGE_LENGTH / 750.0 - DROP_AHEAD:
+		_drop_crate(supply_plan()[_next_crate][0] * StageBuilderV2.STAGE_LENGTH / 750.0, supply_plan()[_next_crate][1])
 		_next_crate += 1
 	_update_crates(dist, cam_x, delta)
 	_update_zombies(dist, cam_x, delta)

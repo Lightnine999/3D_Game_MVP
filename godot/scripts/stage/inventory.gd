@@ -9,8 +9,13 @@ extends RefCounted
 ##   Inventory.grant_pack("pack_one_more")   팩 구성대로 넣기 (테스트 지급 — 결제 연결 전)
 
 const PATH := "user://inventory.json"
+# 테스트 버전 (2026-10-01): 게임을 껐다 켜면 가방을 통째로 비운다. RETRY(장면 다시 읽기)로는 비우지 않는다 — 앱을 새로 켤 때만
+# 정식 버전에서는 false 로 두고 서버 인벤토리를 정본으로 쓴다 (서버를 내렸다 켤 때의 리셋은 서버 쪽에서 — 백엔드 담당)
+const RESET_ON_LAUNCH := true
+const TIMED_DAYS := 14                        # 기간제 아이템 기간 (일)
 
-# 아이템 (소모 = 쓰면 줄어든다 / 영구 = 갖고 있으면 계속)
+# 아이템 (소모 = 쓰면 줄어든다 / 기간제 = 받은 날부터 14일 동안 계속, 다시 받으면 그날부터 14일)
+# 황금 권총·서포터 배지는 영구였다가 2026-10-01 "영구를 빼줘" → 14일 기간제
 const ITEMS := {
 	"revive": {"name": "부활", "kind": "consumable"},
 	"knife_plus": {"name": "예비 칼", "kind": "consumable"},
@@ -20,8 +25,8 @@ const ITEMS := {
 	"bonfire": {"name": "모닥불", "kind": "consumable"},
 	"danger_sense": {"name": "위험 감지", "kind": "consumable"},
 	"adrenaline": {"name": "아드레날린", "kind": "consumable"},   # 2026-10-01 생존 키트에 추가
-	"gold_pistol": {"name": "황금 권총", "kind": "permanent"},
-	"supporter_badge": {"name": "서포터 배지", "kind": "permanent"},
+	"gold_pistol": {"name": "황금 권총", "kind": "timed"},
+	"supporter_badge": {"name": "서포터 배지", "kind": "timed"},
 }
 
 # 팩 3종 (노션 "좀비탈출 — 테스트 결제 요금 패키지 (3종)", art/shop/*.png) — 가격은 서버가 정본
@@ -32,6 +37,7 @@ const PACKS := {
 }
 
 static var _items := {}
+static var _expires := {}                      # 기간제 아이템 → 끝나는 시각 (유닉스 초)
 static var _loaded := false
 
 
@@ -40,23 +46,43 @@ static func _load() -> void:
 		return
 	_loaded = true
 	_items = {}
+	_expires = {}
+	if RESET_ON_LAUNCH:
+		_save()                                               # 켤 때 한 번 비운다 (테스트 버전)
+		print("[inventory] 테스트 버전 — 켤 때 가방 리셋")
+		return
 	if FileAccess.file_exists(PATH):
 		var data = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 		if data is Dictionary:
 			for k in data:
 				if ITEMS.has(k):
 					_items[k] = int(data[k])
+			var ex = data.get("_expires", {})
+			if ex is Dictionary:
+				for k in ex:
+					_expires[k] = int(ex[k])
 
 
 static func _save() -> void:
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify(_items))
+		var data := _items.duplicate()
+		data["_expires"] = _expires
+		f.store_string(JSON.stringify(data))
 
 
 static func count(item: String) -> int:
 	_load()
+	if ITEMS.get(item, {}).get("kind", "") == "timed" and int(_expires.get(item, 0)) <= int(Time.get_unix_time_from_system()):
+		return 0                                              # 기간이 끝났다
 	return int(_items.get(item, 0))
+
+
+# 기간제 아이템이 남은 날 (없으면 0)
+static func days_left(item: String) -> int:
+	if count(item) <= 0:
+		return 0
+	return ceili((int(_expires.get(item, 0)) - Time.get_unix_time_from_system()) / 86400.0)
 
 
 static func has(item: String) -> bool:
@@ -67,8 +93,8 @@ static func use(item: String) -> bool:
 	_load()
 	if not has(item):
 		return false
-	if ITEMS[item]["kind"] == "permanent":
-		return true                                           # 영구 아이템은 줄지 않는다
+	if ITEMS[item]["kind"] == "timed":
+		return true                                           # 기간제 아이템은 써도 줄지 않는다 (기간이 끝나면 사라진다)
 	_items[item] = count(item) - 1
 	_save()
 	return true
@@ -78,8 +104,9 @@ static func add(item: String, n := 1) -> void:
 	_load()
 	if not ITEMS.has(item):
 		return
-	if ITEMS[item]["kind"] == "permanent":
+	if ITEMS[item]["kind"] == "timed":
 		_items[item] = 1
+		_expires[item] = int(Time.get_unix_time_from_system()) + TIMED_DAYS * 86400   # 받은 날부터 14일
 	else:
 		_items[item] = count(item) + n
 	_save()
