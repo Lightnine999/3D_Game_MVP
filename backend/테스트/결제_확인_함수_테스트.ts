@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 const moduleUrl = new URL("../supabase/functions/confirm-toss-payment/처리.ts", import.meta.url).href;
-const order = { order_id: "order_001", user_id: "user-a", product_id: "ammo_start_pack", amount: 1100, status: "ready" };
+const order = { catalog_version: 1, order_id: "order_001", user_id: "user-a", product_id: "ammo_start_pack", amount: 1100, status: "ready" };
 const requestBody = { paymentKey: "test-payment", orderId: "order_001", amount: 1100 };
 const approved = { paymentKey: "test-payment", orderId: "order_001", totalAmount: 1100, status: "DONE" };
 function post(body: unknown): Request {
@@ -10,6 +10,51 @@ function post(body: unknown): Request {
     body: JSON.stringify(body),
   });
 }
+
+Deno.test("세 패키지와 두 기존 단품의 ready 주문은 저장 금액으로 승인하고 응답 계약을 유지한다", async () => {
+  const { handleConfirmPayment } = await import(moduleUrl);
+  for (const [productId, amount] of [
+    ["pack_survival_kit", 1100], ["pack_one_more", 3300], ["pack_legend", 5500],
+    ["ammo_start_pack", 1100], ["supporter_badge", 3300],
+  ] as const) {
+    let grants = 0;
+    const saved = { ...order, product_id: productId, amount };
+    const response = await handleConfirmPayment(post({ ...requestBody, amount, components: { revive: 999 } }), {
+      authenticate: () => "user-a", findOrder: () => saved,
+      requestApproval: (attempt: { amount: number }) => {
+        assert.equal(attempt.amount, amount);
+        return Promise.resolve({ ...approved, totalAmount: amount });
+      },
+      grant: (stored: typeof saved) => {
+        assert.deepEqual(stored, saved);
+        grants++;
+        return Promise.resolve("paid" as const);
+      },
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { status: "paid", orderId: requestBody.orderId });
+    assert.equal(grants, 1);
+  }
+});
+
+Deno.test("패키지 기지급 재요청은 Toss 승인과 지급 RPC를 다시 호출하지 않는다", async () => {
+  const { handleConfirmPayment } = await import(moduleUrl);
+  for (const [productId, amount] of [["pack_survival_kit", 1100], ["pack_one_more", 3300], ["pack_legend", 5500]] as const) {
+    let calls = 0;
+    const deps = {
+      authenticate: () => "user-a",
+      findOrder: () => ({ ...order, product_id: productId, amount, status: "paid", payment_key: requestBody.paymentKey }),
+      requestApproval: () => { calls++; throw new Error("must not approve"); },
+      grant: () => { calls++; throw new Error("must not grant"); },
+    };
+    const same = await handleConfirmPayment(post({ ...requestBody, amount }), deps);
+    assert.equal(same.status, 200);
+    assert.deepEqual(await same.json(), { status: "already_paid", orderId: requestBody.orderId });
+    const conflict = await handleConfirmPayment(post({ ...requestBody, amount, paymentKey: "other" }), deps);
+    assert.equal(conflict.status, 409);
+    assert.equal(calls, 0);
+  }
+});
 
 Deno.test("정상 승인도 서버 DB 지급 결과를 받아야 paid를 반환한다", async () => {
   const { handleConfirmPayment } = await import(moduleUrl);

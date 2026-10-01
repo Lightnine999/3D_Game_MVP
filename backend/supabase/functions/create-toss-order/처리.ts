@@ -1,4 +1,4 @@
-import { priceFor, type Order } from "../_shared/결제.ts";
+import { CATALOG_VERSION, priceFor, type Order } from "../_shared/결제.ts";
 
 export type OrderDependencies = {
   authenticate(request: Request): Promise<string | null> | string | null;
@@ -35,21 +35,25 @@ export async function handleCreateOrder(request: Request, dependencies: OrderDep
     const order: Order = {
       order_id: crypto.randomUUID(),
       user_id: userId,
-      product_id: product.item_id,
+      product_id: product.product_id,
       amount: product.amount,
       status: "ready",
+      catalog_version: CATALOG_VERSION,
     };
     const stored = await dependencies.insert(order);
     if (stored.order_id !== order.order_id || stored.user_id !== userId ||
+        stored.product_id !== product.product_id ||
+        stored.catalog_version !== CATALOG_VERSION ||
         stored.amount !== product.amount || stored.status !== "ready") {
       return json(500, { error: "internal_error" });
     }
     return json(201, {
       orderId: stored.order_id,
-      productId: product.item_id,
+      productId: product.product_id,
       amount: stored.amount,
       orderName: product.name,
       status: stored.status,
+      catalogVersion: stored.catalog_version,
     });
   } catch {
     return json(500, { error: "internal_error" });

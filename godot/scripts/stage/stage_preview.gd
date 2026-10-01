@@ -16,6 +16,15 @@
 # 시연 연출:   위 명령에 --showcase 를 더하면 좀비·권총·보급·HUD 를 얹는다 (영상 모드는 events.json 에 소리 시각 기록)
 extends Node3D
 
+signal service_finished(result: Dictionary)
+const SERVICE_ADAPTER := preload("res://scripts/services/게임_장면_어댑터.gd")
+var service_managed := false
+var service_debug_enabled := false
+var _service_adapter: RefCounted
+var _service_sensitivity := 1.0
+var _service_control_mode := "drag"
+var _service_tilt_zero := 0.0
+
 const RUN_SPEED := 5.0      # m/s (PRD F-01)
 const EYE_HEIGHT := 1.6
 const BOB_FREQ := 2.6       # 발걸음 주기 (Hz)
@@ -145,6 +154,8 @@ static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 �
 
 
 func _ready() -> void:
+	_service_adapter = SERVICE_ADAPTER.new()
+	_service_adapter.configure(self)
 	_wig_rng.seed = 1
 	_parse_args()
 	process_mode = Node.PROCESS_MODE_ALWAYS              # 일시정지 중에도 이 노드는 입력을 받는다 (게임 진행은 _process 에서 멈춤)
@@ -405,6 +416,7 @@ func _death_zone() -> String:
 
 # YOU DIED 화면 RETRY 옆에 무엇을 띄울지 (HANDOFF 1.4)
 func _setup_offer() -> void:
+	_retry.text = "RETRY" if not service_managed or _revive_pick else "결과 보기"
 	_offer_pack = ""
 	var rise_used: bool = _showcase.run_used.has("rise")
 	if Inventory.has("revive") and not rise_used:
@@ -432,7 +444,7 @@ func _setup_offer() -> void:
 	if rise_used:
 		_offer_line.text = "이번 판은 이미 다시 일어났습니다 · " + _offer_line.text
 	var pk: Dictionary = Inventory.PACKS[_offer_pack]
-	_offer.text = "%s  ₩%s" % [pk["name"], _won(pk["price"])]
+	_offer.text = "%s · 로컬 테스트 지급 (결제 아님)" % pk["name"] if service_managed else "%s  ₩%s" % [pk["name"], _won(pk["price"])]
 
 
 func _won(n: int) -> String:
@@ -441,6 +453,8 @@ func _won(n: int) -> String:
 
 
 func _on_offer() -> void:
+	if service_managed and _service_adapter.finished:
+		return
 	if _offer_pack.is_empty():                           # 부활은 고르기만 한다 — 시작은 RETRY 가 한다
 		_revive_pick = not _revive_pick
 		_setup_offer()
@@ -457,12 +471,17 @@ func _on_offer() -> void:
 
 # RETRY: 부활을 골라 뒀으면 그 자리에서 일어나고, 아니면 처음부터 (이때 난이도를 다시 고를 수 있다)
 func _on_retry() -> void:
+	if service_managed and _service_adapter.finished:
+		return
 	if _revive_pick and _offer_pack.is_empty() and not _showcase.run_used.has("rise") and Inventory.use("revive"):
 		_revive_pick = false
 		_revive()
 		return
 	ShowcaseDirector.difficulty_locked = false
-	get_tree().reload_current_scene()
+	if service_managed:
+		_finish_service_run(false, "좀비에게 잡힘")
+	else:
+		get_tree().reload_current_scene()
 
 
 # 부활: 죽은 자리에서 일어나 다시 달린다 (탄약·칼·보급은 그대로, 2초 무적)
@@ -744,7 +763,7 @@ func _build_overlay(holder: Node) -> void:
 	_deaths_label.add_theme_font_size_override("font_size", 24)
 	_deaths_label.add_theme_color_override("font_color", Color8(150, 138, 124))
 	_retry = Button.new()                                  # RETRY: 같은 세리프·핏빛, 고르면 밝은 핏빛 (상자·줄 없음)
-	_retry.text = "RETRY"
+	_retry.text = "결과 보기" if service_managed else "RETRY"
 	_retry.visible = false
 	var retry_font := FontVariation.new()
 	retry_font.base_font = roman
@@ -807,12 +826,13 @@ func _build_overlay(holder: Node) -> void:
 
 
 func _process(delta: float) -> void:
-	if get_tree().paused:
+	if get_tree().paused or (_service_adapter != null and _service_adapter.finished):
 		return
 	if not _frames_dir.is_empty() or not _shots_dir.is_empty() or "--sim" in OS.get_cmdline_user_args():
 		return                                           # 캡처·통과 검사는 아래 함수가 직접 한 걸음씩 진행
 	if _dead:
 		_death_cam(delta)
+		# Keep the team revival offer alive until the player chooses results.
 		return
 	if _loadout_open:
 		return                                           # 출발 준비 중: 세상은 멈춰 있다
@@ -826,8 +846,11 @@ func _process(delta: float) -> void:
 		_missions.on_distance(_dist)
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		if _missions:
-			_missions.on_escape()                         # 미션: 탈출 · 아이템 없이 탈출 (달성 기록은 저장되고 다음 판 출발 준비에 ★)
-		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
+			_missions.on_escape()
+		if service_managed:
+			_finish_service_run(true, "")
+		else:
+			get_tree().reload_current_scene()             # Standalone preview keeps its original behavior.
 		return
 	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
@@ -872,11 +895,30 @@ func _unhandled_input(event: InputEvent) -> void:
 				_touch_id = -1
 		_fire_held = not _fire_touches.is_empty()
 	elif event is InputEventScreenDrag and event.index == _touch_id:
-		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M, -_lane(), _lane())
+		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M * _service_sensitivity, -_lane(), _lane())
 
 
 func _lane() -> float:
 	return StageBuilderV2.LANE_HALF - PLAYER_RADIUS
+
+
+func service_snapshot() -> Dictionary:
+	return _service_adapter.snapshot() if _service_adapter != null else {}
+
+
+func service_debug_command(command: String, value: Variant = null) -> bool:
+	return _service_adapter.debug_command(command, value) if _service_adapter != null else false
+
+
+func service_apply_settings(values: Dictionary) -> void:
+	if _service_adapter != null:
+		_service_adapter.apply_settings(values)
+
+
+func _finish_service_run(cleared: bool, reason: String) -> void:
+	var result: Dictionary = _service_adapter.finish(cleared, reason)
+	if not result.is_empty():
+		service_finished.emit(result)
 
 
 # 한 걸음 진행: 앞으로 달리고, 좌우로 비키고(사용자 조작 또는 자동), 차·소품에 막히면 멈칫, 카메라를 흔든다
@@ -902,11 +944,13 @@ func _step(delta: float) -> void:
 			key += 1.0
 		if key != 0.0:
 			_steer_target = clampf(_x + key * 1.2 * side, -_lane(), _lane())
+		elif _service_control_mode == "tilt" and OS.get_name() == "Android":
+			_steer_target = clampf((Input.get_accelerometer().x - _service_tilt_zero) / 9.8 * _lane() * _service_sensitivity, -_lane(), _lane())
 		if _showcase and (Input.is_physical_key_pressed(KEY_SPACE) or _fire_held):
 			_showcase.fire()                              # 누르고 있으면 연사 간격(0.45초)마다
 		if _showcase and Input.is_physical_key_pressed(KEY_R):
 			_showcase.reload()                            # 재장전 (걸리는 시간 동안 못 쏜다)
-		vx = clampf((_steer_target - _x) * 8.0 * side, -PLAY_STEER * side, PLAY_STEER * side)
+		vx = clampf((_steer_target - _x) * 8.0 * side * _service_sensitivity, -PLAY_STEER * side * _service_sensitivity, PLAY_STEER * side * _service_sensitivity)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
 	if _glide_t > 0.0:                                   # 끼임 탈출: 빈자리로 부드럽게 옮겨 가는 중 (다른 움직임은 잠시 멈춤)

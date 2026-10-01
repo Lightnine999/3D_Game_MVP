@@ -1,15 +1,27 @@
-import { GAME_GUIDE } from "./게임_안내_테스트.ts";
+import { GAME_GUIDE } from "./게임_안내.ts";
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 export type ModelAnswer = { status: "ai_answered" | "needs_human"; reply: string };
+export type ModelTurn = { role: "user" | "assistant"; content: string };
 
 export async function askModel(
   apiKey: string,
   model: string,
-  message: string,
+  message: string | ModelTurn[],
   fetcher: FetchLike = fetch,
 ): Promise<ModelAnswer> {
   if (!apiKey || !model) throw new Error("chat_key_missing");
+  if (Array.isArray(message) && (
+    message.length < 1 || message[message.length - 1]?.role !== "user" ||
+    message.some((turn) => !turn || (turn.role !== "user" && turn.role !== "assistant") ||
+      typeof turn.content !== "string" || !turn.content.trim() || turn.content.length > 2000)
+  )) throw new Error("invalid_model_context");
+  if (Array.isArray(message)) {
+    // Drop oldest whole turns, never truncate or discard the current question.
+    message = message.slice(-8);
+    let size = message.reduce((sum, turn) => sum + turn.content.length, 0);
+    while (size > 8000) size -= message.shift()!.content.length;
+  }
   let response: Response;
   try {
     response = await fetcher("https://api.openai.com/v1/responses", {

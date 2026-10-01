@@ -57,6 +57,9 @@ export_credentials.cfg
 backend/supabase/.env*
 backend/supabase/functions/.env*
 
+# 실제 접속 설정은 로컬 유지. 값이 없는 예시 JSON만 공유한다.
+/godot/config/서비스_공개설정.json
+
 
 # ═════════════════════════════════════════════════════════════
 # 2. 개인정보·내부 문서 (공개되면 안 되는 문서)
@@ -80,6 +83,10 @@ docs/feedback/raw/
 # 개인 메모
 *.private.md
 NOTES.local.md
+
+# 개인 실험·상세 작업 이력은 팀 공유용 현황 문서와 구분한다.
+/01_사전검증/
+/📋YH_3D_Game_MVP_현재 진행 현황.md
 
 
 # ═════════════════════════════════════════════════════════════

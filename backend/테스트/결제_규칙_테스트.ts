@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 
 const moduleUrl = new URL("../supabase/functions/_shared/결제.ts", import.meta.url).href;
-const order = { order_id: "order_001", user_id: "user-a", product_id: "ammo_start_pack", amount: 1100, status: "ready" };
+const order = { catalog_version: 1, order_id: "order_001", user_id: "user-a", product_id: "ammo_start_pack", amount: 1100, status: "ready" };
 const request = { paymentKey: "test-payment", orderId: "order_001", amount: 1100 };
 const approved = { paymentKey: "test-payment", orderId: "order_001", totalAmount: 1100, status: "DONE" };
 
 Deno.test("서버 가격표 외 상품은 주문할 수 없다", async () => {
   const { priceFor } = await import(moduleUrl);
-  assert.equal(priceFor("ammo_start_pack")?.amount, 1100);
-  assert.equal(priceFor("supporter_badge")?.amount, 3300);
+  assert.equal(priceFor("pack_survival_kit")?.amount, 1100);
+  assert.equal(priceFor("pack_one_more")?.amount, 3300);
+  assert.equal(priceFor("pack_legend")?.amount, 5500);
+  assert.equal(priceFor("ammo_start_pack"), null);
+  assert.equal(priceFor("supporter_badge"), null);
   assert.equal(priceFor("unknown"), null);
 });
 

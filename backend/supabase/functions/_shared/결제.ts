@@ -3,6 +3,7 @@ export type Order = {
   user_id: string;
   product_id: string;
   amount: number;
+  catalog_version: number;
   status: "ready" | "paid" | "failed";
   payment_key?: string | null;
 };
@@ -25,13 +26,33 @@ export type ApprovalDependencies = {
   grant(order: Order, approval: ApprovalResponse): Promise<"paid" | "already_paid">;
 };
 
-const PRODUCTS: Readonly<Record<string, { item_id: string; amount: number; name: string }>> = {
-  ammo_start_pack: { item_id: "ammo_start_pack", amount: 1100, name: "시작 탄약 팩" },
-  supporter_badge: { item_id: "supporter_badge", amount: 3300, name: "서포터 배지" },
+export type PackageProduct = {
+  readonly product_id: string;
+  readonly amount: number;
+  readonly name: string;
+  readonly components: Readonly<Record<string, number>>;
 };
 
-export function priceFor(productId: string): { item_id: string; amount: number; name: string } | null {
-  return PRODUCTS[productId] ?? null;
+export const CATALOG_VERSION = 2;
+
+// New sales only. Existing single-item orders are settled using their stored order.
+const PRODUCTS: Readonly<Record<string, PackageProduct>> = Object.freeze({
+  pack_survival_kit: Object.freeze({
+    product_id: "pack_survival_kit", amount: 1100, name: "생존 키트",
+    components: Object.freeze({ knife_plus: 1, ammo_start_pack: 1, flare_supply: 1, adrenaline: 1 }),
+  }),
+  pack_one_more: Object.freeze({
+    product_id: "pack_one_more", amount: 3300, name: "한 번 더 패키지",
+    components: Object.freeze({ revive: 1, frenzy_30: 1, bonfire: 1 }),
+  }),
+  pack_legend: Object.freeze({
+    product_id: "pack_legend", amount: 5500, name: "전설의 생존자",
+    components: Object.freeze({ revive: 2, knife_plus: 2, frenzy_30: 2, danger_sense: 2, gold_pistol: 1, supporter_badge: 1 }),
+  }),
+});
+
+export function priceFor(productId: string): PackageProduct | null {
+  return Object.hasOwn(PRODUCTS, productId) ? PRODUCTS[productId] : null;
 }
 
 export async function confirmOnce(
@@ -43,6 +64,7 @@ export async function confirmOnce(
   if (request.orderId !== order.order_id || !request.paymentKey) return "invalid_request";
   if (order.user_id !== userId) return "not_owner";
   if (!Number.isSafeInteger(request.amount) || request.amount !== order.amount) return "amount_mismatch";
+  if (order.catalog_version !== 1 && order.catalog_version !== 2) return "unknown_catalog_version";
   if (order.status === "paid") {
     return order.payment_key === request.paymentKey ? "already_paid" : "already_paid_conflict";
   }

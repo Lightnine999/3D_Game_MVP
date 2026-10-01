@@ -7,7 +7,8 @@
 class_name ShowcaseDirector
 extends Node3D
 
-const UI_DIR := "res://assets/ui/icons/"      # 세권 님 HUD 아이콘 (원본 art/ui/icons — 게임 폴더 밖은 APK 에 안 들어가서 2026-10-01 복사)
+const UI_DIR := "res://assets/ui/icons/" # Team APK-packaged icons.
+const HUD_ICON_FILES := ["icon_pistol.png", "icon_pistol_empty.png", "icon_knife.png", "icon_supply.png", "icon_ammo.png"]
 const MUZZLE := Vector3(0, 0.08, -0.166)       # weapon_pistol.glb 총구 위치 (PR #4)
 const SHOOT_RANGE := 10.0                     # 이 거리 안에 들어온 좀비를 쏜다 (손 뻗고 다가오는 모습이 보이게 가까이)
 const SHOT_GAP := 0.45                        # 연사 간격 (초)
@@ -135,6 +136,10 @@ signal tripped                                # 기는 좀비가 발목을 잡�
 
 var events: Array = []                        # [시각, 소리 이름] — 영상에 소리 입힐 때 씀
 var catching := false                         # 플레이 테스트: 좀비가 플레이어를 잡을 수 있다
+var service_gun_kills := 0
+var service_grabs := 0
+var service_knife_used := false
+var service_invulnerable := false              # Only the debug adapter may enable this; normal rules stay unchanged.
 # 잡힘 규칙 (2026-09-30): 좀비는 앞에서만 덮친다. 내 앞에서 몸을 절반 이상 가린 채 닿으면 잡힌다.
 # 비켜서 스쳐 지나가면 그걸로 끝 — 뒤돌아 쫓아오거나 뒤에서 잡지 않는다
 # 잡기 판정 (2026-09-30 "탱커가 못 잡는다 / 좀 더 붙잡게"): 덩치별로 팔이 닿는 폭·거리를 따로
@@ -199,7 +204,7 @@ var _next_pounce := 0
 var _finale := 0                              # 0 아직 / 1 왼쪽 나옴 (오른쪽 기다림) / 2 끝
 var _finale_t := 0.0
 static var _libs := {}                        # 종류 → 동작 라이브러리 (한 번만 만든다)
-static var _pack: AnimationPlayer
+static var _pack_animations: Dictionary = {}
 var _mag := START_MAG                         # 탄창에 든 총알
 var _mag_cap := START_MAG                     # 지금 총의 탄창 크기
 var _reserve := 0                             # 예비탄
@@ -236,6 +241,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	camera.add_child(_vm)
 	_pistol = _vm
 	if Inventory.has("gold_pistol"):
+		run_used["gold_pistol"] = true
 		_gold_pistol()
 	_build_hud(hud_holder)
 	apply_start_pistol()
@@ -292,7 +298,18 @@ func apply_start_pistol() -> void:
 
 
 func _icon(name: String) -> Texture2D:
-	return load(UI_DIR + name) as Texture2D
+	if not HUD_ICON_FILES.has(name):
+		push_error("Unknown HUD icon: " + name)
+		return null
+	var path: String = UI_DIR + name
+	if ResourceLoader.exists(path):
+		return load(path) as Texture2D
+	# Editor pre-import tests can read the raw source; exports use imported resources.
+	var img := Image.load_from_file(path)
+	if img == null or img.is_empty():
+		push_error("HUD icon unavailable: " + path)
+		return null
+	return ImageTexture.create_from_image(img)
 
 
 func _build_hud(holder: Node) -> void:
@@ -371,6 +388,8 @@ func _build_hud(holder: Node) -> void:
 # ── 팩 아이템 효과 ───────────────────────────────────────────
 # 출발 준비에서 켠 아이템 (inventory 에서는 이미 1개씩 뺐다)
 func apply_loadout(picks: Dictionary) -> void:
+	for item in picks:
+		run_used[item] = true # Local test provenance only, never server ownership.
 	if picks.has("knife_plus"):
 		_knife_left = mini(_knife_left + 1, 2)
 		_refresh_knife()
@@ -562,13 +581,16 @@ func _white_label(l: Label) -> void:
 
 # 아이콘을 흰 실루엣으로 (모양은 그대로, 색만 흰색)
 func _white_icon(name: String) -> Texture2D:
-	var img: Image                                       # 가져온 텍스처에서 그림을 꺼낸다 (폰 APK 에서는 원본 PNG 파일을 직접 못 읽는다 — 2026-10-01 아이콘이 비던 오류)
-	var tex := load(UI_DIR + name) as Texture2D
-	if tex == null:
+	var texture := _icon(name)
+	if texture == null:
 		return null
-	img = tex.get_image()
-	if img.is_compressed():
-		img.decompress()
+	var img := texture.get_image()
+	if img == null or img.is_empty():
+		push_error("HUD icon has no image: " + name)
+		return null
+	if img.is_compressed() and img.decompress() != OK:
+		push_error("HUD icon decompression failed: " + name)
+		return null
 	img.convert(Image.FORMAT_RGBA8)
 	for y in img.get_height():
 		for x in img.get_width():
@@ -967,13 +989,16 @@ func _sprint_event(dist: float, cam_x: float) -> void:
 func _lib_for(kind: String, sk: Skeleton3D) -> AnimationLibrary:
 	if _libs.has(kind):
 		return _libs[kind]
-	if _pack == null:
+	if _pack_animations.is_empty():
 		var holder: Node3D = load(ANIM_PACK).instantiate()
-		_pack = holder.find_children("*", "AnimationPlayer", true, false)[0]
+		var pack_player: AnimationPlayer = holder.find_children("*", "AnimationPlayer", true, false)[0]
+		for animation_name in pack_player.get_animation_list():
+			_pack_animations[animation_name] = pack_player.get_animation(animation_name)
+		holder.free() # Cache Resources, not an orphaned scene tree, across retries.
 	var hips := absf(sk.get_bone_rest(0).origin.z)
 	var lib := AnimationLibrary.new()
-	for n in _pack.get_animation_list():
-		lib.add_animation(n, _retarget(_pack.get_animation(n), hips / PACK_HIPS, "mixamorig10_", n in PACK_LOOPS))
+	for n in _pack_animations:
+		lib.add_animation(n, _retarget(_pack_animations[n], hips / PACK_HIPS, "mixamorig10_", n in PACK_LOOPS))
 	if kind != "ambusher":
 		var amb: Node3D = load("res://assets/models/zombie_ambusher.glb").instantiate()
 		var amb_ap: AnimationPlayer = amb.find_children("*", "AnimationPlayer", true, false)[0]
@@ -1243,7 +1268,11 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						brushed.emit(signf(e["x"] - cam_x))
 						_sfx("sfx_hit_obstacle")
 					if catching and cover >= COVER_TO_GRAB and _grace_t <= 0.0:
+						if service_invulnerable:
+							e["passed"] = true
+							continue
 						if e.get("low", false):                # 기는 좀비: 풀에 묻혀 잘 안 보인다 → 발목만 잡고 휘청하게 (사망 없음)
+							service_grabs += 1
 							e["passed"] = true
 							_grace_t = 0.8
 							_sfx("sfx_bite")
@@ -1292,10 +1321,15 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 
 # 잡혔다: 칼이 남았으면 칼로 죽이고 벗어난다, 없으면 사망 (stage_preview 가 카메라 연출)
 func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
+	if service_invulnerable:
+		e["passed"] = true
+		return
+	service_grabs += 1
 	var z: Node3D = e["node"]
 	var ap: AnimationPlayer = e["ap"]
 	ap.speed_scale = 1.0
 	if _knife_left > 0:
+		service_knife_used = true
 		_knife_left -= 1
 		_refresh_knife()
 		# 칼 근접전 (2026-09-30 "멈춰서 좀비와 합을 맞춰야"): 좀비가 코앞에서 붙잡으려는 사이 칼이 천천히 올라와 목을 찌른다
@@ -1439,6 +1473,8 @@ func _shoot(e: Dictionary) -> void:
 	CardFX.blood_splash(self, hit_at, (1.5 if e["kind"] == "tank" else 1.1) * near_k)   # 피 튐 카드 (2026-09-30 "피가 안 보인다")
 	e["hp"] -= 1
 	if e["hp"] <= 0:
+		if e["state"] != "dead":
+			service_gun_kills += 1
 		_kill(e, hit_at, 1.0)
 	elif e["state"] == "move":
 		e["state"] = "stagger"                             # 탱커 첫 발: 휘청

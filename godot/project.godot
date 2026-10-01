@@ -1,17 +1,27 @@
 ; 3D_Game_MVP Godot 프로젝트 설정 (주인: C — TECH_SPEC 13.1.1)
-; 지금은 A의 스테이지 미리보기(stage_preview)를 시작 장면으로 둔다.
-; WU-05 공통 뼈대에서 C가 main.tscn으로 바꾸고 입력 키·충돌 레이어(TECH_SPEC 13.3.4)를 채운다.
+; 서비스 진입 화면에서 A의 스테이지 미리보기를 게임 셸로 불러온다.
+; 실제 B 게임 장면으로 교체하는 팀 통합과 입력 키·충돌 레이어는 별도 검증 대상이다.
 config_version=5
 
 [application]
 config/name="3D Zombie Runner (가칭)"
+config/name.human_test="좀비탈출 사람 테스트"
+config/name.online_test="좀비탈출 온라인 테스트"
 config/version="0.0.1"
-run/main_scene="res://scenes/stage/stage_preview.tscn"
+config/icon="res://assets/ui/좀비탈출_로고.png"
+run/main_scene="res://scenes/ui/서비스_진입.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/TossGamePayments/plugin.cfg")
 
 [display]
 window/size/viewport_width=1920
 window/size/viewport_height=1080
+window/size/window_width_override.human_test=1280
+window/size/window_height_override.human_test=720
+window/size/window_width_override.online_test=1280
+window/size/window_height_override.online_test=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=0

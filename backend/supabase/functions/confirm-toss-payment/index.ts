@@ -23,7 +23,7 @@ Deno.serve((request) => {
     authenticate: async (incoming) => (await services.authenticate(incoming))?.userId ?? null,
     findOrder: async (orderId) => {
       const result = await admin.from("toss_orders")
-        .select("order_id,user_id,product_id,amount,status").eq("order_id", orderId).maybeSingle();
+        .select("order_id,user_id,product_id,amount,status,catalog_version").eq("order_id", orderId).maybeSingle();
       if (result.error) throw new Error("order_read_failed");
       if (!result.data) return null;
       if (result.data.status !== "paid") return result.data as Order;

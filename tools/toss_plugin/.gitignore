@@ -1,0 +1,5 @@
+.gradle-cache/
+.gradle/
+build/
+plugin/build/
+local.properties
