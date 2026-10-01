@@ -48,6 +48,7 @@ const ON_RED := Color8(184, 26, 22)
 
 
 func open_loadout() -> void:
+	_blood_seed = 0                                       # 열 때마다 핏자국 새로
 	_panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.035, 0.028, 0.032, 0.94)
@@ -267,35 +268,88 @@ func _draw_keys(c: Control) -> void:
 	c.draw_string(_gothic_m, Vector2(0, y + 44), t2, HORIZONTAL_ALIGNMENT_CENTER, c.size.x, 17, DIM)
 
 
-# 핏자국 장식: 왼쪽 위·오른쪽 아래 모서리에 튄 피 + 위 가장자리에서 흘러내린 자국 (항상 같은 모양)
+# 핏자국 장식 (2026-10-01 "너무 귀엽다 → 더 랜덤하게"): 창을 열 때마다 모양이 바뀐다
+#   튄 덩어리(가시처럼 뻗은 불규칙 외곽) · 한쪽으로 뿌려진 길쭉한 방울 · 문질러 끌린 자국 · 굵기가 줄어드는 흘러내림
+var _blood_seed := 0
+
+
+func _blood_col(rng: RandomNumberGenerator) -> Color:
+	return Color(rng.randf_range(0.22, 0.42), rng.randf_range(0.0, 0.03), rng.randf_range(0.0, 0.025), rng.randf_range(0.7, 0.95))
+
+
+func _splat(c: Control, rng: RandomNumberGenerator, o: Vector2, r: float) -> void:
+	var col := _blood_col(rng)
+	var pts := PackedVector2Array()
+	var n := 34
+	var a0 := rng.randf() * TAU
+	for i in n:
+		var a := a0 + TAU * i / n
+		var k := rng.randf_range(0.55, 1.15)
+		if rng.randf() < 0.22:                            # 가시처럼 뻗은 줄기
+			k = rng.randf_range(1.5, 2.6)
+		pts.append(o + Vector2(cos(a), sin(a)) * r * k)
+	c.draw_colored_polygon(pts, col)
+	var dir := Vector2.from_angle(rng.randf() * TAU)     # 한쪽으로 뿌려진 방울
+	for i in rng.randi_range(14, 26):
+		var d := rng.randf_range(1.2, 4.5) * r
+		var p := o + dir.rotated(rng.randf_range(-0.7, 0.7)) * d
+		var sz := rng.randf_range(1.0, 5.5) * clampf(2.6 - d / r * 0.45, 0.4, 1.6)
+		var along := (p - o).normalized()
+		var stretch := rng.randf_range(1.0, 3.2)
+		var q := PackedVector2Array()
+		for k in 10:
+			var t := TAU * k / 10.0
+			q.append(p + along * cos(t) * sz * stretch + along.orthogonal() * sin(t) * sz)
+		c.draw_colored_polygon(q, _blood_col(rng))
+	for i in rng.randi_range(4, 9):                       # 둘레 잔방울
+		c.draw_circle(o + Vector2.from_angle(rng.randf() * TAU) * r * rng.randf_range(1.2, 2.2), rng.randf_range(1.0, 3.0), col)
+
+
+func _smear(c: Control, rng: RandomNumberGenerator, a: Vector2, b: Vector2, wdt: float) -> void:
+	var nrm := (b - a).normalized().orthogonal()
+	for i in 5:                                           # 겹친 반투명 띠 → 끌린 자국
+		var off := nrm * rng.randf_range(-wdt, wdt) * 0.6
+		var col := _blood_col(rng)
+		col.a *= 0.4
+		var w0 := wdt * rng.randf_range(0.5, 1.0)
+		var w1 := wdt * rng.randf_range(0.1, 0.4)
+		c.draw_colored_polygon(PackedVector2Array([a + off + nrm * w0, b + off + nrm * w1, b + off - nrm * w1, a + off - nrm * w0]), col)
+
+
 func _draw_blood(c: Control) -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 1031
-	var dark := Color(0.36, 0.02, 0.02, 0.9)
-	var wet := Color(0.55, 0.04, 0.03, 0.85)
+	if _blood_seed == 0:
+		_blood_seed = randi() | 1
+	rng.seed = _blood_seed
 	c.draw_set_transform(Vector2(-36, -36))               # 판 안쪽 여백(36)만큼 밖으로 — 판 가장자리 기준으로 그린다
 	var w := c.size.x + 72.0
 	var h := c.size.y + 72.0
-	for spot in [[Vector2(34, 30), 1.0], [Vector2(w - 40, h - 34), 0.85], [Vector2(w - 70, 22), 0.5]]:
-		var o: Vector2 = spot[0]
-		var k: float = spot[1]
-		c.draw_circle(o, 30.0 * k, dark)                  # 가운데 큰 덩어리
-		for i in 9:                                       # 덩어리 둘레 울퉁불퉁
-			var a := rng.randf() * TAU
-			c.draw_circle(o + Vector2(cos(a), sin(a)) * 24.0 * k, rng.randf_range(10, 18) * k, dark)
-		for i in 14:                                      # 멀리 튄 방울
-			var a := rng.randf() * TAU
-			var d := rng.randf_range(40, 110) * k
-			c.draw_circle(o + Vector2(cos(a), sin(a)) * d, rng.randf_range(2, 6) * k, wet)
-		c.draw_circle(o + Vector2(-6, -6) * k, 9.0 * k, Color(0.7, 0.08, 0.06, 0.5))   # 젖은 빛
-	for i in 7:                                           # 위 가장자리에서 흘러내린 자국
-		var x := rng.randf_range(w * 0.08, w * 0.34) if i % 2 == 0 else rng.randf_range(w * 0.66, w * 0.92)   # 제목은 비켜서
-		var len := rng.randf_range(16, 52)
-		var tw := rng.randf_range(4, 8)
-		c.draw_rect(Rect2(Vector2(x - tw * 0.5, 0), Vector2(tw, len)), dark)
-		c.draw_circle(Vector2(x, len), tw * 0.75, dark)
-		c.draw_circle(Vector2(x, 0), tw * 1.6, dark)
+	var spots := [Vector2(rng.randf_range(10, 90), rng.randf_range(10, 80)), Vector2(w - rng.randf_range(10, 110), h - rng.randf_range(10, 90))]
+	if rng.randf() < 0.7:
+		spots.append(Vector2(w - rng.randf_range(20, 140), rng.randf_range(8, 60)))
+	if rng.randf() < 0.6:
+		spots.append(Vector2(rng.randf_range(10, 70), h - rng.randf_range(20, 160)))
+	for o in spots:
+		_splat(c, rng, o, rng.randf_range(14, 32))
+	if rng.randf() < 0.8:                                 # 옆 가장자리를 따라 끌린 자국
+		var x := rng.randf_range(4, 18) if rng.randf() < 0.5 else w - rng.randf_range(4, 18)
+		var y0 := rng.randf_range(h * 0.25, h * 0.6)
+		_smear(c, rng, Vector2(x, y0), Vector2(x + rng.randf_range(-10, 10), y0 + rng.randf_range(90, 220)), rng.randf_range(8, 16))
+	for i in rng.randi_range(4, 8):                       # 위 가장자리에서 흘러내림 (제목은 비켜서)
+		var x := rng.randf_range(w * 0.04, w * 0.34) if rng.randf() < 0.5 else rng.randf_range(w * 0.66, w * 0.96)
+		var len := rng.randf_range(10, 58)
+		var tw := rng.randf_range(2.5, 8.0)
+		var col := _blood_col(rng)
+		var wob := rng.randf_range(-3, 3)
+		c.draw_colored_polygon(PackedVector2Array([Vector2(x - tw, 0), Vector2(x + tw, 0), Vector2(x + wob + tw * 0.35, len), Vector2(x + wob - tw * 0.35, len)]), col)
+		var bulb := PackedVector2Array()
+		for k in 12:
+			var t := TAU * k / 12.0
+			bulb.append(Vector2(x + wob, len + tw * 0.25) + Vector2(cos(t) * tw * 0.55, sin(t) * tw * 0.8))
+		c.draw_colored_polygon(bulb, col)
+		c.draw_colored_polygon(PackedVector2Array([Vector2(x - tw * 2.2, -2), Vector2(x + tw * 2.0, -2), Vector2(x + tw * 0.9, tw), Vector2(x - tw, tw * 0.8)]), col)
 	c.draw_set_transform(Vector2.ZERO)
+
 
 func _desc(item: String) -> String:
 	return {"knife_plus": "칼 +1 (최대 2)", "ammo_start_pack": "예비탄 7발", "bonfire": "375m 부터 시작", "danger_sense": "매복·광전사 1초 전 경고"}.get(item, "")
