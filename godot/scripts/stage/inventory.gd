@@ -26,7 +26,7 @@ const ITEMS := {
 
 # 팩 3종 (노션 "좀비탈출 — 테스트 결제 요금 패키지 (3종)", art/shop/*.png) — 가격은 서버가 정본
 const PACKS := {
-	"pack_survival_kit": {"name": "생존 키트", "price": 1500, "items": {"knife_plus": 1, "ammo_start_pack": 1, "flare_supply": 1, "adrenaline": 1}},
+	"pack_survival_kit": {"name": "생존 키트", "price": 1100, "items": {"knife_plus": 1, "ammo_start_pack": 1, "flare_supply": 1, "adrenaline": 1}},
 	"pack_one_more": {"name": "한 번 더", "price": 3300, "items": {"revive": 1, "frenzy_30": 1, "bonfire": 1}},
 	"pack_legend": {"name": "전설의 생존자", "price": 5500, "items": {"revive": 2, "knife_plus": 2, "frenzy_30": 2, "danger_sense": 2, "gold_pistol": 1, "supporter_badge": 1}},
 }
