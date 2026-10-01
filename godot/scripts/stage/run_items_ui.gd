@@ -11,7 +11,7 @@ signal use_item(item: String)                # 달리는 중 아이템 칸을 �
 
 const START_ITEMS := ["knife_plus", "ammo_start_pack", "bonfire", "danger_sense"]
 const RUN_ITEMS := [["frenzy_30", "1"], ["flare_supply", "2"], ["adrenaline", "3"]]
-const TIMED := {"frenzy_30": 15.0, "adrenaline": 5.0}   # 쓰면 몇 초 동안 켜져 있는 아이템 (칸에 남은 초)
+const TIMED := {"frenzy_30": 15.0, "adrenaline": 8.0}   # 쓰면 몇 초 동안 켜져 있는 아이템 (칸에 남은 초)
 const BONE := Color8(222, 212, 196)
 const DIM := Color8(120, 112, 102)
 const RED := Color8(196, 32, 26)

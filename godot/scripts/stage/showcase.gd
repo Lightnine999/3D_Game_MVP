@@ -132,7 +132,7 @@ var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부
 var _warned_pounce := -1
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
 const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
-const ADREN_TIME := 5.0                         # 아드레날린 시간 (2026-10-01 시험)
+const ADREN_TIME := 8.0                         # 아드레날린 시간 (5 → 8초, 2026-10-01 "좀 짧다")
 const START_AMMO_PACK := 7
 const FLARE_AHEAD := 32.0
 const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
