@@ -134,6 +134,7 @@ var _retry: Button                  # 사망 후 "다시 시작하겠습니까?"
 var _deaths_label: Label
 static var _zone_deaths := {}       # 구간별 죽은 횟수 ("berserk" 길 중간 광전사 / "finale" 끝 반전) — 같은 구간 2번째부터 다른 권유
 var _ui: RunItemsUI                 # 팩 아이템 화면 (출발 준비·아이템 칸·위험 감지) — scripts/stage/run_items_ui.gd
+var _missions: MissionTracker      # 스테이지 미션 (2026-10-01) — 플레이 모드에서만
 var _loadout_open := false          # 출발 준비 창이 떠 있는 동안 게임은 멈춰 있다
 var _offer: Button                  # YOU DIED 화면 RETRY 옆: "한 번 더 (부활)" 또는 상황별 팩 권유
 var _offer_line: Label
@@ -190,7 +191,12 @@ func _ready() -> void:
 			_km.speed = KNIFE_SPEED
 			_km.hit.connect(func(): _showcase.melee_hit(); _bump = 1.0; _bump_side = -1.0)
 			_km.finished.connect(_on_melee_end)
-			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
+			_showcase.brushed.connect(func(side: float): _bump = 1.0; _bump_side = -side; _bumps += 1; _missions.on_trouble(_dist))
+			_missions = MissionTracker.new()                  # 미션: 쓰러뜨림·피함·쏨을 센다 (다리·완주·아이템은 아래에서)
+			_showcase.killed.connect(_missions.on_kill)
+			_showcase.dodged.connect(_missions.on_dodge)
+			_showcase.shot.connect(_missions.on_shot)
+			_missions.achieved.connect(_on_mission)   # 좀비와 스침 → 어깨빵 (좀비 반대쪽으로 밀린다)
 			_showcase.quake.connect(_on_quake)
 			_showcase.burst.connect(func(): _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
 			_showcase.tripped.connect(func(): _stun_t = 0.35; _bump = 1.0; _bump_side = 1.0 if randf() < 0.5 else -1.0)
@@ -335,9 +341,16 @@ func _build_items_ui(holder: Node) -> void:
 	_showcase.danger.connect(_ui.warn)
 	_ui.use_item.connect(_use_run_item)
 	_ui.start_run.connect(_start_run)
+	_ui.pistol_upgraded.connect(_showcase.apply_start_pistol)
 	_ui.open_loadout()
 	_loadout_open = true
 	_apply_camera(0.0)                                   # 준비 창 뒤로 출발 지점 정면이 보이게
+
+
+# 미션 달성 알림 (화면 위 가운데)
+func _on_mission(text: String) -> void:
+	if _ui:
+		_ui.toast(text)
 
 
 # 출발: 켠 아이템을 적용하고 달리기 시작
@@ -347,6 +360,9 @@ func _start_run(picks: Dictionary) -> void:
 	ShowcaseDirector.difficulty_locked = true           # 출발하면 난이도 잠금 — 죽어서 RETRY 할 때만 풀린다
 	_ui.show_tip()
 	_showcase.apply_loadout(picks)
+	_missions.on_start()
+	if not picks.is_empty():
+		_missions.on_item_used()                          # 미션 "아이템 없이 탈출"
 	if picks.has("bonfire"):                             # 모닥불: 절반 지점부터 (부활과 같은 "다시 일어나기" — 이번 판엔 부활 못 씀)
 		_warp_to(BONFIRE_AT * StageBuilderV2.STAGE_LENGTH / 750.0)
 		_showcase.run_used["rise"] = true
@@ -367,12 +383,15 @@ func _warp_to(d: float) -> void:
 func _use_run_item(item: String) -> void:
 	if _dead or _loadout_open or _melee:
 		return
+	var used := false
 	if item == "frenzy_30":
-		_showcase.use_frenzy()
+		used = _showcase.use_frenzy()
 	elif item == "flare_supply":
-		_showcase.use_flare(_dist)
+		used = _showcase.use_flare(_dist)
 	elif item == "adrenaline":
-		_showcase.use_adrenaline()
+		used = _showcase.use_adrenaline()
+	if used and _missions:
+		_missions.on_item_used()
 
 
 # 죽은 구간: 광전사에게 잡혔으면 길 중간("berserk") 또는 끝 반전("finale")
@@ -448,6 +467,8 @@ func _on_retry() -> void:
 
 # 부활: 죽은 자리에서 일어나 다시 달린다 (탄약·칼·보급은 그대로, 2초 무적)
 func _revive() -> void:
+	if _missions:
+		_missions.on_item_used()
 	_showcase.run_used["rise"] = true
 	_showcase.revive()
 	_dead = false
@@ -468,6 +489,8 @@ func _revive() -> void:
 
 
 func _on_caught(z: Node3D) -> void:
+	if _missions:
+		_missions.on_trouble(_dist)
 	_label.visible = false
 	_revive_pick = false
 	_dead = true
@@ -799,7 +822,11 @@ func _process(delta: float) -> void:
 	_step(delta)
 	if _ui:
 		_ui.refresh_slots(_showcase.run_used, {"frenzy_30": _showcase.frenzy_left(), "adrenaline": _showcase.adrenaline_left()}, _showcase.item_hints(_dist))
+	if _missions:
+		_missions.on_distance(_dist)
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
+		if _missions:
+			_missions.on_escape()                         # 미션: 탈출 · 아이템 없이 탈출 (달성 기록은 저장되고 다음 판 출발 준비에 ★)
 		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
 		return
 	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
@@ -1062,6 +1089,8 @@ func _move_body(motion: Vector3) -> void:
 		if absf(n.y) < 0.5 and _bump < 0.25:                 # 옆·앞으로 부딪혔다 → 어깨빵 (밀린 쪽으로 카메라가 기운다)
 			_bump = 1.0
 			_bumps += 1
+			if _missions:
+				_missions.on_trouble(_dist)                   # 미션: 다리 위에서 부딪히면 실패
 			_bump_side = signf(n.x) if absf(n.x) > 0.2 else (1.0 if _x < 0.0 else -1.0)
 			if _showcase:
 				_showcase.sfx("sfx_hit_obstacle")
