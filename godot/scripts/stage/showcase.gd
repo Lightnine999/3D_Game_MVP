@@ -7,7 +7,7 @@
 class_name ShowcaseDirector
 extends Node3D
 
-const UI_DIR := "res://../art/ui/icons/"      # 세권 님 HUD 아이콘 (art/ui, 게임 폴더 밖)
+const UI_DIR := "res://assets/ui/icons/"      # 세권 님 HUD 아이콘 (원본 art/ui/icons — 게임 폴더 밖은 APK 에 안 들어가서 2026-10-01 복사)
 const MUZZLE := Vector3(0, 0.08, -0.166)       # weapon_pistol.glb 총구 위치 (PR #4)
 const SHOOT_RANGE := 10.0                     # 이 거리 안에 들어온 좀비를 쏜다 (손 뻗고 다가오는 모습이 보이게 가까이)
 const SHOT_GAP := 0.45                        # 연사 간격 (초)
@@ -247,8 +247,7 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 
 
 func _icon(name: String) -> Texture2D:
-	var img := Image.load_from_file(ProjectSettings.globalize_path(UI_DIR + name))
-	return ImageTexture.create_from_image(img)
+	return load(UI_DIR + name) as Texture2D
 
 
 func _build_hud(holder: Node) -> void:
@@ -516,7 +515,13 @@ func _white_label(l: Label) -> void:
 
 # 아이콘을 흰 실루엣으로 (모양은 그대로, 색만 흰색)
 func _white_icon(name: String) -> Texture2D:
-	var img := Image.load_from_file(ProjectSettings.globalize_path(UI_DIR + name))
+	var img: Image                                       # 가져온 텍스처에서 그림을 꺼낸다 (폰 APK 에서는 원본 PNG 파일을 직접 못 읽는다 — 2026-10-01 아이콘이 비던 오류)
+	var tex := load(UI_DIR + name) as Texture2D
+	if tex == null:
+		return null
+	img = tex.get_image()
+	if img.is_compressed():
+		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	for y in img.get_height():
 		for x in img.get_width():
