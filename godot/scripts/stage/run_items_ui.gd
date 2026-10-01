@@ -268,52 +268,64 @@ func _draw_keys(c: Control) -> void:
 	c.draw_string(_gothic_m, Vector2(0, y + 44), t2, HORIZONTAL_ALIGNMENT_CENTER, c.size.x, 17, DIM)
 
 
-# 핏자국 장식 (2026-10-01 "너무 귀엽다 → 더 랜덤하게"): 창을 열 때마다 모양이 바뀐다
-#   튄 덩어리(가시처럼 뻗은 불규칙 외곽) · 한쪽으로 뿌려진 길쭉한 방울 · 문질러 끌린 자국 · 굵기가 줄어드는 흘러내림
+# 핏자국 장식 (2026-10-01 "귀엽다 → 랜덤하게 → 톤 통일·흘러내림·총 맞은 듯 각지고 찢긴 느낌"): 창을 열 때마다 모양이 바뀐다
+#   한 가지 진한 핏빛 · 가시가 날카롭게 찢어진 덩어리 · 바깥으로 뿌려진 세모 파편 · 덩어리·위 가장자리에서 흘러내리는 줄기
+const BLOOD := Color(0.4, 0.015, 0.012, 0.96)
 var _blood_seed := 0
 
 
-func _blood_col(rng: RandomNumberGenerator) -> Color:
-	return Color(rng.randf_range(0.22, 0.42), rng.randf_range(0.0, 0.03), rng.randf_range(0.0, 0.025), rng.randf_range(0.7, 0.95))
-
-
 func _splat(c: Control, rng: RandomNumberGenerator, o: Vector2, r: float) -> void:
-	var col := _blood_col(rng)
 	var pts := PackedVector2Array()
-	var n := 34
-	var a0 := rng.randf() * TAU
-	for i in n:
-		var a := a0 + TAU * i / n
-		var k := rng.randf_range(0.55, 1.15)
-		if rng.randf() < 0.22:                            # 가시처럼 뻗은 줄기
-			k = rng.randf_range(1.5, 2.6)
-		pts.append(o + Vector2(cos(a), sin(a)) * r * k)
-	c.draw_colored_polygon(pts, col)
-	var dir := Vector2.from_angle(rng.randf() * TAU)     # 한쪽으로 뿌려진 방울
-	for i in rng.randi_range(14, 26):
-		var d := rng.randf_range(1.2, 4.5) * r
-		var p := o + dir.rotated(rng.randf_range(-0.7, 0.7)) * d
-		var sz := rng.randf_range(1.0, 5.5) * clampf(2.6 - d / r * 0.45, 0.4, 1.6)
-		var along := (p - o).normalized()
-		var stretch := rng.randf_range(1.0, 3.2)
-		var q := PackedVector2Array()
-		for k in 10:
-			var t := TAU * k / 10.0
-			q.append(p + along * cos(t) * sz * stretch + along.orthogonal() * sin(t) * sz)
-		c.draw_colored_polygon(q, _blood_col(rng))
-	for i in rng.randi_range(4, 9):                       # 둘레 잔방울
-		c.draw_circle(o + Vector2.from_angle(rng.randf() * TAU) * r * rng.randf_range(1.2, 2.2), rng.randf_range(1.0, 3.0), col)
+	var a := rng.randf() * TAU
+	var end := a + TAU
+	while a < end:
+		if rng.randf() < 0.3:                             # 날카로운 가시: 좁은 밑동 → 길고 뾰족한 끝 (끝이 살짝 비틀려 찢긴 느낌)
+			var d := rng.randf_range(0.03, 0.08)
+			var tip := rng.randf_range(1.4, 2.8)
+			pts.append(o + Vector2.from_angle(a - d) * r * rng.randf_range(0.75, 0.95))
+			pts.append(o + Vector2.from_angle(a + rng.randf_range(-0.05, 0.05)) * r * tip)
+			if rng.randf() < 0.4:                         # 갈라진 끝
+				pts.append(o + Vector2.from_angle(a + d * 0.4) * r * tip * rng.randf_range(0.6, 0.8))
+				pts.append(o + Vector2.from_angle(a + d * 0.7) * r * tip * rng.randf_range(0.85, 1.0))
+			pts.append(o + Vector2.from_angle(a + d) * r * rng.randf_range(0.75, 0.95))
+			a += d + rng.randf_range(0.05, 0.12)
+		else:                                             # 들쭉날쭉한 가장자리
+			pts.append(o + Vector2.from_angle(a) * r * rng.randf_range(0.6, 1.05))
+			a += rng.randf_range(0.08, 0.2)
+	c.draw_colored_polygon(pts, BLOOD)
+	var dir := Vector2.from_angle(rng.randf() * TAU)     # 한쪽으로 뿌려진 세모 파편 (총 맞은 자국처럼)
+	for i in rng.randi_range(16, 30):
+		var p := o + dir.rotated(rng.randf_range(-0.8, 0.8)) * rng.randf_range(1.2, 3.6) * r
+		var along := (p - o).normalized().rotated(rng.randf_range(-0.15, 0.15))
+		var sz := rng.randf_range(1.5, 5.0)
+		var tail := rng.randf_range(2.0, 6.0) * sz
+		var side := along.orthogonal()
+		c.draw_colored_polygon(PackedVector2Array([p + along * sz * 0.8, p + side * sz * rng.randf_range(0.5, 1.0), p - along * tail, p - side * sz * rng.randf_range(0.5, 1.0)]), BLOOD)
+	for i in rng.randi_range(1, 3):                       # 덩어리 아래로 흘러내림
+		_drip(c, rng, o + Vector2(rng.randf_range(-0.6, 0.6) * r, r * 0.5), rng.randf_range(30, 120), rng.randf_range(2.5, 5.5))
 
 
-func _smear(c: Control, rng: RandomNumberGenerator, a: Vector2, b: Vector2, wdt: float) -> void:
-	var nrm := (b - a).normalized().orthogonal()
-	for i in 5:                                           # 겹친 반투명 띠 → 끌린 자국
-		var off := nrm * rng.randf_range(-wdt, wdt) * 0.6
-		var col := _blood_col(rng)
-		col.a *= 0.4
-		var w0 := wdt * rng.randf_range(0.5, 1.0)
-		var w1 := wdt * rng.randf_range(0.1, 0.4)
-		c.draw_colored_polygon(PackedVector2Array([a + off + nrm * w0, b + off + nrm * w1, b + off - nrm * w1, a + off - nrm * w0]), col)
+# 흘러내리는 줄기: 위가 굵고 아래로 갈수록 가늘다가 끝에 방울이 맺힌다 (살짝 구불구불)
+func _drip(c: Control, rng: RandomNumberGenerator, top: Vector2, len: float, tw: float) -> void:
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	var steps := 8
+	var x := 0.0
+	for i in steps + 1:
+		var t := float(i) / steps
+		var wdt := tw * lerpf(1.0, 0.35, t) * rng.randf_range(0.85, 1.15)
+		var pt := top + Vector2(x, len * t)
+		left.append(pt - Vector2(wdt, 0))
+		right.append(pt + Vector2(wdt, 0))
+		x += rng.randf_range(-1.2, 1.2)
+	right.reverse()
+	c.draw_colored_polygon(left + right, BLOOD)
+	var bulb := PackedVector2Array()
+	var end := top + Vector2(x, len + tw * 0.4)
+	for k in 14:
+		var ang := TAU * k / 14.0
+		bulb.append(end + Vector2(cos(ang) * tw * 0.75, sin(ang) * tw * (1.1 if sin(ang) > 0.0 else 0.8)))
+	c.draw_colored_polygon(bulb, BLOOD)
 
 
 func _draw_blood(c: Control) -> void:
@@ -324,30 +336,18 @@ func _draw_blood(c: Control) -> void:
 	c.draw_set_transform(Vector2(-36, -36))               # 판 안쪽 여백(36)만큼 밖으로 — 판 가장자리 기준으로 그린다
 	var w := c.size.x + 72.0
 	var h := c.size.y + 72.0
-	var spots := [Vector2(rng.randf_range(10, 90), rng.randf_range(10, 80)), Vector2(w - rng.randf_range(10, 110), h - rng.randf_range(10, 90))]
+	var spots := [Vector2(rng.randf_range(34, 110), rng.randf_range(30, 90)), Vector2(w - rng.randf_range(34, 130), h - rng.randf_range(60, 130))]   # 판 안쪽 모서리 (밖 HUD 를 덮지 않게)
 	if rng.randf() < 0.7:
-		spots.append(Vector2(w - rng.randf_range(20, 140), rng.randf_range(8, 60)))
+		spots.append(Vector2(w - rng.randf_range(34, 150), rng.randf_range(30, 80)))
 	if rng.randf() < 0.6:
-		spots.append(Vector2(rng.randf_range(10, 70), h - rng.randf_range(20, 160)))
+		spots.append(Vector2(rng.randf_range(30, 90), h - rng.randf_range(80, 220)))
 	for o in spots:
-		_splat(c, rng, o, rng.randf_range(14, 32))
-	if rng.randf() < 0.8:                                 # 옆 가장자리를 따라 끌린 자국
-		var x := rng.randf_range(4, 18) if rng.randf() < 0.5 else w - rng.randf_range(4, 18)
-		var y0 := rng.randf_range(h * 0.25, h * 0.6)
-		_smear(c, rng, Vector2(x, y0), Vector2(x + rng.randf_range(-10, 10), y0 + rng.randf_range(90, 220)), rng.randf_range(8, 16))
-	for i in rng.randi_range(4, 8):                       # 위 가장자리에서 흘러내림 (제목은 비켜서)
+		_splat(c, rng, o, rng.randf_range(18, 34))
+	for i in rng.randi_range(5, 9):                       # 위 가장자리에서 흘러내림 (제목은 비켜서)
 		var x := rng.randf_range(w * 0.04, w * 0.34) if rng.randf() < 0.5 else rng.randf_range(w * 0.66, w * 0.96)
-		var len := rng.randf_range(10, 58)
-		var tw := rng.randf_range(2.5, 8.0)
-		var col := _blood_col(rng)
-		var wob := rng.randf_range(-3, 3)
-		c.draw_colored_polygon(PackedVector2Array([Vector2(x - tw, 0), Vector2(x + tw, 0), Vector2(x + wob + tw * 0.35, len), Vector2(x + wob - tw * 0.35, len)]), col)
-		var bulb := PackedVector2Array()
-		for k in 12:
-			var t := TAU * k / 12.0
-			bulb.append(Vector2(x + wob, len + tw * 0.25) + Vector2(cos(t) * tw * 0.55, sin(t) * tw * 0.8))
-		c.draw_colored_polygon(bulb, col)
-		c.draw_colored_polygon(PackedVector2Array([Vector2(x - tw * 2.2, -2), Vector2(x + tw * 2.0, -2), Vector2(x + tw * 0.9, tw), Vector2(x - tw, tw * 0.8)]), col)
+		var tw := rng.randf_range(2.5, 7.0)
+		c.draw_colored_polygon(PackedVector2Array([Vector2(x - tw * 2.4, -2), Vector2(x + tw * 2.2, -2), Vector2(x + tw * 0.9, tw * 1.2), Vector2(x - tw, tw)]), BLOOD)
+		_drip(c, rng, Vector2(x, 0), rng.randf_range(16, 110), tw)
 	c.draw_set_transform(Vector2.ZERO)
 
 
