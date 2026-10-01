@@ -19,6 +19,7 @@ const ITEMS := {
 	"flare_supply": {"name": "보급 신호탄", "kind": "consumable"},
 	"bonfire": {"name": "모닥불", "kind": "consumable"},
 	"danger_sense": {"name": "위험 감지", "kind": "consumable"},
+	"adrenaline": {"name": "아드레날린", "kind": "consumable"},   # 2026-10-01 시험 중 — 아직 팩에 안 넣음
 	"gold_pistol": {"name": "황금 권총", "kind": "permanent"},
 	"supporter_badge": {"name": "서포터 배지", "kind": "permanent"},
 }

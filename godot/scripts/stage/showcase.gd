@@ -127,10 +127,12 @@ signal danger(side: int)                      # 위험 감지: 매복·광전사
 var danger_sense := false                     # 이번 판에 위험 감지를 가져왔다
 var run_used := {}                            # 이번 판에 쓴 달리는 중 아이템 (한 판에 종류별 1번)
 var _frenzy_t := 0.0                          # 광란의 15초 남은 시간 (총알 무한 · 재장전 없음)
+var _adren_t := 0.0                           # 아드레날린 남은 시간 (빨리 달리기 · 좌우로 재빨리)
 var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
 var _warned_pounce := -1
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
 const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
+const ADREN_TIME := 5.0                         # 아드레날린 시간 (2026-10-01 시험)
 const START_AMMO_PACK := 7
 const FLARE_AHEAD := 32.0
 const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
@@ -341,11 +343,28 @@ func item_hints(dist: float) -> Dictionary:
 		h["frenzy_30"] = true
 	if _mag + _reserve <= 3:
 		h["flare_supply"] = true
+	if _finale >= 1 and _finale < 3:                   # 끝 반전: 광전사가 쫓아온다 → 달려서 따돌리기
+		h["adrenaline"] = true
 	return h
 
 
 func frenzy_left() -> float:
 	return maxf(_frenzy_t, 0.0)
+
+
+# 아드레날린 (한 판 1번): 몇 초 동안 더 빨리 달리고 좌우로 재빨리 비킨다 (속도는 stage_preview 가 적용)
+func use_adrenaline() -> bool:
+	if run_used.has("adrenaline") or not Inventory.use("adrenaline"):
+		return false
+	run_used["adrenaline"] = true
+	_adren_t = ADREN_TIME
+	_sfx("sfx_breath")
+	print("[items] 아드레날린")
+	return true
+
+
+func adrenaline_left() -> float:
+	return maxf(_adren_t, 0.0)
 
 
 # 보급 신호탄 (한 판 1번): 앞 32m 에 초록 불빛 보급이 떨어진다
@@ -543,6 +562,7 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	if danger_sense and _next_pounce < POUNCE_AT.size() and _warned_pounce < _next_pounce and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD - PLAYER_SPEED * 1.0:
 		_warned_pounce = _next_pounce                    # 위험 감지: 길목 매복 1초 전
 		danger.emit(0)
+	_adren_t -= delta
 	if _frenzy_t > 0.0:
 		_frenzy_t -= delta
 		_hud_bullets.queue_redraw()

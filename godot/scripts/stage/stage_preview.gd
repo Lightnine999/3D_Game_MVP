@@ -24,6 +24,10 @@ const LOOK_AHEAD := 18.0    # 이만큼 앞의 장애물부터 피하기 시작
 const DODGE_MARGIN := 1.1   # 장애물 옆으로 두는 여유 (m)
 const STEER_SPEED := 3.0    # 자동 달리기 좌우 이동 속도 (m/s) — 500m 압축 뒤 장애물이 촘촘해져 2.2 → 3.0
 const PLAY_STEER := 5.0     # 플레이 테스트 좌우 최고 속도 (m/s)
+# 아드레날린 (2026-10-01 시험): 앞으로 몇 배 · 좌우 몇 배. 실행 인자 --adren-run=1.0 이면 앞으로는 그대로 두고 좌우만 빨라진다
+const ADREN_RUN := 1.4
+const ADREN_SIDE := 1.8
+const ADREN_FOV := 9.0      # 빨리 달리는 동안 시야를 이만큼(도) 넓혀 속도감
 const DRAG_WIDTH_M := 18.0  # 화면 끝에서 끝까지 끌면 이만큼(m) 옆으로
 const PLAYER_RADIUS := 0.35
 # 부딪힘 도움 (2026-09-30 플레이 피드백 "장애물이 너무 가로막는다")
@@ -57,6 +61,7 @@ var _label: Label
 var _dist := 0.0
 var _time := 0.0
 var _x := 0.0
+var _adren_run := ADREN_RUN
 var _frames_dir := ""
 var _frame_count := -1       # 테스트용: --count=N 이면 N장만
 var _frame_start := 0        # 이어 찍기: --start=N 이면 N번째 프레임부터 (앞부분은 그리지 않고 계산만)
@@ -156,6 +161,9 @@ func _ready() -> void:
 	_build_body()
 	_build_overlay(holder)
 	var args := OS.get_cmdline_user_args()
+	for a in args:
+		if a.begins_with("--adren-run="):
+			_adren_run = a.get_slice("=", 1).to_float()
 	_play = _frames_dir.is_empty() and _shots_dir.is_empty() and not ("--auto" in args or "--sim" in args)
 	if "--showcase" in args or (_play and not ("--no-showcase" in args)):
 		_showcase = ShowcaseDirector.new()
@@ -302,6 +310,8 @@ func _use_run_item(item: String) -> void:
 		_showcase.use_frenzy()
 	elif item == "flare_supply":
 		_showcase.use_flare(_dist)
+	elif item == "adrenaline":
+		_showcase.use_adrenaline()
 
 
 # 죽은 구간: 광전사에게 잡혔으면 길 중간("berserk") 또는 끝 반전("finale")
@@ -744,7 +754,7 @@ func _process(delta: float) -> void:
 		return
 	_step(delta)
 	if _ui:
-		_ui.refresh_slots(_showcase.run_used, _showcase.frenzy_left(), _showcase.item_hints(_dist))
+		_ui.refresh_slots(_showcase.run_used, {"frenzy_30": _showcase.frenzy_left(), "adrenaline": _showcase.adrenaline_left()}, _showcase.item_hints(_dist))
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
 		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
 		return
@@ -771,6 +781,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.physical_keycode == KEY_2:               # 보급 신호탄 (1 광란과 짝 — 숫자 키로 통일, 2026-10-01)
 			_use_run_item("flare_supply")
 			return
+		if event.physical_keycode == KEY_3:
+			_use_run_item("adrenaline")
+			return
 	var w := get_viewport().get_visible_rect().size.x
 	if event is InputEventScreenTouch:
 		if event.pressed and _touch_id == -1:
@@ -792,6 +805,11 @@ func _step(delta: float) -> void:
 	_time += delta
 	var vx := 0.0
 	var vz := RUN_SPEED
+	var boost := _showcase != null and _showcase.adrenaline_left() > 0.0
+	var side := ADREN_SIDE if boost else 1.0
+	if boost:
+		vz *= _adren_run
+	_camera.fov = lerpf(_camera.fov, 60.0 + (ADREN_FOV if boost else 0.0), minf(delta * 5.0, 1.0))
 	if _play:
 		var key := 0.0
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
@@ -799,12 +817,12 @@ func _step(delta: float) -> void:
 		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
 			key += 1.0
 		if key != 0.0:
-			_steer_target = clampf(_x + key * 1.2, -_lane(), _lane())
+			_steer_target = clampf(_x + key * 1.2 * side, -_lane(), _lane())
 		if _showcase and (Input.is_physical_key_pressed(KEY_SPACE) or _fire_held):
 			_showcase.fire()                              # 누르고 있으면 연사 간격(0.45초)마다
 		if _showcase and Input.is_physical_key_pressed(KEY_R):
 			_showcase.reload()                            # 재장전 (걸리는 시간 동안 못 쏜다)
-		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
+		vx = clampf((_steer_target - _x) * 8.0 * side, -PLAY_STEER * side, PLAY_STEER * side)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
 	if _glide_t > 0.0:                                   # 끼임 탈출: 빈자리로 부드럽게 옮겨 가는 중 (다른 움직임은 잠시 멈춤)
@@ -819,7 +837,7 @@ func _step(delta: float) -> void:
 	if _slide_t > 0.0:                                   # 막혀서 미끄러지는 중: 조작보다 우선 (조작 안 해도 빠져나간다)
 		_slide_t -= delta
 		vx = clampf((_slide_x - _x) * 6.0, -SLIDE_SPEED, SLIDE_SPEED)
-		vz = RUN_SPEED * SLIDE_FORWARD                    # 비스듬한 차 면을 계속 밀면 반대로 밀려나 옆걸음이 막힌다 → 앞으로는 살살
+		vz *= SLIDE_FORWARD                    # 비스듬한 차 면을 계속 밀면 반대로 밀려나 옆걸음이 막힌다 → 앞으로는 살살
 		_steer_target = _x                                # 손을 떼도 제자리로 끌려가지 않게
 	if _stun_t > 0.0:                                    # 칼질하는 동안 잠깐 멈췄다가 다시 달린다
 		_stun_t -= delta
