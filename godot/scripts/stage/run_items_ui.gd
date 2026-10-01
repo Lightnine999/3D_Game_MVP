@@ -275,23 +275,28 @@ var _blood_seed := 0
 
 
 func _splat(c: Control, rng: RandomNumberGenerator, o: Vector2, r: float) -> void:
-	var pts := PackedVector2Array()
-	var a := rng.randf() * TAU
-	var end := a + TAU
-	while a < end:
+	# 외곽점을 (각도, 반지름) 으로 모은 뒤 각도 순으로 이어 붙인다 → 가운데서 본 별 모양이라 선이 꼬이지 않는다
+	var rays := []
+	var a := 0.0
+	while a < TAU - 0.12:
 		if rng.randf() < 0.3:                             # 날카로운 가시: 좁은 밑동 → 길고 뾰족한 끝 (끝이 살짝 비틀려 찢긴 느낌)
 			var d := rng.randf_range(0.03, 0.08)
 			var tip := rng.randf_range(1.4, 2.8)
-			pts.append(o + Vector2.from_angle(a - d) * r * rng.randf_range(0.75, 0.95))
-			pts.append(o + Vector2.from_angle(a + rng.randf_range(-0.05, 0.05)) * r * tip)
+			rays.append(Vector2(a - d, rng.randf_range(0.75, 0.95)))
+			rays.append(Vector2(a + rng.randf_range(-0.5, 0.2) * d, tip))
 			if rng.randf() < 0.4:                         # 갈라진 끝
-				pts.append(o + Vector2.from_angle(a + d * 0.4) * r * tip * rng.randf_range(0.6, 0.8))
-				pts.append(o + Vector2.from_angle(a + d * 0.7) * r * tip * rng.randf_range(0.85, 1.0))
-			pts.append(o + Vector2.from_angle(a + d) * r * rng.randf_range(0.75, 0.95))
+				rays.append(Vector2(a + d * 0.4, tip * rng.randf_range(0.6, 0.8)))
+				rays.append(Vector2(a + d * 0.7, tip * rng.randf_range(0.85, 1.0)))
+			rays.append(Vector2(a + d, rng.randf_range(0.75, 0.95)))
 			a += d + rng.randf_range(0.05, 0.12)
 		else:                                             # 들쭉날쭉한 가장자리
-			pts.append(o + Vector2.from_angle(a) * r * rng.randf_range(0.6, 1.05))
+			rays.append(Vector2(a, rng.randf_range(0.6, 1.05)))
 			a += rng.randf_range(0.08, 0.2)
+	rays.sort_custom(func(p, q): return p.x < q.x)
+	var turn := rng.randf() * TAU
+	var pts := PackedVector2Array()
+	for ray in rays:
+		pts.append(o + Vector2.from_angle(ray.x + turn) * r * ray.y)
 	c.draw_colored_polygon(pts, BLOOD)
 	var dir := Vector2.from_angle(rng.randf() * TAU)     # 한쪽으로 뿌려진 세모 파편 (총 맞은 자국처럼)
 	for i in rng.randi_range(16, 30):

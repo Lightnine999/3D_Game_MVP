@@ -62,6 +62,9 @@ var _dist := 0.0
 var _time := 0.0
 var _x := 0.0
 var _adren_run := ADREN_RUN
+var _speed_fx: ShaderMaterial          # 아드레날린 화면 왜곡 (가장자리가 뒤로 늘어지며 흐려진다)
+var _speed_k := 0.0
+var _speed_rect: ColorRect
 var _frames_dir := ""
 var _frame_count := -1       # 테스트용: --count=N 이면 N장만
 var _frame_start := 0        # 이어 찍기: --start=N 이면 N번째 프레임부터 (앞부분은 그리지 않고 계산만)
@@ -193,6 +196,7 @@ func _ready() -> void:
 				_build_fire_button(holder)
 			_build_pause_button(holder)
 			_build_items_ui(holder)
+			_build_speed_fx(holder)
 	if not _frames_dir.is_empty():
 		_capture_frames()
 	elif not _shots_dir.is_empty():
@@ -276,6 +280,51 @@ func _melee_cam(delta: float) -> void:
 
 
 # ── 팩 아이템 (2026-10-01, docs/PACK_ITEMS_HANDOFF.md) ─────────────────
+# 아드레날린 속도감 (2026-10-01): 화면 가장자리를 가운데서 바깥으로 끌어당겨 흐리고 살짝 일렁이게 + 색이 갈라짐.
+# HUD·아이템 칸보다 아래 층(-1)이라 3D 화면에만 걸린다
+const SPEED_FX := """
+shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
+uniform float strength = 0.0;
+uniform float time_s = 0.0;
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	vec2 d = uv - vec2(0.5, 0.52);
+	float r = length(d);
+	float edge = smoothstep(0.12, 0.72, r);
+	vec2 warp = d * edge * strength * 0.035 * (1.0 + 0.5 * sin(time_s * 26.0 + r * 38.0));
+	vec3 col = vec3(0.0);
+	for (int i = 0; i < 6; i++) {
+		float t = float(i) / 5.0;
+		col += texture(screen_tex, uv - warp - d * edge * strength * 0.075 * t).rgb;
+	}
+	col /= 6.0;
+	float ca = edge * strength * 0.007;
+	col.r = mix(col.r, texture(screen_tex, uv - warp + d * ca).r, 0.6);
+	col.b = mix(col.b, texture(screen_tex, uv - warp - d * ca).b, 0.6);
+	col *= 1.0 - edge * strength * 0.18;
+	COLOR = vec4(col, 1.0);
+}
+"""
+
+
+func _build_speed_fx(holder: Node) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = -1
+	holder.add_child(layer)
+	var rect := ColorRect.new()
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = SPEED_FX
+	_speed_fx = ShaderMaterial.new()
+	_speed_fx.shader = sh
+	rect.material = _speed_fx
+	rect.visible = false
+	layer.add_child(rect)
+	_speed_rect = rect
+
+
 func _build_items_ui(holder: Node) -> void:
 	_ui = RunItemsUI.new()
 	holder.add_child(_ui)
@@ -810,6 +859,11 @@ func _step(delta: float) -> void:
 	if boost:
 		vz *= _adren_run
 	_camera.fov = lerpf(_camera.fov, 60.0 + (ADREN_FOV if boost else 0.0), minf(delta * 5.0, 1.0))
+	if _speed_fx:                                        # 켜질 땐 빠르게, 끝날 땐 천천히 풀린다
+		_speed_k = move_toward(_speed_k, 1.0 if boost else 0.0, delta * (4.0 if boost else 1.2))
+		_speed_fx.set_shader_parameter("strength", _speed_k)
+		_speed_fx.set_shader_parameter("time_s", _time)
+		_speed_rect.visible = _speed_k > 0.001
 	if _play:
 		var key := 0.0
 		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):

@@ -133,6 +133,7 @@ var _warned_pounce := -1
 var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
 const FRENZY_TIME := 15.0                       # 30 → 10 → 15초 (2026-10-01)
 const ADREN_TIME := 8.0                         # 아드레날린 시간 (5 → 8초, 2026-10-01 "좀 짧다")
+const ADREN_DODGE := 0.3                        # 아드레날린 중 잡힐 순간 이 확률로 몸을 틀어 빠져나간다 (회피 30% 증강, 2026-10-01)
 const START_AMMO_PACK := 7
 const FLARE_AHEAD := 32.0
 const REVIVE_GRACE := 2.0                     # 부활 뒤 이만큼은 잡히지 않는다 (칼로 빠져나올 때와 같은 시간 — 사용자 수정 2026-10-01)
@@ -1079,6 +1080,13 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 							_grace_t = 0.8
 							_sfx("sfx_bite")
 							tripped.emit()
+							continue
+						if _adren_t > 0.0 and not e.get("unavoidable", false) and _rng.randf() < ADREN_DODGE:
+							e["passed"] = true                 # 아드레날린 회피: 붙잡히기 직전 몸을 틀어 스쳐 지나간다 (어깨빵)
+							_grace_t = 0.6
+							brushed.emit(signf(e["x"] - cam_x))
+							_sfx("sfx_hit_obstacle")
+							print("[items] 아드레날린 회피")
 							continue
 						_grab(e, dist, cam_x)
 						continue
