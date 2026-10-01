@@ -120,6 +120,19 @@ const KNIVES := 1                             # 칼은 한 스테이지에 한 �
 var _knife_left := KNIVES
 const KNIFE_GRACE := 1.5                      # 칼로 벗어난 직후 이 시간은 다시 잡히지 않는다 (연달아 잡히던 문제)
 var _grace_t := 0.0
+# ── 팩 아이템 (2026-09-30, scripts/stage/inventory.gd · run_items_ui.gd) ──
+signal danger(side: int)                      # 위험 감지: 매복·광전사가 오는 쪽 (-1 왼쪽 / 0 앞 / 1 오른쪽)
+var danger_sense := false                     # 이번 판에 위험 감지를 가져왔다
+var run_used := {}                            # 이번 판에 쓴 달리는 중 아이템 (한 판에 종류별 1번)
+var _frenzy_t := 0.0                          # 광란의 30초 남은 시간 (총알 무한 · 재장전 없음)
+var _grab_e: Dictionary = {}                  # 나를 붙잡아 문 좀비 (부활하면 쓰러뜨린다)
+var _warned_pounce := -1
+var _knife_n: Label                           # 칼이 2자루면 칼 아이콘 옆 ×2
+const FRENZY_TIME := 30.0
+const START_AMMO_PACK := 7
+const FLARE_AHEAD := 32.0
+const REVIVE_GRACE := 3.0                     # 부활 뒤 이만큼은 잡히지 않는다
+const GOLD_TINT := Color(1.0, 0.76, 0.33)
 var _melee_e: Dictionary = {}                 # 칼 근접전 상대
 var _hud_knife: TextureRect
 var auto_fire := true                         # 영상·통과 검사: 가까이 온 좀비를 알아서 쏜다 / 플레이 테스트: fire() 로 직접
@@ -197,6 +210,8 @@ func setup(builder: StageBuilderV2, camera: Camera3D, hud_holder: Node) -> void:
 	_vm.process_mode = Node.PROCESS_MODE_PAUSABLE          # 카메라는 일시정지 중에도 도는 노드 아래 → 권총은 따로 멈추게 (2026-09-30 "일시정지해도 손이 움직인다")
 	camera.add_child(_vm)
 	_pistol = _vm
+	if Inventory.has("gold_pistol"):
+		_gold_pistol()
 	_build_hud(hud_holder)
 
 
@@ -276,6 +291,107 @@ func _build_hud(holder: Node) -> void:
 	_refresh_ammo()
 
 
+# ── 팩 아이템 효과 ───────────────────────────────────────────
+# 출발 준비에서 켠 아이템 (inventory 에서는 이미 1개씩 뺐다)
+func apply_loadout(picks: Dictionary) -> void:
+	if picks.has("knife_plus"):
+		_knife_left = mini(_knife_left + 1, 2)
+		_refresh_knife()
+	if picks.has("ammo_start_pack"):
+		_reserve += START_AMMO_PACK
+		_refresh_ammo()
+	danger_sense = picks.has("danger_sense")
+	print("[items] 출발: %s" % [picks.keys()])
+
+
+# 모닥불: d 지점부터 시작 — 그 앞의 좀비·보급·반전은 건너뛴다
+func skip_to(d: float) -> void:
+	var sc := StageBuilderV2.STAGE_LENGTH / 750.0
+	while _next_wave < _plan.size() and _plan[_next_wave][0] < d + 8.0:
+		_next_wave += 1
+	while _next_crate < SUPPLY_PLAN.size() and SUPPLY_PLAN[_next_crate][0] * sc < d + 5.0:
+		_next_crate += 1
+	while _next_berserk < BERSERK_AT.size() and BERSERK_AT[_next_berserk] * sc < d + 5.0:
+		_next_berserk += 1
+	while _next_pounce < POUNCE_AT.size() and POUNCE_AT[_next_pounce] * sc - POUNCE_AHEAD < d + 5.0:
+		_next_pounce += 1
+	_next_event = maxf(_next_event, d + 40.0)
+	print("[items] 모닥불: %.0fm 부터" % d)
+
+
+# 광란의 30초 (한 판 1번)
+func use_frenzy() -> bool:
+	if run_used.has("frenzy_30") or not Inventory.use("frenzy_30"):
+		return false
+	run_used["frenzy_30"] = true
+	_frenzy_t = FRENZY_TIME
+	_reload_left = 0.0
+	_sfx("sfx_zombie_scream")
+	print("[items] 광란의 30초")
+	return true
+
+
+func frenzy_left() -> float:
+	return maxf(_frenzy_t, 0.0)
+
+
+# 보급 신호탄 (한 판 1번): 앞 32m 에 초록 불빛 보급이 떨어진다
+func use_flare(dist: float) -> bool:
+	if run_used.has("flare_supply") or not Inventory.use("flare_supply"):
+		return false
+	run_used["flare_supply"] = true
+	_drop_crate(dist + FLARE_AHEAD, true)
+	_sfx("sfx_supply_pickup")
+	print("[items] 보급 신호탄 %.0fm" % (dist + FLARE_AHEAD))
+	return true
+
+
+# 부활: 나를 문 좀비는 쓰러지고, 잠깐 잡히지 않는다
+func revive() -> void:
+	if not _grab_e.is_empty():
+		var e := _grab_e
+		e["passed"] = true
+		e["state"] = "dead"
+		e["ap"].speed_scale = 1.0
+		e["ap"].play("death", 0.15)
+		_grab_e = {}
+	_grace_t = REVIVE_GRACE
+	_hud_layer.visible = true
+	_pistol.visible = true
+	print("[items] 부활 (%.0f초 무적)" % REVIVE_GRACE)
+
+
+func _refresh_knife() -> void:
+	if _hud_knife == null:
+		return
+	_hud_knife.modulate = Color(1, 1, 1, 1.0 if _knife_left > 0 else 0.2)
+	if _knife_n == null:
+		_knife_n = Label.new()
+		_knife_n.position = Vector2(46, 18)
+		_knife_n.add_theme_font_size_override("font_size", 22)
+		_white_label(_knife_n)
+		_hud_knife.add_child(_knife_n)
+	_knife_n.text = "×%d" % _knife_left if _knife_left > 1 else ""
+
+
+# 황금 권총 (영구): 총 부품만 황금빛 금속으로 (손·팔은 그대로)
+func _gold_pistol() -> void:
+	for part in ["Frame", "Slide", "Magazine", "Trigger"]:
+		for n in _vm.find_children(part, "MeshInstance3D", true, false):
+			var mi := n as MeshInstance3D
+			for i in mi.mesh.get_surface_count():
+				var src := mi.get_active_material(i) as BaseMaterial3D
+				if src == null:
+					continue
+				var m := src.duplicate() as BaseMaterial3D
+				m.albedo_texture = null
+				m.albedo_color = GOLD_TINT
+				m.metallic = 0.95
+				m.metallic_texture = null
+				m.roughness = 0.3
+				mi.set_surface_override_material(i, m)
+
+
 func _refresh_ammo() -> void:
 	_hud_bullets.queue_redraw()
 	_hud_reserve.text = "∞" if INFINITE_AMMO else str(_reserve)
@@ -306,10 +422,14 @@ func _draw_bullets() -> void:
 	var row_w := _bullet_row_width(_mag_cap)
 	var x0 := (_hud_bullets.size.x - row_w) * 0.5
 	var y0 := (_hud_bullets.size.y - d.y) * 0.5
+	var col := HUD_WHITE
+	if _frenzy_t > 0.0:                                   # 광란: 탄창이 가득 찬 채 붉게 빛난다
+		shown = _mag_cap
+		col = Color(1.0, 0.32, 0.22).lerp(Color(1.0, 0.8, 0.6), 0.5 + 0.5 * sin(_time * 12.0))
 	for i in shown:
 		var x := x0 + i * (d.x + gap)
 		_bullet_shape(Vector2(x + 2, y0 + 2), d, Color(0, 0, 0, 0.35))   # 그림자
-		_bullet_shape(Vector2(x, y0), d, HUD_WHITE)
+		_bullet_shape(Vector2(x, y0), d, col)
 	var bar_x := x0 + row_w + 9.0                        # 예비탄 앞 가는 세로줄
 	_hud_bullets.draw_rect(Rect2(bar_x, y0 - 2, 2, d.y + 4), Color(1, 1, 1, 0.55))
 
@@ -343,6 +463,8 @@ func _white_icon(name: String) -> Texture2D:
 
 # 재장전 (탄창이 비면 저절로 · R 키 · RELOAD 버튼): 시간이 걸리고 그동안 못 쏜다
 func reload() -> void:
+	if _frenzy_t > 0.0:
+		return                                           # 광란 중에는 재장전하지 않는다
 	if INFINITE_AMMO or _reload_left > 0.0 or _mag >= _mag_cap or _reserve <= 0:
 		return
 	_reload_total = RELOAD_TIME + RELOAD_PER_ROUND * _mag_cap
@@ -400,6 +522,14 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 	while _next_berserk < BERSERK_AT.size() and dist >= BERSERK_AT[_next_berserk] * sc750:
 		_berserker(dist, cam_x)
 		_next_berserk += 1
+	if danger_sense and _next_pounce < POUNCE_AT.size() and _warned_pounce < _next_pounce and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD - PLAYER_SPEED * 1.0:
+		_warned_pounce = _next_pounce                    # 위험 감지: 길목 매복 1초 전
+		danger.emit(0)
+	if _frenzy_t > 0.0:
+		_frenzy_t -= delta
+		_hud_bullets.queue_redraw()
+		if _frenzy_t <= 0.0:
+			_refresh_ammo()
 	while _next_pounce < POUNCE_AT.size() and dist >= POUNCE_AT[_next_pounce] * sc750 - POUNCE_AHEAD:
 		_pouncer(dist, cam_x)
 		_next_pounce += 1
@@ -602,6 +732,8 @@ func _ground_burst(dist: float, cam_x: float) -> void:
 	_sfx("sfx_zombie_scream")
 	_sfx("sfx_hit_obstacle")
 	burst.emit()
+	if danger_sense:
+		danger.emit(0)
 	print("[burst] %.0fm 바닥에서 튀어나옴" % dist)
 
 
@@ -610,6 +742,8 @@ func _berserker(dist: float, cam_x: float, x := NAN, ahead := BERSERK_AHEAD) -> 
 	if is_nan(x):
 		x = clampf(cam_x + _rng.randf_range(-4.0, 4.0), -6.5, 6.5)
 	var e := _spawn("runner", "berserk", ahead, x, dist, cam_x)
+	if danger_sense:
+		danger.emit(int(signf(x - cam_x)) if absf(x - cam_x) > 2.0 else 0)
 	e["lock"] = BERSERK_LOCK
 	e["state"] = "scream"
 	e["after"] = "berserk"
@@ -648,6 +782,8 @@ func _sprint_event(dist: float, cam_x: float) -> void:
 		e["state"] = "scream"
 		e["t"] = -i * 0.25                                   # 한 마리씩 차례로 비명
 	_sfx("sfx_zombie_scream")
+	if danger_sense:
+		danger.emit(int(side))
 	print("[event] %.0fm 옆에서 %d마리 질주" % [dist, n])
 
 
@@ -945,8 +1081,7 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 	ap.speed_scale = 1.0
 	if _knife_left > 0:
 		_knife_left -= 1
-		if _hud_knife:
-			_hud_knife.modulate = Color(1, 1, 1, 0.2)      # 칼 다 씀
+		_refresh_knife()
 		# 칼 근접전 (2026-09-30 "멈춰서 좀비와 합을 맞춰야"): 좀비가 코앞에서 붙잡으려는 사이 칼이 천천히 올라와 목을 찌른다
 		e["state"] = "melee"
 		e["d"] = dist + (1.35 if e["kind"] == "tank" else 1.0)
@@ -962,6 +1097,7 @@ func _grab(e: Dictionary, dist: float, cam_x: float) -> void:
 		return
 	e["state"] = "grab"
 	e["t"] = 0.0
+	_grab_e = e
 	e["d"] = dist + (1.1 if e["kind"] == "tank" else 0.8)   # 코앞에 붙는다 (2026-09-30 "더 붙어서 얼굴이 혐오스럽게") — 카메라도 얼굴 쪽으로 끌려간다 (stage_preview)
 	_pistol.visible = false                                # 쓰러질 때 총이 허공에 떠 보이지 않게
 	_hud_layer.visible = false                             # 사망 연출에는 HUD 를 치운다 (블랙아웃 + DEAD 만)
@@ -1011,7 +1147,7 @@ func melee_end() -> void:
 func fire() -> void:
 	if _shot_cd > 0.0 or _reload_left > 0.0 or not _melee_e.is_empty():
 		return
-	if _mag <= 0 and not INFINITE_AMMO:
+	if _mag <= 0 and not INFINITE_AMMO and _frenzy_t <= 0.0:
 		_shot_cd = 0.3
 		if _reserve > 0:
 			reload()                                     # 빈 탄창으로 쏘면 저절로 재장전
@@ -1064,7 +1200,7 @@ func start_bgm() -> void:
 
 func _shoot(e: Dictionary) -> void:
 	_shot_cd = SHOT_GAP
-	if not INFINITE_AMMO:
+	if not INFINITE_AMMO and _frenzy_t <= 0.0:
 		_mag -= 1
 	_refresh_ammo()
 	_sfx("sfx_pistol_dry")
