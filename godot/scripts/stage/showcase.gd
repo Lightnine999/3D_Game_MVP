@@ -603,13 +603,19 @@ func update(dist: float, cam_x: float, delta: float) -> void:
 			var e := _spawn(g[0], g[1], CAR_D + g[2] - dist, g[3], dist, cam_x)
 			e["x"] = g[3] + _rng.randf_range(-0.2, 0.2)      # 다리 위 자동 줄 대신 정해 둔 자리
 			e["lane_x"] = e["x"]
+			if g[1] == "idle":                            # 다리 입구 왼쪽 그 좀비 (2026-10-01 "멍청하다, 유저한테 다가와라"): 줄을 지키지 않고 나를 향해 뛰어온다
+				e.erase("lane_x")
+				e["spd"] = 4.0
+				e["wake"] = 12.0                          # 왼쪽에 서 있다가 가까워지면(12m) 옆으로 뛰어들어 내 줄을 막는다
+				e["lock"] = 3.0                           # 3m 앞까지 나를 따라 방향을 튼다 (그 뒤로는 직진 — 마지막 순간 비키면 산다)
+				e["cut_in"] = true                        # 내 줄로 가로질러 들어와 앞을 막는다 (가만히 달리면 정면에서 만난다 — 비키거나 쏘면 산다)
 			_place(e)
 		print("[bridge] %.0fm 다리 왼쪽 무리 %d마리" % [dist, BRIDGE_LEFT_CROWD.size()])
 	if not _bridge_cleared and dist >= CAR_D - 26.0:       # 다리에 들어서기 전: 다리 쪽으로 오던 좀비들을 왼쪽 줄로 비킨다
 		_bridge_cleared = true
 		for o in _zombies:
 			if o["d"] > dist and o["d"] < UNDER_D + 30.0 and o["style"] != "pounce" and o["state"] != "dead":
-				if o.has("lane_x"):
+				if o.has("lane_x") or o.has("cut_in"):
 					continue
 				if o["d"] - dist > 22.0:                      # 다리 위로 오던 일반 좀비 중 멀리(안개 속) 있는 건 치운다 → 차 뒤에는 두 마리 정도만
 					_despawn(o)
@@ -1144,7 +1150,9 @@ func _update_zombies(dist: float, cam_x: float, delta: float) -> void:
 						else:
 							e.erase("lane_x")
 					var here := Vector2(e["x"], e["d"])
-					if e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
+					if e.has("cut_in"):                        # 다리 입구 그 좀비: 내 줄로 옆걸음질쳐 들어와 앞을 막는다 (앞으로는 조금만)
+						target = Vector2(cam_x, e["d"] - 1.2)
+					elif e["style"] == "berserk":                # 광전사: 지금 자리가 아니라 내가 곧 도착할 자리로 가로질러 달려든다 (가만히 있으면 맞는다)
 						target = _intercept(here, target, spd)
 					e["dir"] = (target - here).normalized()
 				var step: Vector2 = e["dir"] * spd * delta
