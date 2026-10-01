@@ -25,13 +25,31 @@ export type ApprovalDependencies = {
   grant(order: Order, approval: ApprovalResponse): Promise<"paid" | "already_paid">;
 };
 
-const PRODUCTS: Readonly<Record<string, { item_id: string; amount: number; name: string }>> = {
-  ammo_start_pack: { item_id: "ammo_start_pack", amount: 1100, name: "시작 탄약 팩" },
-  supporter_badge: { item_id: "supporter_badge", amount: 3300, name: "서포터 배지" },
+export type PackageProduct = {
+  readonly product_id: string;
+  readonly amount: number;
+  readonly name: string;
+  readonly components: Readonly<Record<string, number>>;
 };
 
-export function priceFor(productId: string): { item_id: string; amount: number; name: string } | null {
-  return PRODUCTS[productId] ?? null;
+// New sales only. Existing single-item orders are settled using their stored order.
+const PRODUCTS: Readonly<Record<string, PackageProduct>> = Object.freeze({
+  pack_survival_kit: Object.freeze({
+    product_id: "pack_survival_kit", amount: 1100, name: "생존 키트",
+    components: Object.freeze({ spare_knife: 1, ammo_start_pack: 1, supply_flare: 1 }),
+  }),
+  pack_one_more: Object.freeze({
+    product_id: "pack_one_more", amount: 3300, name: "한 번 더 패키지",
+    components: Object.freeze({ revive: 2, frenzy_30s: 1, campfire: 1 }),
+  }),
+  pack_legend: Object.freeze({
+    product_id: "pack_legend", amount: 5500, name: "전설의 생존자",
+    components: Object.freeze({ revive: 3, spare_knife: 2, frenzy_30s: 2, danger_sense: 2, golden_pistol_skin: 1, supporter_badge: 1 }),
+  }),
+});
+
+export function priceFor(productId: string): PackageProduct | null {
+  return Object.hasOwn(PRODUCTS, productId) ? PRODUCTS[productId] : null;
 }
 
 export async function confirmOnce(

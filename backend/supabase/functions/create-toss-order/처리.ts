@@ -35,18 +35,19 @@ export async function handleCreateOrder(request: Request, dependencies: OrderDep
     const order: Order = {
       order_id: crypto.randomUUID(),
       user_id: userId,
-      product_id: product.item_id,
+      product_id: product.product_id,
       amount: product.amount,
       status: "ready",
     };
     const stored = await dependencies.insert(order);
     if (stored.order_id !== order.order_id || stored.user_id !== userId ||
+        stored.product_id !== product.product_id ||
         stored.amount !== product.amount || stored.status !== "ready") {
       return json(500, { error: "internal_error" });
     }
     return json(201, {
       orderId: stored.order_id,
-      productId: product.item_id,
+      productId: product.product_id,
       amount: stored.amount,
       orderName: product.name,
       status: stored.status,

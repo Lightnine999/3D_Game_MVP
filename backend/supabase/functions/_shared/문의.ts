@@ -2,10 +2,12 @@ export type SupportRequest = {
   kind: "question" | "bug";
   message: string;
   bugContext: Record<string, unknown> | null;
+  threadId: string | null;
 };
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_CONTEXT_BYTES = 8192;
+const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function validateSupportRequest(value: unknown): SupportRequest {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -24,10 +26,15 @@ export function validateSupportRequest(value: unknown): SupportRequest {
     throw new Error("invalid_support_request");
   }
   if (input.kind === "question" && rawContext != null) throw new Error("invalid_support_request");
+  const threadId = input.threadId === undefined ? null : input.threadId;
+  if (threadId !== null && (typeof threadId !== "string" || !THREAD_ID_PATTERN.test(threadId) || input.kind !== "question")) {
+    throw new Error("invalid_support_request");
+  }
   return {
     kind: input.kind,
     message,
     bugContext: rawContext == null ? null : rawContext as Record<string, unknown>,
+    threadId: threadId === null ? null : threadId.toLowerCase(),
   };
 }
 

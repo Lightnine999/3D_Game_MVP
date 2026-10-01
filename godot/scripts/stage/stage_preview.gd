@@ -16,6 +16,15 @@
 # 시연 연출:   위 명령에 --showcase 를 더하면 좀비·권총·보급·HUD 를 얹는다 (영상 모드는 events.json 에 소리 시각 기록)
 extends Node3D
 
+signal service_finished(result: Dictionary)
+const SERVICE_ADAPTER := preload("res://scripts/services/게임_장면_어댑터.gd")
+var service_managed := false
+var service_debug_enabled := false
+var _service_adapter: RefCounted
+var _service_sensitivity := 1.0
+var _service_control_mode := "drag"
+var _service_tilt_zero := 0.0
+
 const RUN_SPEED := 5.0      # m/s (PRD F-01)
 const EYE_HEIGHT := 1.6
 const BOB_FREQ := 2.6       # 발걸음 주기 (Hz)
@@ -124,6 +133,8 @@ static var _deaths := 0             # 이번에 켠 뒤 죽은 횟수 (다시 �
 
 
 func _ready() -> void:
+	_service_adapter = SERVICE_ADAPTER.new()
+	_service_adapter.configure(self)
 	_wig_rng.seed = 1
 	_parse_args()
 	process_mode = Node.PROCESS_MODE_ALWAYS              # 일시정지 중에도 이 노드는 입력을 받는다 (게임 진행은 _process 에서 멈춤)
@@ -554,19 +565,24 @@ func _build_overlay(holder: Node) -> void:
 
 
 func _process(delta: float) -> void:
-	if get_tree().paused:
+	if get_tree().paused or (_service_adapter != null and _service_adapter.finished):
 		return
 	if not _frames_dir.is_empty() or not _shots_dir.is_empty() or "--sim" in OS.get_cmdline_user_args():
 		return                                           # 캡처·통과 검사는 아래 함수가 직접 한 걸음씩 진행
 	if _dead:
 		_death_cam(delta)
+		if service_managed and _dead_t >= 4.0:
+			_finish_service_run(false, "좀비에게 잡힘")
 		return
 	if _melee:
 		_melee_cam(delta)
 		return
 	_step(delta)
 	if _dist >= StageBuilderV2.STAGE_LENGTH:
-		get_tree().reload_current_scene()                 # 끝 → 처음부터 (좀비·보급도 새로)
+		if service_managed:
+			_finish_service_run(true, "")
+		else:
+			get_tree().reload_current_scene()             # Standalone preview keeps its original behavior.
 		return
 	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
@@ -590,11 +606,30 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif not event.pressed and event.index == _touch_id:
 			_touch_id = -1
 	elif event is InputEventScreenDrag and event.index == _touch_id:
-		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M, -_lane(), _lane())
+		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M * _service_sensitivity, -_lane(), _lane())
 
 
 func _lane() -> float:
 	return StageBuilderV2.LANE_HALF - PLAYER_RADIUS
+
+
+func service_snapshot() -> Dictionary:
+	return _service_adapter.snapshot() if _service_adapter != null else {}
+
+
+func service_debug_command(command: String, value: Variant = null) -> bool:
+	return _service_adapter.debug_command(command, value) if _service_adapter != null else false
+
+
+func service_apply_settings(values: Dictionary) -> void:
+	if _service_adapter != null:
+		_service_adapter.apply_settings(values)
+
+
+func _finish_service_run(cleared: bool, reason: String) -> void:
+	var result: Dictionary = _service_adapter.finish(cleared, reason)
+	if not result.is_empty():
+		service_finished.emit(result)
 
 
 # 한 걸음 진행: 앞으로 달리고, 좌우로 비키고(사용자 조작 또는 자동), 차·소품에 막히면 멈칫, 카메라를 흔든다
@@ -610,11 +645,13 @@ func _step(delta: float) -> void:
 			key += 1.0
 		if key != 0.0:
 			_steer_target = clampf(_x + key * 1.2, -_lane(), _lane())
+		elif _service_control_mode == "tilt" and OS.get_name() == "Android":
+			_steer_target = clampf((Input.get_accelerometer().x - _service_tilt_zero) / 9.8 * _lane() * _service_sensitivity, -_lane(), _lane())
 		if _showcase and (Input.is_physical_key_pressed(KEY_SPACE) or _fire_held):
 			_showcase.fire()                              # 누르고 있으면 연사 간격(0.45초)마다
 		if _showcase and Input.is_physical_key_pressed(KEY_R):
 			_showcase.reload()                            # 재장전 (걸리는 시간 동안 못 쏜다)
-		vx = clampf((_steer_target - _x) * 8.0, -PLAY_STEER, PLAY_STEER)
+		vx = clampf((_steer_target - _x) * 8.0 * _service_sensitivity, -PLAY_STEER * _service_sensitivity, PLAY_STEER * _service_sensitivity)
 	else:
 		vx = clampf((_target_x() - _x) / maxf(delta, 0.001), -STEER_SPEED, STEER_SPEED)
 	if _glide_t > 0.0:                                   # 끼임 탈출: 빈자리로 부드럽게 옮겨 가는 중 (다른 움직임은 잠시 멈춤)

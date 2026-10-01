@@ -88,3 +88,42 @@ Deno.test("AI 장애는 개인정보 오류를 노출하지 않고 사람 확인
   assert.deepEqual(await response.json(), { threadId: "thread-4", status: "needs_human", reply: "팀에 전달했어요" });
   assert.deepEqual(finished, ["needs_human"]);
 });
+
+Deno.test("같은 스레드의 후속 질문은 소유권 확인 후 이전 대화를 모델에 전달한다", async () => {
+  const { handleSupport } = await import(moduleUrl);
+  const id = "11111111-1111-4111-8111-111111111111";
+  const calls: string[] = [];
+  const previous = [
+    { role: "user" as const, content: "탄약은 어디서 얻나요?" },
+    { role: "assistant" as const, content: "보급 상자를 주우세요." },
+    { role: "user" as const, content: "그 다음에는요?" },
+  ];
+  const response = await handleSupport(post({ kind: "question", message: "그 다음에는요?", threadId: id }), {
+    authenticate: () => "user-a", canAnswer: () => true,
+    create: () => { throw new Error("must_not_create_new_thread"); },
+    append: (userId: string, threadId: string) => { calls.push(`append:${userId}:${threadId}`); return threadId; },
+    history: (_userId: string, threadId: string) => { calls.push(`history:${threadId}`); return previous; },
+    answer: (_message: string, history: unknown) => {
+      assert.deepEqual(history, previous);
+      return Promise.resolve({ status: "ai_answered" as const, reply: "재장전하세요." });
+    },
+    finish: (_userId: string, threadId: string) => { calls.push(`finish:${threadId}`); },
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { threadId: id, status: "ai_answered", reply: "재장전하세요." });
+  assert.deepEqual(calls, [`append:user-a:${id}`, `history:${id}`, `finish:${id}`]);
+});
+
+Deno.test("타인/없는 스레드 후속 메시지는 기록·AI 호출 없이 거부한다", async () => {
+  const { handleSupport } = await import(moduleUrl);
+  const response = await handleSupport(post({ kind: "question", message: "질문", threadId: "11111111-1111-4111-8111-111111111111" }), {
+    authenticate: () => "user-b", canAnswer: () => true,
+    create: () => { throw new Error("must_not_create"); },
+    append: () => null,
+    history: () => { throw new Error("must_not_read"); },
+    answer: () => { throw new Error("must_not_call_model"); },
+    finish: () => { throw new Error("must_not_finish"); },
+  });
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: "thread_not_found" });
+});

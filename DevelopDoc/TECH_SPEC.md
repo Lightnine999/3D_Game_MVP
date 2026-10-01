@@ -17,15 +17,17 @@
 ## 1. 개요
 
 ### 1.1 한 줄 요약
-안개 낀 노을 들판을 1인칭으로 자동 질주하며 좀비를 피하고 쏘는 모바일 3D 생존 게임. Godot 4로 만들고 Google Play에 출시한다.
+안개 낀 노을 들판을 1인칭으로 자동 질주하며 좀비를 피하고 쏘는 모바일 3D 생존 게임. 이번 MVP는 Godot 4로 만들고 **서명된 Android APK를 직접 배포**한다. Google Play 출시는 이후 단계다.
+
+> **2026-09-29 사용자 결정(팀 공유·검토 대기)**: 앱 결제 UI는 **Toss Android SDK를 Godot Android 플러그인으로 연결해 앱 안에서 연다**. 외부 시스템 브라우저는 주 경로가 아니다. 게임은 오프라인 플레이와 로컬 outbox를 지원하고 연결 후 Supabase Cloud에 동기화한다. YH(C)는 백엔드·프론트 API 계약만 구현한다. A/B 에셋·게임 파일과 UI·Android 플러그인·공동 Godot·빌드는 C 작업 범위 밖이며 뒤 항목의 기존 C 배정은 팀 소유자 결정 전까지 유효하지 않다. 웹 체험판 P0 요구는 유지하되 앱과 Vercel 결제 페이지를 공유하지 않고 웹 소유자·구현 경로를 별도 확정한다.
 
 ### 1.2 목표 플랫폼
 | 구분 | 내용 |
 |---|---|
-| 주 플랫폼 | **Android (Google Play)** |
+| 주 플랫폼 | **Android 서명 APK 직접 배포**. Google Play 출시는 MVP 마감 이후 별도 단계 |
 | 화면 방향 | 가로 (Landscape) |
 | 보조 플랫폼 | Web (Godot HTML5) — 아이폰 사용자 테스터용 체험판. 앱과 같은 로그인·토스 테스트 결제·채팅 제공 (마감 범위) |
-| 일정 | 내부 마감 **2026-10-01 24:00** (머지·코드 동결), 최종 마감 **2026-10-02 10:00** (PRD 0장) |
+| 일정 | 내부 동결 **2026-10-01 24:00**, 사용자 기준 개발 완료 **2026-10-02 09:00**, GitHub 업로드 **10:00** (PRD 0장) |
 | 테스트 기기 | **Galaxy S24 Ultra (SM-S928N)** — Android 16(API 36), Snapdragon 8 Gen 3(SM8650), arm64-v8a, 화면 설정 FHD+ 1080×2340(19.5:9, 최대 QHD+ 3120×1440), 가변 최대 120Hz, 펀치홀 카메라. 최상급 기기이므로 중급 기기 기준도 따로 둔다 (10.3). USB 연결 확인: `docs/evidence/WU-03/` |
 
 ### 1.3 개발 원칙
@@ -43,11 +45,11 @@
 | D1 | 게임 엔진 **Godot 4** | 씬·리소스가 텍스트 파일이라 Claude가 직접 수정 가능 / 명령줄 빌드 / 무료(MIT) / GDScript가 파이썬과 유사 | Unity — 씬이 YAML+GUID라 스크립트 수정 시 깨지기 쉽고 에디터 작업 비중이 큼 |
 | D2 | 렌더러 **Mobile** | Android 대상. 조명·그림자·글로우 품질이 Compatibility보다 좋음 | Forward+ — 모바일 성능 부담 / Compatibility — 웹 체험판에서만 사용 |
 | D3 | 안개 표현 **거리·높이 안개 + 안개 판(반투명 평면)** | 볼류메트릭 안개는 Forward+ 전용이라 Mobile에서 사용 불가 | 볼류메트릭 안개 |
-| D4 | 배경·소품 **Blender 스크립트 생성** | 로우폴리 소품은 코드로 충분히 생성 가능, 어둠·안개가 디테일을 가려줌 | 수작업 모델링 |
+| D4 | 배경·소품을 **Blender에서 직접 모델링** | 사용자 확정 제작 방식. 규격 검사·내보내기 자동화는 가능하되 모델 자체를 전부 스크립트로 만드는 것으로 대체하지 않음 | 일정·품질상 어려운 자산에 한해 출처·라이선스를 확인한 공개 에셋 검토 |
 | D5 | 좀비 **Mixamo 캐릭터 + 모션** | 리깅과 좀비 전용 모션(걷기·달리기·공격·사망)이 이미 있음 → 리깅 문제 해소 | Blender 스크립트 리깅 — 인체형 리깅·스키닝 품질 확보가 어려움 |
 | D6 | 1인칭 **총을 쥔 장갑 손을 총 모델에 포함** (뼈대 없음) — v0.5.4 변경 제안, 팀 확인 필요 | 손이 없으면 총이 떠 보인다. Mixamo `Swat` 캐릭터를 `pistol idle` 자세로 굳혀 팔꿈치 아래만 잘라(`make_pistol.py --arms-fbx`) 총 모델 안의 물체(HandRight·HandLeft)로 넣는다. 리깅 없이 총과 함께 움직이고, 장전 때 왼손만 통째로 옮긴다 | 팔 모델 생략 (v0.5.3 까지) / Mixamo 팔 모델 (리깅 필요) |
-| D7 | 무기 **CC0 무료 에셋 우선** | 1인칭에서 총이 화면에 크게 보여 품질이 중요 | Blender 스크립트 (에셋이 없을 때 대안) |
-| D8 | 결제 **마감 전 = 웹·앱 모두 토스페이먼츠 테스트 결제 / Google Play 출시 버전 = 앱은 Google Play Billing** | 마감 전 테스트는 APK 직접 배포라 Play 정책과 무관하고, 토스 테스트 결제는 Play Console 인증 없이 바로 검증할 수 있다. Play에 올리는 버전부터 앱 결제는 구글 결제로 교체한다(디지털 상품은 Play 결제가 원칙). 두 결제는 서버의 구매 기록·지급 로직(`purchases`, `inventory`)을 공유해 교체 부담을 줄인다 | 마감 전 구글 결제 — Play Console 본인 인증(며칠)과 내부 테스트 업로드가 필요해 마감 내 보장 불가 |
+| D7 | 무기도 **Blender 직접 모델링 우선** | 화면에 크게 보이는 품질을 확인하며 제작 | 일정·품질상 맞지 않을 때 라이선스를 확인한 공개 에셋 |
+| D8 | 이번 APK 앱은 **Toss Android SDK 결제 UI**, 웹 요구가 유지되면 웹은 별도 결제 UI. 두 클라이언트는 서버 주문·승인·구매 지급 규칙을 공유 | 앱 내 경험을 우선하고 `paymentKey` 등 SDK 결과는 서버에서만 승인한다. Google Play 결제 전환은 이후 별도 단계 | 앱에서 Vercel 결제 페이지를 시스템 브라우저로 여는 종전 설계 |
 | D9 | 백엔드 **Supabase** (Auth: 익명 로그인 + 이메일·비밀번호) | 게스트(익명) 계정으로 바로 시작하고, 가입 시 같은 계정에 이메일을 연결해 기록이 이어진다. 인증·DB·Edge Function을 한 곳에서 처리 | 자체 서버 / 구글 로그인 — OAuth·앱 서명 등록 설정이 마감 내 부담 |
 | D10 | 출시 전략 **MVP 테스트 = Google 비공개 테스트 14일** | 개인 계정의 정식 출시 조건(12명 이상 × 14일 연속)을 피드백 수집 기간과 겹쳐 전체 일정 단축 | 웹 MVP 후 별도 비공개 테스트 |
 | D11 | 카메라 **세로 시야 고정(Keep Height)** | 화면이 넓은 폰일수록 좌우가 더 보여 와이드한 들판 느낌(PRD F-66)을 준다. 세로 시야가 고정이라 좀비 크기·UI 판단이 기종마다 달라지지 않는다 | 가로 시야 고정 — 넓은 폰에서 위아래가 잘려 답답해짐 |
@@ -56,7 +58,7 @@
 | D15 | 관리자 **Supabase 관리 화면(Studio) + 관리자 역할 + 전용 보기(뷰)** | 마감 72시간 안에 관리자 웹 페이지를 새로 만들면 C가 과부하. Studio는 표 조회·수정·검색을 이미 제공하므로 권한(RLS)과 보기만 만든다 (PRD 4.14) | 전용 관리자 웹 페이지 — 약 3시간 추가 (P2) |
 | D16 | 협업 **기능 단위 소유 + 연결 규칙 + 가짜 부품 + 하루 두 번 조립** | 한 기능의 장면·스크립트·DB 표·서버 함수를 한 사람이 맡아 파일 충돌을 막고, 담당 간 경계는 13.3 연결 규칙(이름·신호·크기)으로만 연결한다. 기다리지 않도록 가짜 부품으로 먼저 만들고 같은 이름으로 교체한다 | 업무 종류별 분담(장면은 C, 스크립트는 B 등) — 같은 파일 동시 수정으로 충돌 |
 | D17 | 콘셉트 아트 **OpenAI 이미지 생성** (나노바나나/Gemini 대신) | 채팅과 같은 OpenAI 계정 하나로 통일해 가입·결제·한도 관리가 한 곳에서 끝난다. 단 **키는 용도별로 분리**(콘셉트용 = 로컬 `.env`, 채팅용 = Supabase Secrets)해 한쪽이 새어도 다른 쪽은 안전하고 사용량도 따로 보인다 | 나노바나나(Gemini) — 계정·키를 하나 더 관리해야 함 |
-| D14 | 앱 결제 결과 **폰 브라우저 결제 + 앱 복귀 시 서버 조회** | Godot에는 기본 인앱 웹뷰가 없다. 결제는 시스템 브라우저에서 하고, 앱으로 돌아오면(`NOTIFICATION_APPLICATION_RESUMED`) 서버의 주문 상태를 조회해 반영한다. 결제창 표시를 믿지 않으므로 보안상으로도 유리 | 인앱 웹뷰 플러그인 — 추가 의존성·호환성 위험 / 딥링크 — Gradle 빌드·매니페스트 수정 필요 |
+| D14 | 앱의 **Toss SDK 인증 결과 → `confirm-toss-payment` → 서버 주문 상태 조회** | Android 플러그인이 `paymentKey`·`orderId`·`amount`를 서비스 어댑터로 전달한다. 서버가 본인 주문·금액과 테스트 승인 결과를 확인해 1회 지급한 뒤 앱이 서버 정본을 조회한다. 카드사·은행 앱 인증으로 일시적 앱 전환이 생길 수 있으나 시스템 브라우저 결제는 주 경로가 아니다 | 결제 UI 성공 표시나 클라이언트 금액만으로 지급하는 방법 |
 
 ---
 
@@ -65,19 +67,19 @@
 ### 3.1 개발 도구
 | 영역 | 도구 | 버전 | 설치 상태 | 조작 주체 |
 |---|---|---|---|---|
-| 게임 엔진 | Godot | **4.7.2 stable** | ✅ 설치됨 (`/opt/homebrew/bin/godot`), 내보내기 템플릿 4.7.2 설치됨 | Claude |
+| 게임 엔진 | Godot | **4.7.2 stable** | Windows 작업 환경에서 설치·Export Templates 확인, PoC APK 패키징만 검증 | 팀 Godot 담당 미정 |
 | 스크립트 언어 | GDScript | Godot 번들 | - | Claude |
-| 3D 모델링 | Blender (headless, Python `bpy`) | 5.2.2 LTS | ✅ 설치됨 (`/opt/homebrew/bin/blender`) | Claude |
+| 3D 모델링 | Blender 직접 모델링(검사·내보내기는 자동화 가능) | Windows 확인 버전 5.2.1 | A의 실제 모델링·에셋 검증은 별도 | A |
 | 콘셉트 아트 | OpenAI 이미지 생성 API | 모델은 구현 시 공식 문서로 확인 | API 키 필요 (`.env`의 `OPENAI_API_KEY`) | Claude (키 설정은 사용자) |
 | 캐릭터·모션 | Mixamo (Adobe) | - | Adobe 계정 필요 | 다운로드는 사용자, 정리는 Claude |
 | 테스트 프레임워크 | GUT (Godot Unit Test) | Godot 4 호환판 | 미설치 | Claude |
-| Android 빌드 | OpenJDK 17, Android SDK (platform-tools, build-tools 35.0.1, platforms android-35, cmdline-tools, cmake 3.10.2.4988404, ndk 28.1.13356709) | Godot 4.7 공식 문서 요구 버전 | ✅ 설치됨 (`JAVA_HOME`, `ANDROID_HOME`은 `~/.zshrc`에 등록) | Claude |
-| 백엔드 | Supabase (Postgres, Auth, Edge Functions) + Supabase CLI | CLI 2.118.0, Deno 2.9.6 | ✅ CLI 설치됨, 프로젝트 생성 필요 | Claude (프로젝트 생성은 사용자) |
-| 결제 (앱) | Google Play Billing + Godot Google Play Billing 플러그인 | 설치 시 Godot 버전 호환 확인 | - | Claude |
+| Android 빌드 | OpenJDK 17, Android SDK (platform-tools, build-tools 35.0.1, platforms android-35, cmdline-tools, cmake 3.10.2.4988404, ndk 28.1.13356709) | Godot 4.7 호환 버전은 빌드 시 검증 | Windows PoC에서 도구·정적 APK 패키징 확인, 본편 서명·실기기 미검증 (`~/.zshrc` 전제 없음) | 팀 빌드 담당 미정 |
+| 백엔드 | Supabase **Cloud** (Postgres, Auth, Edge Functions) + Supabase CLI | CLI 2.118.0, Deno 2.9.7 (PoC 확인) | `Server 1` 유지·원격 PoC 자원 삭제 완료, 본편은 미배포 | C(YH) |
+| 결제 (앱) | Toss Payments Android SDK + Godot Android 플러그인 | SDK·Godot 호환/실기기 동작 별도 검증 | PoC APK 정적 패키징만 확인 | 앱 플러그인 소유자 팀 결정 필요 |
 | 결제 (웹, 테스트) | 토스페이먼츠 결제위젯 JavaScript SDK + 테스트 키 | 구현 시 공식 가이드로 최신 버전 확인 | 개발자센터 가입 필요 | Claude (가입·키 확인은 사용자) |
-| 웹 호스팅 | Vercel (웹 체험판 + **토스 결제 페이지**·성공·실패 페이지) | CLI 59.16.0 | ✅ CLI 설치됨 | Claude |
+| 웹 호스팅 | Vercel (기존 웹 P0 체험판과 **웹 전용** 결제 UI) | CLI·배포 여부는 웹 담당이 확인 | 앱 내 SDK와 별개. 본편 웹 배포 미검증 | 팀 웹 소유자 미정 |
 | LLM (채팅) | OpenAI API (Edge Function에서 호출) | 모델은 구현 시 공식 문서로 확인 (Q8) | API 키 필요 | Claude (키 발급·Secrets 등록은 사용자) |
-| 배포 | Google Play Console | - | 개발자 계정 필요 | 사용자 (첫 업로드), 이후 선택적 자동화 |
+| 배포 | Android 서명 APK 직접 전달 | - | 본편 서명·실기기 검증 미실행 | 빌드/배포 소유자 팀 결정 필요; Google Play는 후속 |
 | 런타임 (보조) | Node.js | v22 | ✅ 설치됨 | 보조 스크립트용 |
 
 > 모든 버전은 설치 시점에 공식 문서로 재확인하고 이 표를 갱신한다. 특히 Blender 5.x는 `bpy` API가 이전 버전과 다를 수 있으므로 코드 작성 전 문서를 조회한다.
@@ -86,8 +88,8 @@
 | 에셋 | 1순위 | 2순위 | 라이선스 조건 |
 |---|---|---|---|
 | 콘셉트 이미지 | OpenAI 이미지 생성 | - | OpenAI 이용 약관(생성물 상업 이용) 확인 |
-| 배경·소품 | Blender 스크립트 | CC0 에셋 (Kenney, Quaternius, Poly Pizza) | CC0 |
-| 무기 (총·칼) | CC0 에셋 | Blender 스크립트 | CC0 (받기 전 출처·라이선스 확인) |
+| 배경·소품 | Blender 직접 모델링 | 규격 확인 후 필요한 경우에만 출처를 확인한 공개 에셋 | 외부 자료의 실제 라이선스 확인 |
+| 무기 (총·칼) | Blender 직접 모델링 | 일정·품질상 어려우면 공개 에셋 검토 | 외부 자료의 실제 라이선스 확인 |
 | 좀비 캐릭터·모션 | Mixamo | OpenAI 콘셉트 → AI 3D 생성(Tripo/Meshy) → Mixamo 자동 리깅 (MVP 이후) | Mixamo: 게임 내 사용 무료, **원본 파일 재배포 금지** |
 | 효과음 | Kenney 오디오 (CC0) | freesound.org | 파일별 라이선스 확인 (CC0 우선, CC-BY는 크레딧 표기) |
 | 배경음 | AI 음악 도구 (예: Suno) | CC0 음원 | **무료 요금제는 상업 이용 불가일 수 있음 → 출시 전 확인** |
@@ -99,39 +101,17 @@
 ## 4. 시스템 아키텍처
 
 ```
-┌──────────────────────── 에셋 파이프라인 (로컬, 명령줄) ────────────────────────┐
-│                                                                              │
-│  OpenAI 이미지 ──→ art/concept/*.png (분위기 정답지)                            │
-│                                                                              │
-│  Blender 스크립트 ─┐                                                          │
-│  CC0 무기 에셋 ────┼──→ Blender 정리 스크립트 ──→ 자동 검사 ──→ *.glb            │
-│  Mixamo FBX ──────┘     (크기·원점·이름·폴리곤)     │                           │
-│                                                  └──→ 미리보기 PNG (Claude 확인) │
-└──────────────────────────────────────────────────────┬───────────────────────┘
-                                                       ↓
-┌──────────────────────── Godot 4 클라이언트 (Android) ──────────────────────────┐
-│  godot/assets/models/*.glb → 씬(.tscn) + GDScript                              │
-│  ├─ 게임 루프 (달리기·좀비·사격·스폰)                                             │
-│  ├─ UI (HUD, 결과 화면, 상점)                                                   │
-│  ├─ BackendClient ──── HTTPS ────┐                                            │
-│  └─ BillingClient ── Play 결제 ──┼───────────┐                                 │
-└──────────────────────────────────┼───────────┼────────────────────────────────┘
-                                   ↓           ↓
-┌────────────── Supabase ──────────────┐   ┌──── Google Play ────┐
-│ Auth (익명 로그인)                     │   │ Play Billing         │
-│ Postgres (profiles/scores/purchases)  │←──│ Play Developer API   │
-│ Edge Functions                        │──→│ (구매 검증·확인 처리)  │
-│  ├─ submit-score (점수 검증)           │   └─────────────────────┘
-│  ├─ verify-google-purchase (결제 검증) │
-│  ├─ create-toss-order (주문 생성)       │
-│  ├─ confirm-toss-payment (결제 승인)    │
-│  └─ support-chat (문의·제보 → OpenAI)  │──→ OpenAI API
-└──────────────────────────────────────┘
-          ↑
-   Vercel: 토스 결제 페이지 (웹 게임·앱 공통) ──→ Toss Payments (테스트)
+Blender 직접 모델링(A) → 규격 검사/내보내기 → *.glb → Godot 게임(B) + UI(팀 소유자 미정)
+Godot 오프라인 플레이 → 로컬 outbox → 연결 복구 시 Supabase Cloud Auth·Postgres/RLS·Edge Functions(C)
+Android APK 상점 → Toss Android SDK(앱 내 결제 UI, 플러그인 소유자 미정)
+  → SDK 인증 결과(paymentKey/orderId/amount) → C의 주문·금액 대조/서버 승인
+  → purchases·inventory에 1회 반영 → 클라이언트가 서버 주문 상태 재조회
+문의·제보 화면(소유자 미정) → C의 support-chat → 서버 저장·제한 → OpenAI API
+웹 체험판(F-111, 담당 미정)은 별도 결제 UI를 사용하되 백엔드 계약 공유; 앱과 Vercel 결제 페이지 공유 안 함
+Google Play 결제·출시는 MVP 제출 이후에만 별도 검토
 ```
 
-- **마감 범위**: Supabase Auth(게스트·이메일), 토스 테스트 결제(웹·앱 공통 결제 페이지, 8.5), 문의·제보 채팅(7.5).
+- **마감 범위**: Supabase Auth(게스트·이메일·회원 관리), 앱 내 Toss SDK 테스트 결제 + 서버 승인/1회 지급(8.5), 오프라인 동기화, 문의·제보 채팅(7.5)과 관리자. 기존 웹 P0는 삭제하지 않았고 별도 UI·담당 합의가 필요하다.
 - 웹 빌드는 같은 Godot 프로젝트를 웹으로 내보내 Vercel에 올린다. 로그인·결제·채팅은 앱과 같은 서버를 쓴다.
 - 위 그림의 Google Play Billing 경로(`verify-google-purchase`)는 **마감 이후** Play 출시 버전에서 사용한다.
 
@@ -143,17 +123,17 @@
 | 단계 | 입력 | 처리 | 출력 | 실행 |
 |---|---|---|---|---|
 | 1. 콘셉트 | 프롬프트 | OpenAI 이미지 생성 | `art/concept/*.png` | API 스크립트 (`tools/assets/`) |
-| 2. 생성 | 파라미터 | Blender 모델 생성 스크립트 | `.blend` (중간 산출물) | `blender -b -P art/blender/make_*.py -- <옵션>` |
-| 3. 가져오기 | Mixamo FBX, CC0 에셋 | Blender 정리 스크립트 (크기·원점·이름 통일, 폴리곤 감소) | `.blend` | `blender -b -P art/blender/import_*.py -- <파일>` |
+| 2. 직접 제작 | 콘셉트·에셋 규격 | Blender에서 사람이 모델링 | `.blend` 원본 | A 소유. 생성 스크립트로 제작 과정을 대체하지 않음 |
+| 3. 필요 시 가져오기 | Mixamo FBX, 일정·품질상 필요한 공개 에셋 | 출처·라이선스 확인 후 Blender에서 크기·원점·이름 정리 | `.blend` | A 소유. 외부 에셋은 기본값이 아님 |
 | 4. 미리보기 | `.blend` | 4방향 렌더 + 애니메이션 프레임 모음 이미지 | `art/previews/*.png` | `blender -b -P art/blender/render_preview.py` |
 | 5. 검사 | `.blend` / `.glb` | 규칙 검사 (5.3) | 통과/실패 리포트 | `art/blender/validate.py` |
 | 6. 내보내기 | `.blend` | glTF 2.0 바이너리 | `godot/assets/models/*.glb` | `art/blender/export_glb.py` |
 | 7. Godot 가져오기 | `.glb` | Godot 리소스 가져오기 | `.import` | `godot --headless --path godot --import` |
 
-전 단계를 `pipeline.sh`로 묶는다.
+제작 자체는 수동이다. 제작된 `.blend`의 **검사·내보내기·Godot 가져오기**만 `pipeline.sh` 등으로 자동화할 수 있다(A/빌드 담당 협의).
 ```bash
-./pipeline.sh asset zombie_walker   # 에셋 하나를 생성부터 Godot 가져오기까지
-./pipeline.sh assets                # 전체 에셋
+./pipeline.sh asset zombie_walker   # 제작된 에셋 하나의 검사·내보내기·Godot 가져오기
+./pipeline.sh assets                # 제작 완료된 전체 에셋 검사·내보내기
 ```
 
 ### 5.2 공통 규격
@@ -250,8 +230,8 @@ godot/
 │   ├── stage/                 (A) stage_builder_v2(1,000m 스테이지 생성), stage_materials(질감), 바닥·물 셰이더
 │   ├── core/                  (B) game_state(연결 규칙 13.3.2), run_controller, stage_stream, spawner, mission_system, difficulty_config
 │   ├── actors/  weapons/  debug/   (B)
-│   ├── services/              (C) backend_client, auth_client, payment_client, support_chat, session(연결 규칙 13.3.3)
-│   └── ui/                    (C)
+│   ├── services/              (팀 클라이언트 담당 미정) backend_client, auth_client, payment_client, support_chat, session(13.3.3 계약은 C)
+│   └── ui/                    (팀 담당 미정)
 ├── data/                      (B) stage_data.tres (미션·스테이지 정보)
 └── tests/                     각자 자기 기능의 테스트 (tests/b_*, tests/c_*)
 ```
@@ -269,16 +249,16 @@ godot/
 | `obstacle` | 폐차·드럼통·쓰레기 더미 충돌 판정, 비틀거림 + 감속(1초, 50%) | run_controller |
 | `mission_system` | 미션 정의(Resource) 로드, 게임 이벤트(처치·도착·구역 통과) 구독, 달성 판정, 로컬 저장 | game_state |
 | `stage_data` | 스테이지 이름·설명·목표 거리·대표 이미지·미션 3개 (Resource, `.tres` 텍스트) | 없음 |
-| `backend_client` | Supabase 인증, 점수 제출, 인벤토리 조회 | Supabase |
+| `backend_client` | C의 서버 계약에 따라 인증 헤더·오프라인 이벤트 전송/복구·인벤토리 조회를 담당하는 Godot 클라이언트 어댑터(구현 담당 미정) | Supabase |
 | `auth_client` | 게스트 자동 로그인, 이메일 가입(게스트 계정에 연결)·로그인·로그아웃, 세션 저장·갱신 (7.4) | Supabase Auth |
-| `payment_client` | 토스 테스트 결제: 주문 생성 요청 → 웹은 결제 페이지로 이동 / 앱은 브라우저로 열기 → 복귀 시 주문 상태 조회 (8.5) | backend_client, auth_client |
+| `payment_client` | 본인 주문 생성 → 앱은 Toss Android SDK 결제 UI(플러그인 소유자 미정) → 인증 결과를 C 서버로 전송 → 서버 주문 상태 재조회. 웹은 별도 UI (8.5) | backend_client, auth_client |
 | `support_chat` | 문의·제보 채팅 UI, 메시지 전송, 버그 제보 시 기기·게임 정보 자동 첨부 (7.5) | backend_client, auth_client |
 | `billing_client` | (마감 이후) Play 결제 연결·구매·검증 요청 | Billing 플러그인, backend_client |
 | `session` | 로그인 상태·구매 효과 등 서비스 → 게임 전달값 (`is_logged_in`, `is_admin`, `start_ammo_bonus`) — 13.3.3 | auth_client, payment_client |
 | `test_panel` | 테스트 모드 패널 (무적, 거리 건너뛰기, 탄약·칼 지급, 좀비 소환, FPS 표시). 디버그 빌드 또는 `session.is_admin`일 때만 활성 (PRD 4.15) | game_state, session |
 | `stage_builder_v2` (A) | 1,000m 스테이지 생성(하늘·안개·바닥·강·수풀·나무·폐허·장애물 묶음·미션 구역), 거리별 안개 변화, 남은 거리 계산 (13.3.1 ①-3) | 없음 |
 
-게임 로직 모듈은 `backend_client`·`billing_client` 없이도 동작해야 한다 (오프라인 플레이 가능, 테스트 용이).
+게임 로직 모듈은 `backend_client`·`payment_client` 없이도 동작해야 한다. 미전송 진행 이벤트는 단말 outbox에 고유 ID로 보존하고, 연결·계정 확보 뒤 동일 ID를 재전송한다. 서버의 구매·지급 상태는 로컬 이벤트로 생성할 수 없다.
 
 ### 6.3.1 미션 판정 구조
 ```
@@ -313,7 +293,8 @@ game_state ── 이벤트 발행 ──→ mission_system
 | `scores` | `id`, `user_id`, `distance_m`, `kills`, `duration_s`, `app_version`, `created_at` | 기록·랭킹 |
 | `purchases` | `id`, `user_id`, `platform`(`google_play` \| `toss_test`), `product_id`, `purchase_token`(UNIQUE — 구글은 구매 토큰, 토스는 paymentKey), `order_id`, `amount`, `status`, `verified_at`, `created_at` | 결제 기록 (앱·웹 공통) |
 | `toss_orders` | `order_id`(PK), `user_id`, `product_id`, `amount`, `status`(`ready` \| `paid` \| `failed`), `created_at` | 토스 결제 전에 서버가 만드는 주문. 승인 시 금액 대조용 |
-| `mission_progress` | `user_id`, `stage_id`, `mission_id`, `completed_at` | 미션 달성 기록 (2단계. MVP는 기기 로컬 저장) |
+| `sync_events` | `user_id`, `client_event_id`(계정별 UNIQUE), `kind`, `payload`, `created_at` | MVP 오프라인 outbox의 서버 수신·중복 방지·본인 기록 읽기. 구매 지급 이벤트는 허용하지 않음 |
+| `mission_progress` | `user_id`, `stage_id`, `mission_id`, `completed_at` | MVP에서 로컬 우선 기록 후 서버 동기화·재로그인 복구 대상. B의 미션 이벤트/ID 규칙을 C API 계약으로 확정해야 함 |
 | `inventory` | `user_id`, `item_id`, `quantity`, `updated_at` | 보유 아이템 |
 | `support_threads` | `id`, `user_id`, `kind`(`question` \| `bug`), `status`(`ai_answered` \| `needs_human` \| `in_progress` \| `closed`), `summary`·`category`(P2, 비워 둠), `created_at` | 문의·제보 한 건 |
 | `support_messages` | `id`, `thread_id`, `role`(`user` \| `assistant` \| `team`), `content`, `created_at` | 대화 내용 |
@@ -323,12 +304,13 @@ game_state ── 이벤트 발행 ──→ mission_system
 | 보기 `admin_purchases` | 구매 내역·상품별 합계 | 관리자 (F-132) |
 | 보기 `admin_support` | 문의·제보 목록, 첨부 정보, 상태 | 관리자 (F-133) |
 
-**마이그레이션 파일은 기능별로 나누고 소유자가 만든다** (D16): `0001_profiles_auth.sql`·`0002_purchases.sql`·`0003_support.sql`·`0004_admin_views.sql`(C), `0010_scores.sql`(B, 마감 이후). 다른 사람 파일을 고치지 않고, 바꿀 게 있으면 새 번호 파일을 추가한다.
+**마이그레이션 파일은 기능별로 나누고 소유자가 만든다** (D16): C의 본편 `profiles`/`sync_events`/`mission_progress`·구매·문의·관리자 SQL을 분리한다. 기존 문서의 `0001` - `0004`는 논리 단위 이름 예시이며, 실제 Supabase CLI가 요구하는 적용 순서·파일명과 일치시키고 `Server 1`에 적용 전 다시 확인한다. B 소유 `scores`와 게임 판정 규칙은 무단 수정하지 않는다. 로컬 `01_사전검증/백엔드/`의 `poc_` 마이그레이션은 원격에서 제거됐으며 **본편에 다시 push하지 않는다**.
 
 ### 7.2 보안 규칙
 - 모든 테이블 **RLS 활성화**.
 - 클라이언트(anon key + 사용자 JWT)는 **자기 행만 조회** 가능.
-- `scores`, `purchases`, `inventory`, `toss_orders`, `support_*`, `bug_context`, `chat_usage`의 **쓰기는 Edge Function(service role)만** 가능. 클라이언트 직접 INSERT/UPDATE 금지.
+- `sync_events`·`mission_progress`의 서버 쓰기는 인증된 동기화 함수에서 계정 ID와 이벤트 ID를 검증해 수행한다. `purchases`, `inventory`, `toss_orders`, `support_*`, `bug_context`, `chat_usage`의 **쓰기는 서버 함수만** 가능하며 클라이언트 직접 INSERT/UPDATE를 금지한다.
+- 같은 `(user_id, client_event_id)` 재전송은 다시 반영하지 않는다. 재로그인 후 본인 이벤트를 읽어 복원할 수 있어야 하고, 미전송 데이터는 성공 응답 전에 단말에서 지우지 않는다. 미션 판정은 B 게임 규칙과 계약해야 하며 **아이템 지급은 동기화 이벤트가 아니라 결제 승인 거래에서만** 일어난다.
 - 클라이언트는 자기 `toss_orders`의 `status`를 조회해 결제 결과를 확인한다 (D14).
 - 채팅·제보 내용은 개인정보가 섞일 수 있으므로 관리자만 조회, 테스터 간 공개 없음. 개인정보처리방침에 명시 (PRD N-09).
 - 관리자 판정은 DB 함수 `is_admin()`(= `profiles.role = 'admin'`)으로만 한다. `admin_*` 보기는 `is_admin()`이 참일 때만 결과를 준다. `role`은 마이그레이션·Studio에서만 지정한다.
@@ -341,19 +323,21 @@ game_state ── 이벤트 발행 ──→ mission_system
 | `submit-score` | 거리, 킬 수, 플레이 시간, 앱 버전 | 사용자 인증 확인 → 물리적으로 불가능한 값 거부 (예: 거리 ÷ 시간이 최고 속도 × 1.2 초과) → 저장 | 저장 결과, 순위 |
 | `verify-google-purchase` | `product_id`, `purchase_token` | 사용자 인증 → Google Play Developer API로 구매 검증 → 중복 토큰 거부 → `purchases` 기록 → `inventory` 지급 → 구매 확인(acknowledge) | 지급 결과 |
 | `create-toss-order` | `product_id` | 사용자 인증 → **서버가 상품 가격표로 금액 결정** → `toss_orders`에 `ready`로 저장 | `order_id`, `amount`, 주문명 |
+| `sync-progress` | `events`(각 고유 ID·kind·payload) | JWT 사용자 확정 → 크기·형식 제한 → 계정별 중복 ID 1회 반영. 결제/관리자 상태를 이벤트로 변경 불가 | 수신/반영 건수. 본인 기록 읽기는 RLS로 제공 |
 | `confirm-toss-payment` | `paymentKey`, `order_id`, `amount` | `toss_orders`의 금액과 대조(다르면 거부) → 토스 결제 승인 API 호출(테스트 시크릿 키) → `purchases` 기록 → `inventory` 지급 → `toss_orders.status = paid` | 지급 결과 |
 | `support-chat` | `thread_id`(선택), `kind`, `message`, (버그면) 기기·게임 정보 | 사용자 인증 → 하루 제한 확인(`chat_usage`) → 게임 안내문(규칙·조작·알려진 문제)을 시스템 프롬프트로 OpenAI 호출 → 답변 저장 → 버그 제보이거나 답하기 어려우면 `needs_human` | 답변, `thread_id` |
 | `delete-account` | - | 사용자 인증 → 본인 데이터(`profiles`, `inventory`, `support_*`) 삭제 → Auth 계정 삭제 (service role, 서버에서만) (PRD F-107) | 삭제 결과 |
 
 ### 7.4 인증 흐름 (PRD 4.11)
 ```
-앱 첫 실행 → 저장된 세션 없음 → 익명 로그인(게스트) → 바로 플레이
+앱 첫 실행 → 온라인이면 익명 로그인(게스트) → 바로 플레이
+첫 실행이 오프라인이면 단말 임시 게스트·outbox로 플레이 → 연결 뒤 익명 로그인 → 동일 이벤트 ID 전송
 계정 화면 → 이메일·비밀번호 입력 → 현재 게스트 계정에 이메일 연결 (같은 user_id 유지 → 기록·구매 그대로)
 다른 기기 → 이메일 로그인 → 같은 user_id
 로그아웃 → 세션 삭제 → 새 게스트
 ```
 - 세션(access·refresh 토큰)은 기기 `user://`에 저장하고 만료 전 자동 갱신한다. 토큰을 로그에 찍지 않는다.
-- 이메일 확인(메일 인증) 사용 여부는 WU-51에서 결정한다 (마감 내 테스트 편의를 위해 끌 수 있음 → 출시 전 다시 켬).
+- 익명 사용자를 이메일 계정으로 전환할 때는 Cloud Manual Linking 허용 → 이메일 연결·확인 → 비밀번호 설정 순서로 같은 사용자 ID를 유지한다. 이메일 확인/복구 링크의 실제 앱 복귀 방식은 WU-51에서 확정·실측한다. 테스트 편의만으로 확인 단계를 조용히 생략하지 않는다.
 - 구현 전 Supabase 공식 문서로 익명 로그인·계정 연결 API를 확인한다.
 
 ### 7.5 문의·제보 채팅 흐름 (PRD 4.13)
@@ -413,54 +397,44 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | 앱 재실행 시 미처리 구매 조회·재검증 | 결제 중 앱 종료 대비 |
 
 ### 8.3 상품
-- 마감 전 테스트 상품: PRD 4.12 (`ammo_start_pack` 소모성, `supporter_badge` 비소모성). 서버 가격표(`create-toss-order`)와 게임 상점이 같은 상품 ID를 쓴다.
+- 마감 전 테스트 판매 상품은 PRD 4.12의 패키지 3종이다: `pack_survival_kit` 1,100원, `pack_one_more` 3,300원(주력), `pack_legend` 5,500원. 서버 가격표(`create-toss-order`)와 게임 상점이 같은 상품 ID를 쓴다. 앱은 가격·구성 지급 수량을 정하지 않는다.
+- 구매 상품 ID와 인벤토리 구성 아이템 ID를 구분한다. 서버 승인 후 패키지의 소모품별 정해진 수량 및 영구 외형 아이템을 중복 결제 재전송 없이 지급하고, 앱은 서버 인벤토리를 다시 읽는다. 단품 `ammo_start_pack`·`supporter_badge`의 과거 주문/보유 ID는 확인 없이 삭제하지 않는다.
+- 구성·효과는 PRD 4.12를 따른다. 시작 탄약 팩은 예비탄 7발 추가이며 기존 탄창을 6발로 바꾸지 않는다. 소모품 7종은 한 판에 종류별 1개, 영구 2종은 외형만 변경한다. 새 카탈로그·다중 구성 지급·소모 계약의 실제 구현/배포 상태는 현재 진행 현황과 백엔드 계약에서 별도 확인한다.
 - 정식 상품 구성은 비공개 테스트 설문 이후 결정 (PRD Q3). 구글 결제로 교체할 때도 같은 상품 ID를 유지한다.
 
 ### 8.4 테스트 환경
 - 결제 프로필(판매자 계정) 생성 → 결제 기능이 포함된 빌드를 **내부 테스트 트랙**에 업로드 → 인앱 상품 등록 → 라이선스 테스터 등록.
 - 테스트 기기에는 **Play 스토어 테스트 링크로 설치**한다 (`adb` 직접 설치 빌드는 결제가 정상 동작하지 않을 수 있음).
 
-### 8.5 토스페이먼츠 테스트 결제 — 웹·앱 공통 (마감 범위)
-**적용 범위: 웹 빌드와 Android APK 모두** (D8). 결제 페이지(Vercel)와 서버 흐름을 하나로 공유하고, 결과는 **서버의 주문 상태로만** 반영한다 (D14).
+### 8.5 토스페이먼츠 테스트 결제 — 앱 내 SDK·서버 계약 (마감 범위)
+**적용 범위: Android APK 우선, 기존 웹 P0 요구도 유지** (D8). 앱은 Toss Android SDK로 결제 UI를 앱 안에 표시하며, 웹은 별도 UI로 구현할 수 있다. **서버 주문·금액 검증·승인·지급 흐름만 공유**한다. 결과는 서버 주문 상태로만 반영한다 (D14). 앱 플러그인/웹 UI의 소유자는 팀 확정 전까지 미정이다.
 
 ```
-            [게임] 상점에서 상품 선택
-                     ↓
-  [Edge Function] create-toss-order → 서버가 가격표로 금액을 정해 주문 생성 (order_id)
-                     ↓
-      ┌──────────────┴──────────────┐
-  🌐 웹 게임                        📱 앱
-  같은 탭에서 결제 페이지로 이동       OS.shell_open()으로 폰 브라우저에서 결제 페이지 열기
-      └──────────────┬──────────────┘
-                     ↓
-  [Vercel 결제 페이지 ?order_id=...] 토스 결제위젯 (테스트 클라이언트 키 test_ck_...)
-                     ↓ 테스트 결제 (실제 돈 안 나감)
-  [성공 URL] paymentKey, orderId, amount → 결제 페이지가 confirm-toss-payment 호출
-  [Edge Function] 주문 금액 대조 → 토스 승인 API (테스트 시크릿 키 test_sk_...)
-                  → purchases 기록 + inventory 지급 + toss_orders.status = paid
-                     ↓
-      ┌──────────────┴──────────────┐
-  🌐 결제 페이지 → 게임 페이지로 복귀   📱 사용자가 앱으로 돌아옴 (NOTIFICATION_APPLICATION_RESUMED)
-      └──────────────┬──────────────┘
-                     ↓
-  [게임] 자기 toss_orders.status 조회 (RLS) → paid면 아이템 반영, failed/ready면 안내
+앱/웹 → [Edge Function] create-toss-order: 사용자 인증, 서버 가격표로 고유 주문 생성
+앱 → [Godot Android 플러그인] Toss Android SDK UI: 서버가 준 orderId·금액으로 인증 요청
+      SDK 인증 성공 결과(paymentKey/orderId/amount)를 앱의 서비스 어댑터로 전달
+웹(F-111) → 별도 테스트 결제 UI에서 같은 주문·승인 계약 사용(담당 미정)
+앱/웹 → [Edge Function] confirm-toss-payment: 본인 주문·금액 대조 → Toss 테스트 승인 API
+        → 단일 DB 거래로 purchases 기록 + inventory 지급 + toss_orders.status = paid
+앱/웹 → 자기 toss_orders.status 재조회(RLS): paid면 반영, ready/failed면 확인 중·실패 안내
+취소·인증 실패·앱 중단: 서버 승인/지급 없음. 복귀 시 서버 주문 상태 재조회
 ```
 
-- 결제 페이지는 주문의 소유자만 결제할 수 있도록 `order_id`와 함께 사용자 확인값(서버가 발급한 1회용 토큰)을 받는다.
-- 앱 복귀 후 상태가 아직 `ready`면 몇 초 간격으로 짧게 재조회한다(최대 30초).
+- 앱·웹은 인증된 사용자 세션을 함께 보내고, 서버는 JWT의 사용자 ID와 주문 소유자를 대조한다. 앱은 SDK 인증 결과를 로그·영구 저장·화면 성공 표시만으로 지급 근거로 쓰지 않는다.
+- 앱에서 카드사·은행 등의 인증으로 일시적 앱 전환이 발생하거나 결제 중 중단된 경우, 복귀 후 서버 상태가 아직 `ready`면 짧게 재조회한다(최대 30초). 주 결제 UI는 시스템 브라우저가 아니다.
 
 | 규칙 | 이유 |
 |---|---|
-| **시크릿 키(`test_sk_`)는 Edge Function에만** 둔다. 웹 빌드·Vercel 공개 환경변수(`NEXT_PUBLIC_` 등)에 넣지 않는다 | 브라우저에 노출되면 누구나 결제 승인 API를 호출할 수 있음 |
-| 브라우저는 토스 서버 API(`api.tosspayments.com`)를 **직접 호출하지 않는다**. 승인은 Edge Function이 한다 | 시크릿 키 보호, 금액 위변조 방지 |
-| 결제 금액은 **서버가 주문을 만들 때 정하고**, 승인 전에 성공 URL로 돌아온 금액과 대조한다 | 사용자가 URL의 금액을 바꿔 싸게 결제하는 공격 방지 |
+| 테스트 시크릿 키는 Edge Function의 서버 비밀 설정에만 둔다. APK·웹 빌드·Vercel 공개 변수·저장소에 넣지 않는다 | 클라이언트 노출을 막음 |
+| 앱·웹이 토스 **승인 API**를 직접 호출하지 않는다. 인증 결과의 승인·지급은 Edge Function이 한다 | 시크릿 키 보호, 금액 위변조 방지 |
+| 결제 금액은 **서버가 주문을 만들 때 정하고**, 승인 전에 앱 SDK/웹의 결과 금액과 서버 주문 금액을 대조한다 | 성공 콜백/URL의 금액을 바꿔 싸게 승인받는 공격 방지 |
 | 같은 `paymentKey`는 한 번만 지급한다 (`purchases.purchase_token` UNIQUE) | 새로고침 등으로 인한 중복 지급 방지 |
-| 결제위젯은 **별도 결제 페이지(Vercel)**에 둔다. 웹 게임·앱이 같은 페이지를 쓴다 | 결제 코드를 한 곳에서만 관리, 앱은 브라우저로 열기만 하면 됨 |
+| 앱은 Toss Android SDK UI, 웹은 별도 웹 UI를 사용하되 주문·승인 서버 계약은 공유한다 | 앱의 결제 UI를 외부 시스템 브라우저에 의존하지 않음 |
 | 결과는 게임이 결제창 표시가 아니라 **서버 주문 상태**로 확인한다 | 결제 성공 화면 위조·중간 이탈 대비 |
 | Google Play 출시 버전의 앱에서는 토스 결제를 끈다 (구글 결제로 교체) | 디지털 상품은 Play 결제가 원칙 (D8) |
 | 구현 시 토스페이먼츠 공식 연동 가이드(MCP)로 최신 SDK·API를 확인한다 | SDK 버전·API가 바뀔 수 있음 |
 
-**테스트 시나리오** (웹·앱 각각): 결제 성공 / 사용자가 결제창 닫기 / 결제 실패 / 성공 URL의 금액 위변조 / 같은 결제로 승인 두 번 요청 / (앱) 결제 중 앱으로 돌아왔다가 다시 결제 페이지로 가기
+**테스트 시나리오**: 앱 SDK UI 성공·취소·실패 / 앱 인증 결과의 금액·타인 주문 위변조 거부 / 유효한 `paymentKey`의 승인 재전송 시 지급 1회 / 앱 중단·복귀 후 서버 주문 재조회. 웹(F-111)은 별도 UI의 성공·취소·실패와 성공 URL 위변조를 같은 서버 계약으로 검증한다. SDK 결과의 `paymentKey`를 Godot까지 전달하는 플러그인 경로는 PoC에서 미완성으로, 본편 소유자·실기기 검증이 필요하다.
 
 ---
 
@@ -468,25 +442,25 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 
 ### 9.1 빌드
 ```bash
-./pipeline.sh build-android   # 에셋 검사 → 테스트 → 서명된 .aab
+./pipeline.sh build-android   # 에셋 검사 → 테스트 → 직접 배포용 서명 APK
 ./pipeline.sh install-device  # 디버그 빌드를 USB 연결 폰에 설치 (adb)
-./pipeline.sh build-web       # 웹 체험판 (Compatibility 렌더러 + 토스 결제 HTML 셸)
+./pipeline.sh build-web       # 기존 웹 P0: 별도 소유자·배포 경로 확정 후
 ```
-내부적으로 `godot --headless --path godot --export-release "Android" build/game.aab` 를 사용한다.
+Android 제출 결과는 서명된 `build/game.apk`다. `.aab` 내보내기와 Play 업로드는 MVP 마감 이후 별도 단계로 둔다. 실제 Godot 내보내기 프리셋·경로는 빌드 담당자가 팀과 고정하고 빌드 로그로 확인한다.
 
 ### 9.2 서명
 | 항목 | 규칙 |
 |---|---|
 | 업로드 키 | `keytool`로 생성, **git 제외**, 저장소 밖에 보관 + 별도 백업 |
-| 앱 서명 | Google Play 앱 서명 사용 (업로드 키 분실 시 재설정 요청 가능) |
+| 앱 서명 | 이번 직접 배포 APK는 팀이 관리하는 서명 키로 서명한다. Google Play 앱 서명은 이후 Play 출시 시 결정 |
 | 키 비밀번호 | 환경변수로 주입, 파일·저장소에 기록 금지 |
 
 ### 9.3 Android 설정
 | 항목 | 값 |
 |---|---|
 | 패키지 이름 | 미정 (예: `com.<개발자>.<게임명>`) — **한 번 정하면 변경 불가** |
-| Target API | Google Play의 현재 요구 수준 (빌드 시점에 공식 문서로 확인) |
-| 권한 | 인터넷, 결제(`BILLING`) 외 최소화 |
+| Target API | Godot/Android SDK·테스트 기기와 호환되는 버전을 빌드 시점에 확인. Play 제출 요구는 후속 단계 |
+| 권한 | 인터넷 등 앱에 필요한 최소 권한. Google Play Billing의 `BILLING` 권한은 이번 APK 요구가 아님 |
 | 버전 | `versionCode` 업로드마다 +1, `versionName` = 의미적 버전 |
 
 ### 9.4 Play Console 트랙
@@ -589,7 +563,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 | `.env`, 서비스 계정 JSON | 비밀 정보 |
 
 ### 11.3 저장소 결정 사항
-- **결정 (2026-09-28)**: `3D_Game_MVP`는 자체 `.git`을 가진 **독립 저장소**로 분리하고, 로컬 위치도 학습 워크스페이스(`aiffel_work`) 밖의 `~/3D_Game_MVP`로 옮긴다. 다른 실습의 커밋 이력·폴더 구조와 섞이지 않고, 3인 팀이 이 저장소만 공유하면 된다.
+- **현재 사용자 지정 로컬 위치(2026-09-29)**: `C:\my vault\ME\1. Note\Hermes\Aiffel_Work\04_협업프로젝트\YH_3D_Game_MVP`의 **기존 독립 Git 저장소**를 사용한다. 2026-09-28 초안의 `~/3D_Game_MVP` 이동 예정은 실제 경로가 아니다. 이번 작업은 `c/mvp` 브랜치에서 진행하며 기존 미추적 PoC 자료는 별도로 보존한다. 원격 `origin`은 현재 `na06078/YH_3D_Game_MVP`이고 커밋·머지·푸시는 별도 승인 전 금지한다.
 - 저장소는 **공개(Public)**로 운영한다. 비밀 정보는 `.gitignore` + `scripts/git-hooks/pre-commit`(비밀 키 검사) 2중으로 막는다 (12장).
 - 커밋·푸시 전에는 `git remote -v`로 원격이 이 프로젝트 저장소인지 확인한다 (루트 저장소로 잘못 푸시하는 사고 방지).
 - 어느 쪽이든 커밋 전 untracked 목록을 사람이 직접 검토하고, 비밀 정보·원본 에셋이 포함되지 않았는지 확인한다.
@@ -619,7 +593,7 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 |---|---|---|---|
 | S1 | RLS 우회 | 사용자 A 토큰으로 B의 데이터 조회·수정 시도 | 전부 거부 |
 | S2 | 관리자 권한 우회 | 일반 사용자가 `admin_*` 보기 조회, 자기 `role`을 `admin`으로 수정 시도 | 전부 거부 |
-| S3 | 결제 위변조 | 성공 URL 금액 변경, 남의 주문으로 승인, 같은 결제 두 번 승인 | 전부 거부·1회만 지급 |
+| S3 | 결제 위변조 | 앱 SDK 콜백(웹은 성공 URL) 금액 변경, 남의 주문으로 승인, 같은 결제 두 번 승인 | 전부 거부·1회만 지급 |
 | S4 | 비밀 키 노출 | 저장소 현재 파일 + **git 이력 전체** + APK·웹 빌드 문자열 검색 (service role, 토스 시크릿, OpenAI, 키스토어) | 0건 |
 | S5 | 채팅 남용 | 하루 제한 초과, 인증 없이 호출, "환불해줘·관리자로 만들어줘" 요청 | 거부, DB 변화 없음 |
 | S6 | 로그 노출 | `adb logcat`, Edge Function 로그에서 토큰·키·채팅 원문 검색 | 0건 |
@@ -638,27 +612,28 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 |---|---|
 | **A. 월드·비주얼** | `art/`, `tools/assets/`, `ASSETS_LICENSE.md`, `godot/assets/models/`·`audio/`, `godot/scenes/stage/`·`fx/`, `godot/scripts/stage/` |
 | **B. 게임플레이** | `godot/scenes/game/`·`actors/`·`weapons/`·`debug/`, `godot/scripts/core/`·`actors/`·`weapons/`·`debug/`, `godot/data/stage_data.tres`, `godot/tests/b_*`, `migrations/0010_scores.sql`(마감 이후) |
-| **C. 서비스·UI·배포** | `godot/scenes/ui/`·`scripts/ui/`·`scripts/services/`, `godot/assets/ui/`, `godot/tests/c_*`, `migrations/0001 - 0004`, `backend/supabase/functions/`, `web/`, `tools/build/`, `docs/SECURITY_REVIEW.md` |
+| **C(YH). 백엔드·계약** | `backend/supabase/migrations/`·`functions/`, 백엔드 테스트, 프론트 서비스 API 계약, 백엔드 보안 검증 범위 |
+| **팀 소유자 미정(필수 작업)** | `godot/scenes/ui/`·`scripts/ui/`·`scripts/services/`·`godot/assets/ui/`, Android Toss 플러그인, `web/`, `tools/build/`, 공동 빌드·조립·제출. C가 임의로 변경하지 않음 |
 
 ### 13.1.1 공동 파일 — 주인이 한 명씩 있다
 공동 파일은 **주인만 수정**한다. 다른 사람은 주인에게 요청하고, 주인이 반영한다.
 
 | 파일 | 주인 | 이유 |
 |---|---|---|
-| `godot/project.godot`, `export_presets.cfg` | C | 빌드·입력·렌더러 설정 |
-| `godot/scenes/main.tscn` | C | 화면 전환과 조립 |
-| `pipeline.sh` | C | tools/assets(A)·tools/build(C)를 부르기만 함 |
+| `godot/project.godot`, `export_presets.cfg` | 팀 결정 전 미정 | 빌드·입력·렌더러 설정. C 백엔드 브랜치에서 수정 금지 |
+| `godot/scenes/main.tscn` | 팀 결정 전 미정 | 화면 전환과 조립. C 백엔드 브랜치에서 수정 금지 |
+| `pipeline.sh` | 팀 결정 전 미정 | 에셋·빌드 호출. C 백엔드 브랜치에서 수정 금지 |
 | `godot/scripts/core/game_state.gd`의 **신호 목록** | B | 연결 규칙 13.3.2 |
 | `godot/scripts/core/difficulty_config.gd`, `data/stage_data.tres` | B | 밸런스·미션 수치 |
-| `scripts/services/session.gd` | C | 연결 규칙 13.3.3 |
-| `.gitignore`, `scripts/git-hooks/` | C | 저장소 규칙 |
-| 이 문서 13.3 연결 규칙 | 규칙별 주인 (13.3.1 A, 13.3.2 B, 13.3.3·13.3.4 C) | 규칙 변경은 주인이 13.3부터 고치고 팀에 알림 |
+| `scripts/services/session.gd` | 팀 클라이언트 담당 미정 | C는 13.3.3 서비스 값/API 계약만 정의 |
+| `.gitignore`, `scripts/git-hooks/` | 팀 결정 전 미정 | 공유 저장소 규칙. C가 임의 변경하지 않음 |
+| 이 문서 13.3 연결 규칙 | 13.3.1 A, 13.3.2 B, 13.3.3 서버 계약 C, 13.3.4 공통 설정 팀 결정 전 미정 | 규칙 변경은 해당 소유자가 팀에 알리고 반영 |
 
 ### 13.1.2 협업 규칙
 | 규칙 | 내용 |
 |---|---|
-| 브랜치 | 각자 `a/<작업>`, `b/<작업>`, `c/<작업>` 브랜치에서 작업. `main`에 직접 커밋 금지 (C의 조립 커밋 제외) |
-| 조립(머지) | **하루 두 번 (점심·저녁)** C가 세 브랜치를 `main`에 머지 → 자동 확인 → 폰 확인 (WORK_UNITS WU-39) |
+| 브랜치 | 현재 C는 승인받은 `c/mvp`에서만 작업. A/B의 브랜치와 공통 파일 소유자는 팀이 결정. `main` 직접 커밋·푸시 금지 |
+| 조립(머지) | 점심·저녁 팀 조립 시험은 유지하되 **머지 소유자는 팀 결정 전 미정**. 이 작업에서 커밋·머지·푸시하려면 별도 사용자 승인과 변경/비밀 점검을 거친다 |
 | 자동 확인 | GUT 전체 통과 + 메인 장면 10초 무화면 실행 오류 0개 + 서명 APK 빌드 성공 |
 | 깨졌을 때 | 방금 머지한 조각을 되돌리고, 그 조각의 주인이 고쳐 다시 올림 |
 | 조립 후 | 세 명 모두 최신 `main`을 받아서 이어서 작업 |
@@ -692,9 +667,9 @@ Supabase 관리 화면(Studio) 로그인 (팀 계정)
 
 ```
      13.3.1 에셋 (A → B)          13.3.2 게임 신호 (B → C)
-  A 월드·비주얼 ─────────→ B 게임플레이 ─────────→ C 서비스·UI
+  A 월드·비주얼 ─────────→ B 게임플레이 ─────────→ 팀 UI 소유자 미정
        ↑                       ↑   ←─────────────     │
-       └──── 13.3.4 공통 설정 (C) ─┴── 13.3.3 서비스 값 (C → B)
+       └──── 13.3.4 공통 설정 (팀) ─┴── 13.3.3 서비스 계약 (C → B/팀 UI)
 ```
 
 
@@ -772,7 +747,7 @@ stage.update_atmosphere(distance_m)       # 남은 400m부터 안개를 회색�
 
 #### 13.3.2 게임 신호 — 주인: B (B가 쏘고 C가 받는다)
 
-게임 상태는 자동 로드 싱글톤 **`GameState`**(`scripts/core/game_state.gd`)에 있다. C의 화면은 **신호를 받기만** 하고 게임 노드를 직접 찾지 않는다.
+게임 상태는 자동 로드 싱글톤 **`GameState`**(`scripts/core/game_state.gd`)에 있다. 팀 UI 소유자의 화면은 **신호를 받기만** 하고 게임 노드를 직접 찾지 않는다.
 
 ##### ②-1 신호
 | 신호 | 인자 | 언제 |
@@ -808,15 +783,15 @@ stage.update_atmosphere(distance_m)       # 남은 400m부터 안개를 회색�
   "death_cause": ""         # 사망 시 "walker" 등, 버그 제보에 첨부
 }
 ```
-- C의 결과 화면과 버그 제보(`bug_context.last_run`)는 이 값을 그대로 쓴다.
+- 팀 UI 소유자의 결과 화면과 버그 제보(`bug_context.last_run`)는 이 값을 그대로 쓴다. C는 서버의 제보 저장 계약을 제공한다.
 
 ##### ②-4 가짜 게임 (M0에서 생성, 주인 B)
-`scripts/debug/mock_run.gd`: `GameState`의 신호를 **3초마다 가짜 값**으로 쏜다 (거리 증가, 탄약 변화, 미션 달성, 60초 후 `run_finished`). C는 이것으로 HUD·결과 화면을 먼저 완성한다. B의 진짜 게임이 같은 신호를 쏘기 시작하면 C는 아무것도 바꾸지 않는다.
+`scripts/debug/mock_run.gd`: `GameState`의 신호를 **3초마다 가짜 값**으로 쏜다 (거리 증가, 탄약 변화, 미션 달성, 60초 후 `run_finished`). 팀 UI 담당은 이 신호로 HUD·결과 화면을 만들고, B의 실제 게임이 같은 신호를 쏘면 화면 구현을 교체한다. C는 서버 계약만 제공한다.
 
 
-#### 13.3.3 서비스 값 — 주인: C (C가 채우고 B가 읽는다)
+#### 13.3.3 서비스 값 — 계약 주인: C, Godot 구현 주인: 팀 결정 전 미정
 
-서비스 상태는 자동 로드 싱글톤 **`Session`**(`scripts/services/session.gd`)에 있다. B는 서버·결제 코드를 몰라도 된다.
+서비스 상태는 자동 로드 싱글톤 **`Session`**(`scripts/services/session.gd`)으로 게임에 전달한다. C는 서버 응답·값의 계약을 제공하고, 클라이언트 구현 담당자는 팀이 결정한다. B는 서버·결제 구현을 몰라도 된다.
 
 | 이름 | 종류 | 뜻 | B가 쓰는 곳 |
 |---|---|---|---|
@@ -827,20 +802,20 @@ stage.update_atmosphere(distance_m)       # 남은 400m부터 안개를 회색�
 | `consume_start_ammo_bonus()` | 함수 → `int` | 구매한 시작 탄약을 **한 번 꺼내고 0으로** 만든다 | `start_run` 때 1회 호출 → 시작 탄약에 더함 |
 | `session_changed` | 신호 | 로그인·로그아웃·구매 반영 | - |
 
-- **가짜 서비스 (M0)**: 서버 연결 전에는 `is_logged_in = true`, `is_guest = true`, `is_admin = false`, `consume_start_ammo_bonus()`는 항상 `0`을 준다.
+- **가짜 서비스 (M0)**: 팀 클라이언트 소유자가 서버 연결 전에 `is_logged_in = true`, `is_guest = true`, `is_admin = false`, `consume_start_ammo_bonus()`는 항상 `0`을 주도록 구현한다. C는 반환값 계약만 정의한다.
 
 
-#### 13.3.4 공통 설정 — 주인: C (`project.godot`, `main.tscn`)
+#### 13.3.4 공통 설정 — 주인: 팀 결정 전 미정 (`project.godot`, `main.tscn`)
 
 ##### ④-1 입력 키 (Input Map)
 | 액션 | 키보드 (개발용) | 터치 (폰) |
 |---|---|---|
 | `move_left` / `move_right` | A·D, ←·→ | B가 플레이어 장면에서 드래그·기울이기를 직접 처리 |
-| `fire` | Space | C의 HUD 사격 버튼이 **이 액션을 발생**시킨다 (`Input.action_press`) |
-| `pause` | Esc, P | C의 HUD 일시정지 버튼 |
+| `fire` | Space | 팀 UI 소유자의 HUD 사격 버튼이 **이 액션을 발생**시킨다 (`Input.action_press`) |
+| `pause` | Esc, P | 팀 UI 소유자의 HUD 일시정지 버튼 |
 | `test_panel` | F1 | B의 테스트 패널 (디버그 빌드·관리자만) |
 
-→ B는 **액션 이름만 듣고**, C의 버튼 노드를 직접 찾지 않는다.
+→ B는 **액션 이름만 듣고**, 팀 UI 담당의 버튼 노드를 직접 찾지 않는다.
 
 ##### ④-2 충돌 레이어·그룹
 | 번호 | 레이어 이름 | 그룹 |
@@ -854,13 +829,13 @@ stage.update_atmosphere(distance_m)       # 남은 400m부터 안개를 회색�
 
 ##### ④-3 장면 구성과 화면 흐름
 ```
-main.tscn (C)
+main.tscn (공동 파일 소유자 미정)
 ├── GameLayer      ← B의 scenes/game/game.tscn 을 여기에 넣고 뺀다
-└── UILayer        ← C의 화면들 (title, stage_card, hud, result, shop, account, support_chat, settings)
+└── UILayer        ← 팀 UI 소유자의 화면들 (title, stage_card, hud, result, shop, account, support_chat, settings)
 
 타이틀 → 스테이지 카드 → (최초 1회) 조작 안내 → 게임 → 결과 → 다시하기 / 타이틀
 ```
-- 자동 로드 목록: `GameState`(B), `Session`(C), `Backend`(C, `backend_client`)
+- 자동 로드 목록: `GameState`(B), `Session`·`Backend`(팀 클라이언트 소유자 미정, 서버 값 계약은 C)
 - 화면 기준: 1920×1080, `canvas_items`, `expand`, 가로 고정 (TECH_SPEC 6.1)
 - 앱 버전: `project.godot`의 `application/config/version` (버그 제보에 자동 첨부)
 
