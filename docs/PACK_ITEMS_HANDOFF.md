@@ -21,7 +21,7 @@
 | 8 | 백엔드(C): 서버 상품 3종 + 구성 수량 지급, 토스 Android SDK 연결 | C 에게 전달 필요 |
 
 검증 (2026-10-01): 검사 5종 모두 750m 완주·끼임 탈출 0 (팩 UI 는 플레이 모드에서만 떠서 검사에 영향 없음).
-창 모드 흐름 확인: 출발 준비 → 테스트 지급(전설+생존 키트) → 예비 칼·탄약 팩·위험 감지 켜고 출발(칼 2·예비탄 7) → 1 광란(30초, 쏴도 탄창 7 그대로) · 2 신호탄(앞 32m 보급) · 같은 판 광란 두 번째는 안 됨 → 위험 감지 붉은 가장자리 → 잡혀 죽음 → "한 번 더 (부활 ×3)" → 부활(2초 무적, 부활 3→2) → 다시 죽음 → "이번 판은 이미 다시 일어났습니다 · 생존 키트 ₩1,100" → 누르면 테스트 지급.
+창 모드 흐름 확인: 출발 준비 → 테스트 지급(전설+생존 키트) → 예비 칼·탄약 팩·위험 감지 켜고 출발(칼 2·예비탄 7) → 1 광란(30초, 쏴도 탄창 7 그대로) · Shift 신호탄(앞 32m 보급) · 같은 판 광란 두 번째는 안 됨 → 위험 감지 붉은 가장자리 → 잡혀 죽음 → "한 번 더 (부활 ×3)" → 부활(2초 무적, 부활 3→2) → 다시 죽음 → "이번 판은 이미 다시 일어났습니다 · 생존 키트 ₩1,100" → 누르면 테스트 지급.
 
 ---
 
@@ -96,7 +96,7 @@
 - `class_name RunItemsUI` (CanvasLayer, layer 6). 톤은 YOU DIED 와 같게 (어두운 판·뼈색·핏빛·Palatino 계열)
 - `open_loadout()` — 출발 준비 창: 예비 칼·시작 탄약 팩·모닥불·위험 감지 켜기/끄기 + 수량, "출발" 버튼, **[테스트 지급]** 팩 3개 버튼. 출발 시 켠 것만 `Inventory.use` 후 `signal start_run(picks)`
 - `is_open()` · `confirm()` (엔터로 출발용)
-- 달리는 중 아이템 칸 (오른쪽 위, 일시정지 아래): "1 광란의 30초 ×N (남은 초)", "2 보급 신호탄 ×N" — 누르면 `signal use_item(item)`. `refresh_slots(run_used, frenzy_left)` · `hide_slots()`
+- 달리는 중 아이템 칸 (오른쪽 위, 일시정지 아래): "1 광란의 30초 ×N (남은 초)", "Shift 보급 신호탄 ×N" — 누르면 `signal use_item(item)`. `refresh_slots(run_used, frenzy_left)` · `hide_slots()`
 - `warn(side)` — 위험 감지 붉은 가장자리 (왼쪽/가운데/오른쪽, 0.9초 동안 깜빡이며 사라짐)
 
 ---
@@ -109,7 +109,7 @@
    - `ui.use_item.connect(...)`: `"frenzy_30"` → `_showcase.use_frenzy()`, `"flare_supply"` → `_showcase.use_flare(_dist)`
    - `ui.start_run.connect(...)`: `_showcase.apply_loadout(picks)`; `picks.has("bonfire")` 이면 `_body.position.z = -375.0; _dist = 375.0; _showcase.skip_to(375.0)` (모닥불)
 2. 출발 전 게임을 멈춰 두기: 준비 창이 열려 있는 동안 `_process` 에서 `_step` 하지 않기 (일시정지 버튼과 겹치지 않게).
-3. 키: `KEY_1` → 광란, `KEY_2` → 보급 신호탄, 준비 창 열렸을 때 `KEY_ENTER` → `ui.confirm()`. (`_unhandled_input`)
+3. 키: `KEY_1` → 광란, `KEY_SHIFT`(또는 `KEY_2`) → 보급 신호탄, 준비 창 열렸을 때 `KEY_ENTER` → `ui.confirm()`. (`_unhandled_input`)
 4. 매 프레임 `ui.refresh_slots(_showcase.run_used, _showcase.frenzy_left())`, 사망 시 `ui.hide_slots()`.
 5. **Retry(`reload_current_scene`) 후 다시 준비 창이 떠야 한다** — 다시 시작마다 열린다.
 6. `--sim` / `--frames` / `--shots` 모드에서는 UI 를 만들지 않는다 (검사가 막히지 않게).
