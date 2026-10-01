@@ -3,9 +3,9 @@
 #
 # 플레이 테스트 (2026-09-30, 기본): 사용자가 직접 좌우로 피한다 — 레벨 디자인 확인용 (진짜 조작·판정은 B 담당)
 #   PC: A·D 또는 ←·→ 로 좌우, 스페이스바로 사격 (마우스는 쓰지 않는다 — 시선은 항상 정면)
-#   폰: 화면을 누른 채 좌우로 끌기, 오른쪽 아래 FIRE 버튼으로 사격
+#   폰: 화면 왼쪽을 누른 채 좌우로 끌기, 화면 오른쪽 아무 데나 누르면 사격
 #   전진은 자동. 낮은 장애물(1.1m 이하 — 찢긴 차·방어벽·짐 더미)은 높이에 맞춰 살짝 올라탔다가 내려앉는다
-#   R 키 / 폰 RELOAD 버튼: 탄창 재장전 (시간이 걸린다). 빈 탄창으로 쏘면 저절로 재장전
+#   R 키: 탄창 재장전 (시간이 걸린다). 탄창이 비면 저절로 재장전 (폰은 자동만)
 #   차·소품은 뚫고 지나가지 못한다. 정면으로 막히면 가까운 틈으로 저절로 미끄러지고, 낮은 것은 저절로 뛰어넘는다. 좀비·권총·HUD(시연 연출)도 함께 나온다. 끝에 닿으면 처음부터
 #   --auto: 예전처럼 알아서 피해 가는 자동 달리기 / --no-showcase: 좀비 없이 맵만
 # 영상 프레임: godot --path godot --resolution 1560x720 -- --frames=<폴더>
@@ -101,7 +101,8 @@ var _jumps := 0                     # 자동 점프 횟수 (통과 검사 기록
 var _grounded := true               # 땅이나 낮은 물건(가방·상자) 위에 서 있다
 var _stuck_t := 0.0                 # 앞으로 못 나아간 시간
 var _stuck_total := 0.0             # 끼인 채 흐른 전체 시간 (반대쪽 틈 시도와 상관없이 쌓인다)
-var _fire_held := false             # 폰 FIRE 버튼을 누르고 있다
+var _fire_held := false             # 폰: 화면 오른쪽을 누르고 있다 (= 사격)
+var _fire_touches := {}             # 폰: 화면 오른쪽을 누르고 있는 손가락들 (여러 손가락)
 var _stun_t := 0.0                  # 칼로 벗어나는 동안 잠깐 멈춤
 var _dead := false                  # 칼 없이 잡혔다 → 사망 연출
 var _dead_t := 0.0
@@ -196,8 +197,6 @@ func _ready() -> void:
 			_showcase.auto_fire = false                   # 사격은 스페이스바·FIRE 버튼으로 직접
 			_showcase.live_audio = true
 			_showcase.start_bgm()
-			if DisplayServer.is_touchscreen_available():
-				_build_fire_button(holder)
 			_build_pause_button(holder)
 			_build_items_ui(holder)
 			_build_speed_fx(holder)
@@ -609,40 +608,6 @@ func _toggle_pause() -> void:
 	_pause_btn.queue_redraw()
 
 
-func _build_fire_button(holder: Node) -> void:
-	var layer := CanvasLayer.new()
-	holder.add_child(layer)
-	var b := Button.new()
-	b.text = "FIRE"
-	b.add_theme_font_size_override("font_size", 40)
-	b.anchor_left = 1.0
-	b.anchor_top = 1.0
-	b.anchor_right = 1.0
-	b.anchor_bottom = 1.0
-	b.offset_left = -230
-	b.offset_top = -190
-	b.offset_right = -40
-	b.offset_bottom = -40
-	b.modulate = Color(1, 1, 1, 0.75)
-	b.button_down.connect(func(): _fire_held = true)
-	b.button_up.connect(func(): _fire_held = false)
-	layer.add_child(b)
-	var r := Button.new()                                   # 재장전 버튼: FIRE 위
-	r.text = "RELOAD"
-	r.add_theme_font_size_override("font_size", 30)
-	r.anchor_left = 1.0
-	r.anchor_top = 1.0
-	r.anchor_right = 1.0
-	r.anchor_bottom = 1.0
-	r.offset_left = -210
-	r.offset_top = -300
-	r.offset_right = -60
-	r.offset_bottom = -210
-	r.modulate = Color(1, 1, 1, 0.7)
-	r.button_down.connect(func(): _showcase.reload())
-	layer.add_child(r)
-
-
 func _build_body() -> void:
 	_body = CharacterBody3D.new()
 	var shape := CollisionShape3D.new()
@@ -820,7 +785,7 @@ func _process(delta: float) -> void:
 	_label.text = ("%d fps" % Engine.get_frames_per_second()) if _showcase else ("%dm   %d fps" % [StageBuilderV2.remaining(_dist), Engine.get_frames_per_second()])   # 폰 성능 확인용 (N-01: S24 Ultra 60fps)
 
 
-# 플레이 테스트 조작: 폰은 누른 채 좌우로 끌기 (FIRE 버튼 위는 제외). PC 는 키보드만 (_step 에서 읽는다)
+# 플레이 테스트 조작: 폰은 왼쪽을 누른 채 좌우로 끌기 · 오른쪽을 누르면 사격. PC 는 키보드만 (_step 에서 읽는다)
 # 마우스는 쓰지 않는다: 마우스를 움직여 시선이 돌아가거나 기울지 않게 (2026-09-30 피드백)
 func _unhandled_input(event: InputEvent) -> void:
 	if not _play:
@@ -844,13 +809,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			_use_run_item("adrenaline")
 			return
 	var w := get_viewport().get_visible_rect().size.x
-	if event is InputEventScreenTouch:
-		if event.pressed and _touch_id == -1:
+	if event is InputEventScreenTouch:                    # 폰 (2026-10-01): 왼쪽 절반 = 누른 채 좌우로 끌어 이동 · 오른쪽 절반 = 누르고 있으면 사격 (FIRE·RELOAD 버튼 없앰, 재장전은 자동)
+		if event.pressed and event.position.x > w * 0.5 and not _loadout_open:
+			_fire_touches[event.index] = true
+		elif event.pressed and _touch_id == -1:
 			_touch_id = event.index
 			_touch_x0 = event.position.x
 			_steer_x0 = _steer_target
-		elif not event.pressed and event.index == _touch_id:
-			_touch_id = -1
+		elif not event.pressed:
+			_fire_touches.erase(event.index)
+			if event.index == _touch_id:
+				_touch_id = -1
+		_fire_held = not _fire_touches.is_empty()
 	elif event is InputEventScreenDrag and event.index == _touch_id:
 		_steer_target = clampf(_steer_x0 + (event.position.x - _touch_x0) / w * DRAG_WIDTH_M, -_lane(), _lane())
 

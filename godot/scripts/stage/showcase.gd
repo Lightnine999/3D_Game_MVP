@@ -542,6 +542,8 @@ func reload() -> void:
 
 func _update_reload(delta: float) -> void:
 	if _reload_left <= 0.0:
+		if _mag <= 0 and _reserve > 0 and _frenzy_t <= 0.0 and _melee_e.is_empty():
+			reload()                                     # 탄창이 비면 저절로 재장전 (2026-10-01 "리로드는 자동으로" — 폰 RELOAD 버튼 없앰)
 		return
 	_reload_left -= delta
 	_hud_bullets.queue_redraw()
